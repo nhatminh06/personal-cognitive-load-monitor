@@ -76,6 +76,12 @@ Thumbs.db
 mlruns/
 mlflow.db
 
+# Model artifacts
+models/
+
+# Local scratch notebooks
+high-performance-python.ipynb
+
 # DVC
 .dvc/
 .dvcignore
