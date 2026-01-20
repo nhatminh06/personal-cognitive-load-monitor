@@ -1,0 +1,112 @@
+# CI/CD Pipeline for Personal Cognitive Load Monitoring System
+# This pipeline will be fully implemented in AIDE 2/3
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, feature ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test (Pytest with Coverage)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Run tests with coverage
+      run: |
+        pytest src/tests/ --cov=src/preprocessing_api --cov-report=xml --cov-report=term-missing
+    
+    - name: Check coverage threshold
+      run: |
+        coverage=$(pytest src/tests/ --cov=src/preprocessing_api --cov-report=term | grep TOTAL | awk '{print $NF}' | sed 's/%//')
+        if (( $(echo "$coverage < 80" | bc -l) )); then
+          echo "Coverage is $coverage%, which is below 80% threshold"
+          exit 1
+        else
+          echo "Coverage is $coverage%, which meets the 80% threshold"
+        fi
+    
+    - name: Upload coverage to Codecov (optional)
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  build:
+    name: Build Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Log in to Docker Hub (if needed)
+      # uses: docker/login-action@v2
+      # with:
+      #   username: ${{ secrets.DOCKER_USERNAME }}
+      #   password: ${{ secrets.DOCKER_PASSWORD }}
+      run: echo "Docker login will be configured in AIDE 2/3"
+    
+    - name: Build Docker image
+      run: |
+        echo "Dockerfile will be created in AIDE 2/3"
+        echo "This step will:"
+        echo "1. Pull model from MLflow"
+        echo "2. Build Docker image"
+        echo "3. Push to container registry"
+      # run: |
+      #   docker build -t cognitive-load-api:latest .
+      #   docker tag cognitive-load-api:latest ${{ secrets.DOCKER_REGISTRY }}/cognitive-load-api:latest
+      #   docker push ${{ secrets.DOCKER_REGISTRY }}/cognitive-load-api:latest
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://api.example.com  # To be updated in AIDE 2/3
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up kubectl
+      # uses: azure/setup-kubectl@v3  # For AKS
+      # uses: google-github-actions/setup-gcloud@v1  # For GKE
+      # uses: aws-actions/configure-aws-credentials@v2  # For EKS
+      run: echo "Kubernetes setup will be configured in AIDE 2/3"
+    
+    - name: Deploy with Helm
+      run: |
+        echo "Helm deployment will be implemented in AIDE 2/3"
+        echo "This step will:"
+        echo "1. Install/upgrade Helm chart"
+        echo "2. Deploy to Kubernetes cluster"
+        echo "3. Verify deployment"
+      # run: |
+      #   helm upgrade --install cognitive-load-monitor ./helm/cognitive-load-monitor \
+      #     --namespace production \
+      #     --create-namespace \
+      #     --set image.tag=${{ github.sha }}
+
