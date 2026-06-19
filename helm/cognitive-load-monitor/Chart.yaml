@@ -1,0 +1,6 @@
+apiVersion: v2
+name: cognitive-load-monitor
+description: Full Stack Data Science deployment for the Personal Cognitive Load Monitor
+version: 0.1.0
+appVersion: "1.0.0"
+type: application

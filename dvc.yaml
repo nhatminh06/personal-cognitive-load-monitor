@@ -1,0 +1,29 @@
+stages:
+  generate_data:
+    cmd: uv run --extra dev python src/data_generator.py
+    deps:
+      - src/data_generator.py
+    outs:
+      - data/raw/sample_data.csv
+  train_model:
+    cmd: uv run --extra dev python scripts/train_model.py --input data/raw/sample_data.csv --output models/cognitive_load_model.joblib
+    deps:
+      - scripts/train_model.py
+      - src/data_generator.py
+      - data/raw/sample_data.csv
+    outs:
+      - data/processed/train.csv
+      - data/processed/test.csv
+      - models/cognitive_load_model.joblib
+    metrics:
+      - reports/metrics.json:
+          cache: false
+  drift_report:
+    cmd: uv run --extra dev python scripts/generate_drift_report.py --reference data/processed/train.csv --current data/processed/test.csv --output reports/evidently/data_drift.html
+    deps:
+      - scripts/generate_drift_report.py
+      - data/processed/train.csv
+      - data/processed/test.csv
+    outs:
+      - reports/evidently/data_drift.html:
+          cache: false

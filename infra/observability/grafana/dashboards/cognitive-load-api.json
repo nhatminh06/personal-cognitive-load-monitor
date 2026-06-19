@@ -1,0 +1,32 @@
+{
+  "title": "Cognitive Load API",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP request rate",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(cognitive_load_api_requests_total[1m])) by (endpoint)", "legendFormat": "{{endpoint}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Prediction count by level",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(cognitive_load_predictions_total[5m])) by (level)", "legendFormat": "{{level}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "P95 latency",
+      "gridPos": {"x": 0, "y": 8, "w": 24, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(cognitive_load_api_request_duration_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "{{endpoint}}"}
+      ]
+    }
+  ]
+}

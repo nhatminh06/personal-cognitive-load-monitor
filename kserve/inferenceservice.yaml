@@ -1,0 +1,20 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: cognitive-load-classifier
+  namespace: cognitive-load
+  annotations:
+    autoscaling.knative.dev/min-scale: "0"
+    autoscaling.knative.dev/max-scale: "3"
+spec:
+  predictor:
+    sklearn:
+      protocolVersion: "v1"
+      storageUri: gs://CHANGE_ME_BUCKET/models/cognitive-load-classifier
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi

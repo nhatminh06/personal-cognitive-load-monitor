@@ -1,0 +1,101 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/OWNER/REPO/cognitive-load-api
+  pullPolicy: IfNotPresent
+  tag: latest
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: /metrics
+  prometheus.io/port: "8000"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+config:
+  logLevel: INFO
+  enableTracing: "true"
+  otelExporterOtlpEndpoint: http://tempo.monitoring.svc.cluster.local:4317
+  kserveTimeoutSeconds: "3"
+
+kserve:
+  enabled: true
+  name: cognitive-load-classifier
+  storageUri: gs://CHANGE_ME_BUCKET/models/cognitive-load-classifier
+  minScale: "0"
+  maxScale: "3"
+  predictor:
+    sklearn:
+      protocolVersion: v1
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: cognitive-load-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required - Cognitive Load API"
+  hosts:
+    - host: cognitive-load.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+basicAuth:
+  create: true
+  # Demo htpasswd for admin/admin123. Replace before real deployment:
+  # htpasswd -nb admin 'YOUR_STRONG_PASSWORD'
+  auth: "admin:$apr1$FjTIOLw6$5Rge6Run7iQLpyPsXRKfB0"
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  path: /metrics
+
+networkPolicy:
+  enabled: true

@@ -1,0 +1,11 @@
+data:
+  n_samples: 500
+  raw_path: data/raw/sample_data.csv
+  train_path: data/processed/train.csv
+  test_path: data/processed/test.csv
+model:
+  output_path: models/cognitive_load_model.joblib
+  experiment_name: personal-cognitive-load-monitor
+  registered_model_name: cognitive-load-classifier
+reports:
+  drift_report: reports/evidently/data_drift.html

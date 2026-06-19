@@ -1,0 +1,14 @@
+.git
+.github
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+.env
+notebooks/.ipynb_checkpoints
+mlruns
+outputs
+*.zip
+__MACOSX
