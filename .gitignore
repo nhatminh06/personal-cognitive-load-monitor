@@ -95,3 +95,18 @@ high-performance-python.ipynb
 # Logs
 *.log
 logs/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc

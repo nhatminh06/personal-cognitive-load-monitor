@@ -59,9 +59,21 @@ def configure_logging() -> None:
 
 
 def configure_tracing(app) -> None:
-    """Attach OpenTelemetry FastAPI instrumentation when installed."""
+    """Attach OpenTelemetry FastAPI instrumentation when installed.
+
+    Tracing only activates when an OTLP endpoint is explicitly configured.
+    Without this guard, ENABLE_TRACING defaults to "true" and the exporter
+    falls back to localhost:4317, which is almost never running in local dev,
+    CI, or `pytest` -- it just retries in the background and spams stderr
+    with "connection refused" errors on every test run and app shutdown.
+    """
 
     if os.getenv("ENABLE_TRACING", "true").lower() not in {"1", "true", "yes"}:
+        return
+
+    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if not endpoint:
+        LOGGER.info("OTEL_EXPORTER_OTLP_ENDPOINT not set; tracing disabled for this run.")
         return
 
     try:

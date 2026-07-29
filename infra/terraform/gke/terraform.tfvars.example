@@ -1,5 +1,6 @@
-project_id   = "your-gcp-project-id"
-region       = "asia-southeast1"
-cluster_name = "cognitive-load-gke"
-node_count   = 2
-machine_type = "e2-standard-2"
+project_id        = "your-gcp-project-id"
+region            = "asia-southeast1"
+cluster_name      = "cognitive-load-gke"
+node_count        = 2
+machine_type      = "e2-standard-2"
+github_repository = "nhatminh06/personal-cognitive-load-monitor"

@@ -6,6 +6,8 @@ provider "google" {
 resource "google_service_account" "gke_nodes" {
   account_id   = "cognitive-load-gke-nodes"
   display_name = "Cognitive Load GKE Nodes"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_project_iam_member" "artifact_reader" {
@@ -19,6 +21,8 @@ resource "google_artifact_registry_repository" "images" {
   repository_id = "cognitive-load-images"
   description   = "Container images for cognitive load monitor"
   format        = "DOCKER"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_storage_bucket" "model_bucket" {
@@ -26,6 +30,8 @@ resource "google_storage_bucket" "model_bucket" {
   location                    = var.region
   uniform_bucket_level_access = true
   force_destroy               = false
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_container_cluster" "primary" {
@@ -52,6 +58,8 @@ resource "google_container_cluster" "primary" {
       disabled = false
     }
   }
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_container_node_pool" "primary_nodes" {

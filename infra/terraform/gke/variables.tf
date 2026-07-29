@@ -26,3 +26,9 @@ variable "machine_type" {
   type        = string
   default     = "e2-standard-2"
 }
+
+variable "github_repository" {
+  description = "GitHub repo allowed to assume the deployer identity, as \"owner/repo\" (e.g. \"nhatminh06/personal-cognitive-load-monitor\")."
+  type        = string
+}
+
