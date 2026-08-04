@@ -10,4 +10,6 @@ data:
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelExporterOtlpEndpoint | quote }}
   OTEL_SERVICE_NAME: "cognitive-load-api"
   KSERVE_TIMEOUT_SECONDS: {{ .Values.config.kserveTimeoutSeconds | quote }}
+  {{- if .Values.kserve.enabled }}
   KSERVE_PREDICT_URL: "http://{{ .Values.kserve.name }}-predictor-default.{{ .Release.Namespace }}.svc.cluster.local/v1/models/{{ .Values.kserve.name }}:predict"
+  {{- end }}
