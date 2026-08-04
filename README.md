@@ -425,7 +425,16 @@ The GitHub Actions workflow installs and caches dependencies with `uv` using `py
 
 1. Pull request or push starts the `test` job.
 2. `test` runs Pytest and fails if coverage is below 80%.
-3. `build` runs only after tests pass and pushes an image to GHCR.
+3. `build` runs only after tests pass. It starts a self-contained MLflow tracking
+   server for the duration of the job, trains the model against it (registering a
+   new version of `cognitive-load-classifier`), then downloads that exact
+   registered version back down via `scripts/download_model_from_mlflow.py` before
+   baking it into the Docker image — so "pull the model from MLflow" is a real,
+   CI-enforced step (`REQUIRE_MODEL=true`, no silent fallback) on every build, not
+   just something the code supports if you happen to run a persistent MLflow
+   server. Point the `MLFLOW_TRACKING_URI`/`MODEL_URI` Docker build-args (see
+   [Docker Build](#docker-build)) at a real persistent MLflow server instead if you
+   have one for production use.
 4. `deploy` runs only from manual `workflow_dispatch`.
 5. `deploy` uses Helm to deploy to GKE.
 
