@@ -2,8 +2,16 @@
 
 import csv
 import random
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+
+SRC_DIR = Path(__file__).resolve().parent
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from preprocessing_api.schemas import PredictionRequest  # noqa: E402
+from preprocessing_api.service import calculate_cognitive_load  # noqa: E402
 
 
 def generate_sample_data(n_samples: int = 100, output_path: Path = None, seed: int = 42):
@@ -40,38 +48,17 @@ def generate_sample_data(n_samples: int = 100, output_path: Path = None, seed: i
         # Hours to deadline (0-168 hours = 0-7 days)
         hours_to_deadline = random.uniform(0.5, 168.0)
 
-        # Calculate expected cognitive load (for ground truth)
-        # This matches the logic in service.py
-        total_time = focus_minutes + distraction_minutes
-        if total_time == 0:
-            focus_ratio = 0.0
-            distraction_ratio = 0.0
-        else:
-            focus_ratio = focus_minutes / total_time
-            distraction_ratio = distraction_minutes / total_time
-
-        task_pressure = tasks_due * 0.2
-
-        if hours_to_deadline <= 24:
-            deadline_pressure = 1.0
-        elif hours_to_deadline <= 72:
-            deadline_pressure = 0.5
-        else:
-            deadline_pressure = 0.2
-
-        cognitive_load_score = (
-            (1.0 - focus_ratio) * 0.3
-            + task_pressure * 0.2
-            + deadline_pressure * 0.3
-            + distraction_ratio * 0.2
-        )
-
-        if cognitive_load_score < 0.4:
-            cognitive_load_level = "LOW"
-        elif cognitive_load_score < 0.7:
-            cognitive_load_level = "MEDIUM"
-        else:
-            cognitive_load_level = "HIGH"
+        # Ground-truth label uses the same rule engine as the API's fallback path
+        # (preprocessing_api.service.calculate_cognitive_load) so there is one
+        # source of truth for the scoring formula.
+        cognitive_load_level = calculate_cognitive_load(
+            PredictionRequest(
+                focus_minutes=focus_minutes,
+                distraction_minutes=distraction_minutes,
+                tasks_due=tasks_due,
+                hours_to_deadline=round(hours_to_deadline, 4),
+            )
+        ).value
 
         data.append(
             {

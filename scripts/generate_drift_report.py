@@ -53,12 +53,24 @@ def main() -> None:
     current = pd.read_csv(current_path)
 
     try:
-        from evidently.metric_preset import DataDriftPreset
-        from evidently.report import Report
+        try:
+            # Evidently >=0.4.16 (this project's pin) resolves to the current
+            # major version today, which moved these under evidently/evidently.presets
+            # and made Report.run() return the result instead of mutating in place.
+            from evidently import Report
+            from evidently.presets import DataDriftPreset
 
-        report = Report(metrics=[DataDriftPreset()])
-        report.run(reference_data=reference, current_data=current)
-        report.save_html(str(output_path))
+            report = Report(metrics=[DataDriftPreset()])
+            result = report.run(reference_data=reference, current_data=current)
+            result.save_html(str(output_path))
+        except ImportError:
+            # Older Evidently (<0.4) API, kept for pinned older installs.
+            from evidently.metric_preset import DataDriftPreset as LegacyDataDriftPreset
+            from evidently.report import Report as LegacyReport
+
+            report = LegacyReport(metrics=[LegacyDataDriftPreset()])
+            report.run(reference_data=reference, current_data=current)
+            report.save_html(str(output_path))
     except Exception as exc:
         print(f"WARNING: Evidently rendering failed, writing fallback dashboard: {exc}")
         fallback_report(reference, current, output_path)

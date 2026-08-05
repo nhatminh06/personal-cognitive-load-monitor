@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from preprocessing_api.model_client import predict_with_kserve
+from preprocessing_api.model_client import predict_with_kserve, predict_with_local_model
 from preprocessing_api.observability import (
     CONTENT_TYPE_LATEST,
     configure_logging,
@@ -72,9 +72,17 @@ def robots():
 def predict(request: PredictionRequest) -> PredictionResponse:
     """Predict cognitive load from validated focus/task signals."""
 
-    prediction = predict_with_kserve(request)
-    source = "kserve" if prediction is not None else "rule_fallback"
-    cognitive_load_level = prediction or calculate_cognitive_load(request)
+    cognitive_load_level = predict_with_kserve(request)
+    source = "kserve"
+
+    if cognitive_load_level is None:
+        cognitive_load_level = predict_with_local_model(request)
+        source = "model_local"
+
+    if cognitive_load_level is None:
+        cognitive_load_level = calculate_cognitive_load(request)
+        source = "rule_fallback"
+
     record_prediction(cognitive_load_level.value, source)
     return PredictionResponse(cognitive_load_level=cognitive_load_level)
 
