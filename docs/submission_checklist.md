@@ -58,11 +58,8 @@ process checklist for submitting the assignment.
 ## PR link
 
 ```text
-PR: https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/<PR_NUMBER>
+PR: https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/3
 ```
-
-(Filled in once the PR for this branch is opened — see the PR description
-itself for the authoritative link.)
 
 ## Minimal demo commands
 

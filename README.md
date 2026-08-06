@@ -507,7 +507,8 @@ Workflow: `main` (with README) → feature branch → commits → PR into `main`
 → CI checks → (left open for grading, not squash-merged by this work).
 
 This submission's branch: `feature/full-fsds-mlops`.
-PR link and full submission checklist: [`docs/submission_checklist.md`](docs/submission_checklist.md).
+PR: https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/3
+Full submission checklist: [`docs/submission_checklist.md`](docs/submission_checklist.md).
 
 ## License
 
