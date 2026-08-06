@@ -16,9 +16,9 @@ resource "google_iam_workload_identity_pool" "github" {
 }
 
 resource "google_iam_workload_identity_pool_provider" "github" {
-  workload_identity_pool_id         = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-actions-provider"
-  display_name                      = "GitHub Actions Provider"
+  display_name                       = "GitHub Actions Provider"
 
   attribute_mapping = {
     "google.subject"       = "assertion.sub"
@@ -45,8 +45,8 @@ resource "google_service_account" "github_actions" {
 # deployer service account.
 resource "google_service_account_iam_member" "github_wif_binding" {
   service_account_id = google_service_account.github_actions.name
-  role                = "roles/iam.workloadIdentityUser"
-  member              = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
 }
 
 # Permissions the deploy job actually needs: get GKE credentials + kubectl,

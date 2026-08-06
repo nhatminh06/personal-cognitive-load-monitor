@@ -2,14 +2,14 @@
 # `terraform apply` will fail on every downstream resource until they are on.
 locals {
   required_apis = [
-    "container.googleapis.com",          # GKE
-    "artifactregistry.googleapis.com",   # Artifact Registry
-    "iam.googleapis.com",                # Service accounts
-    "iamcredentials.googleapis.com",     # Workload Identity Federation token exchange
-    "sts.googleapis.com",                # WIF token exchange
+    "container.googleapis.com",        # GKE
+    "artifactregistry.googleapis.com", # Artifact Registry
+    "iam.googleapis.com",              # Service accounts
+    "iamcredentials.googleapis.com",   # Workload Identity Federation token exchange
+    "sts.googleapis.com",              # WIF token exchange
     "cloudresourcemanager.googleapis.com",
-    "storage.googleapis.com",            # Model bucket
-    "compute.googleapis.com",            # GKE networking dependency
+    "storage.googleapis.com", # Model bucket
+    "compute.googleapis.com", # GKE networking dependency
   ]
 }
 
