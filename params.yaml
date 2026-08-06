@@ -1,5 +1,10 @@
 data:
   n_samples: 500
+  seed: 42
+  # Fixed so `dvc repro` is byte-for-byte reproducible regardless of what day
+  # it runs on. This only affects the descriptive "date" column, not any
+  # model feature or label.
+  reference_date: "2026-01-01"
   raw_path: data/raw/sample_data.csv
   train_path: data/processed/train.csv
   test_path: data/processed/test.csv
@@ -7,5 +12,9 @@ model:
   output_path: models/cognitive_load_model.joblib
   experiment_name: personal-cognitive-load-monitor
   registered_model_name: cognitive-load-classifier
+train:
+  test_size: 0.2
+  random_state: 42
+  n_estimators: 200
 reports:
   drift_report: reports/evidently/data_drift.html
