@@ -3,7 +3,7 @@ replicaCount: 2
 image:
   repository: ghcr.io/OWNER/REPO/cognitive-load-api
   pullPolicy: IfNotPresent
-  tag: latest
+  tag: ""
 
 nameOverride: ""
 fullnameOverride: ""
@@ -54,9 +54,11 @@ config:
   enableTracing: "true"
   otelExporterOtlpEndpoint: http://tempo.monitoring.svc.cluster.local:4317
   kserveTimeoutSeconds: "3"
+  inferenceMode: demo_rule
+  modelVersion: ""
 
 kserve:
-  enabled: true
+  enabled: false
   name: cognitive-load-classifier
   storageUri: gs://CHANGE_ME_BUCKET/models/cognitive-load-classifier
   minScale: "0"
@@ -73,24 +75,16 @@ kserve:
           memory: 1Gi
 
 ingress:
-  enabled: true
+  enabled: false
+  authSecret: ""
   className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/auth-type: basic
-    nginx.ingress.kubernetes.io/auth-secret: cognitive-load-basic-auth
-    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required - Cognitive Load API"
+  annotations: {}
   hosts:
     - host: cognitive-load.example.com
       paths:
         - path: /
           pathType: Prefix
   tls: []
-
-basicAuth:
-  create: true
-  # Demo htpasswd for admin/admin123. Replace before real deployment:
-  # htpasswd -nb admin 'YOUR_STRONG_PASSWORD'
-  auth: "admin:$apr1$FjTIOLw6$5Rge6Run7iQLpyPsXRKfB0"
 
 serviceMonitor:
   enabled: true

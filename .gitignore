@@ -39,6 +39,7 @@ wheels/
 MANIFEST
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 .tox/
 .hypothesis/
@@ -75,6 +76,7 @@ Thumbs.db
 # MLflow
 mlruns/
 mlflow.db
+mlartifacts/
 
 # Model artifacts
 models/*
@@ -86,6 +88,7 @@ high-performance-python.ipynb
 # DVC
 .dvc/cache/
 .dvc/tmp/
+.dvc-storage/
 .dvcignore
 
 # Environment variables
@@ -110,3 +113,6 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+
+# Local architecture analysis
+graphify-out/

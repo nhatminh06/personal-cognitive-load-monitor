@@ -5,13 +5,9 @@ import pytest
 from preprocessing_api import model_client
 from preprocessing_api.model_client import (
     _extract_prediction,
-    kserve_configured,
     kserve_payload,
-    kserve_reachable,
-    local_model_available,
     predict_with_kserve,
     predict_with_local_model,
-    read_model_manifest,
 )
 from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest
 
@@ -59,7 +55,8 @@ def test_extract_prediction_unknown_payload_returns_none():
 
 def test_predict_with_kserve_disabled(monkeypatch):
     monkeypatch.delenv("KSERVE_PREDICT_URL", raising=False)
-    assert predict_with_kserve(_request()) is None
+    with pytest.raises(RuntimeError, match="KSERVE_PREDICT_URL"):
+        predict_with_kserve(_request())
 
 
 def test_predict_with_kserve_success(monkeypatch):
@@ -81,7 +78,7 @@ def test_predict_with_kserve_success(monkeypatch):
     assert predict_with_kserve(_request()) == CognitiveLoadLevel.HIGH
 
 
-def test_predict_with_kserve_unsupported_payload_returns_none(monkeypatch):
+def test_predict_with_kserve_unsupported_payload_fails(monkeypatch):
     monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
 
     class _FakeResponse:
@@ -94,17 +91,19 @@ def test_predict_with_kserve_unsupported_payload_returns_none(monkeypatch):
             return {"predictions": ["???"]}
 
     monkeypatch.setattr("requests.post", lambda url, json, timeout: _FakeResponse())
-    assert predict_with_kserve(_request()) is None
+    with pytest.raises(ValueError, match="unsupported"):
+        predict_with_kserve(_request())
 
 
-def test_predict_with_kserve_network_failure_returns_none(monkeypatch):
+def test_predict_with_kserve_network_failure_fails(monkeypatch):
     monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
 
     def _raise(*args, **kwargs):
         raise ConnectionError("boom")
 
     monkeypatch.setattr("requests.post", _raise)
-    assert predict_with_kserve(_request()) is None
+    with pytest.raises(ConnectionError, match="KServe prediction failed"):
+        predict_with_kserve(_request())
 
 
 def test_predict_with_local_model_missing_file_returns_none(monkeypatch, tmp_path):
@@ -158,86 +157,3 @@ def test_local_model_cache_reused_across_calls(monkeypatch, tmp_path):
     predict_with_local_model(_request())
 
     assert len(load_calls) == 1
-
-
-def test_local_model_available_true_when_model_loads(monkeypatch, tmp_path):
-    model_path = tmp_path / "model.joblib"
-    model_path.write_bytes(b"placeholder")
-    monkeypatch.setenv("MODEL_PATH", str(model_path))
-    monkeypatch.setattr("joblib.load", lambda path: object())
-    assert local_model_available() is True
-
-
-def test_local_model_available_false_when_missing(monkeypatch, tmp_path):
-    monkeypatch.setenv("MODEL_PATH", str(tmp_path / "missing.joblib"))
-    assert local_model_available() is False
-
-
-def test_kserve_configured_true_when_url_set(monkeypatch):
-    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/predict")
-    assert kserve_configured() is True
-
-
-def test_kserve_configured_false_when_unset(monkeypatch):
-    monkeypatch.delenv("KSERVE_PREDICT_URL", raising=False)
-    assert kserve_configured() is False
-
-
-def test_kserve_reachable_false_when_unconfigured(monkeypatch):
-    monkeypatch.delenv("KSERVE_PREDICT_URL", raising=False)
-    assert kserve_reachable() is False
-
-
-def test_kserve_reachable_true_on_successful_get(monkeypatch):
-    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
-
-    class _FakeResponse:
-        status_code = 200
-
-    monkeypatch.setattr("requests.get", lambda url, timeout: _FakeResponse())
-    assert kserve_reachable() is True
-
-
-def test_kserve_reachable_false_on_server_error(monkeypatch):
-    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
-
-    class _FakeResponse:
-        status_code = 503
-
-    monkeypatch.setattr("requests.get", lambda url, timeout: _FakeResponse())
-    assert kserve_reachable() is False
-
-
-def test_kserve_reachable_false_on_connection_error(monkeypatch):
-    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
-
-    def _raise(*args, **kwargs):
-        raise ConnectionError("boom")
-
-    monkeypatch.setattr("requests.get", _raise)
-    assert kserve_reachable() is False
-
-
-def test_read_model_manifest_missing_returns_none(monkeypatch, tmp_path):
-    monkeypatch.setenv("MODEL_PATH", str(tmp_path / "model.joblib"))
-    assert read_model_manifest() is None
-
-
-def test_read_model_manifest_reads_sidecar_json(monkeypatch, tmp_path):
-    model_path = tmp_path / "model.joblib"
-    manifest_path = tmp_path / "model.joblib.manifest.json"
-    manifest_path.write_text('{"model_uri": "models:/cognitive-load-classifier/1", "source": "mlflow"}')
-    monkeypatch.setenv("MODEL_PATH", str(model_path))
-
-    manifest = read_model_manifest()
-    assert manifest["model_uri"] == "models:/cognitive-load-classifier/1"
-    assert manifest["source"] == "mlflow"
-
-
-def test_read_model_manifest_corrupt_json_returns_none(monkeypatch, tmp_path):
-    model_path = tmp_path / "model.joblib"
-    manifest_path = tmp_path / "model.joblib.manifest.json"
-    manifest_path.write_text("not valid json {")
-    monkeypatch.setenv("MODEL_PATH", str(model_path))
-
-    assert read_model_manifest() is None

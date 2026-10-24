@@ -1,16 +1,12 @@
 schema: '2.0'
 stages:
   generate_data:
-    cmd: uv run --extra dev python src/data_generator.py
+    cmd: uv run --extra dev python src/data_generator.py --n-samples 500 --seed 42 --start-date 2025-01-01T00:00:00+00:00 --output data/raw/sample_data.csv
     deps:
     - path: src/data_generator.py
       hash: md5
-      md5: e5f2f45a889c59c2efc7ae2632e2b53f
-      size: 5018
-    - path: src/preprocessing_api/schemas.py
-      hash: md5
-      md5: 9f6d9d33880bcb477ebda801dc52fd81
-      size: 1354
+      md5: c587cc7b0345c473a9be23a797ebd4f4
+      size: 3818
     - path: src/preprocessing_api/service.py
       hash: md5
       md5: ba070b0acbb70045a287cfcae115fea5
@@ -18,76 +14,75 @@ stages:
     params:
       params.yaml:
         data.n_samples: 500
-        data.reference_date: '2026-01-01'
+        data.raw_path: data/raw/sample_data.csv
         data.seed: 42
+        data.start_date: '2025-01-01T00:00:00+00:00'
     outs:
     - path: data/raw/sample_data.csv
       hash: md5
-      md5: 7b149c831ce9d1e416afe9651fcb2dea
-      size: 17061
+      md5: b8408136bd0208331d2533c17248972f
+      size: 25104
   train_model:
-    cmd: uv run --extra dev python scripts/train_model.py --input 
-      data/raw/sample_data.csv --output models/cognitive_load_model.joblib
+    cmd: uv run --extra dev python scripts/train_model.py --input data/raw/sample_data.csv --output models/cognitive_load_model.joblib
     deps:
     - path: data/raw/sample_data.csv
       hash: md5
-      md5: 7b149c831ce9d1e416afe9651fcb2dea
-      size: 17061
+      md5: b8408136bd0208331d2533c17248972f
+      size: 25104
     - path: scripts/train_model.py
       hash: md5
-      md5: cd39cc5f0d855e6e0e0f87a0fc249e20
-      size: 8122
+      md5: 204d7971c87ed5a19e515c09a8583e55
+      size: 6350
     - path: src/data_generator.py
       hash: md5
-      md5: e5f2f45a889c59c2efc7ae2632e2b53f
-      size: 5018
+      md5: c587cc7b0345c473a9be23a797ebd4f4
+      size: 3818
     - path: src/preprocessing_api/features.py
       hash: md5
-      md5: a4336932256b6de7fa74e22d4e3e1099
-      size: 1903
+      md5: 95e43ee56e121e8162b6a72f21b9616a
+      size: 765
     params:
       params.yaml:
         model.experiment_name: personal-cognitive-load-monitor
+        model.output_path: models/cognitive_load_model.joblib
         model.registered_model_name: cognitive-load-classifier
-        train.n_estimators: 200
-        train.random_state: 42
-        train.test_size: 0.2
     outs:
     - path: data/processed/test.csv
       hash: md5
-      md5: 0741b9d1f7c1574e49d7d34d4b7896ba
-      size: 5599
+      md5: e9ce1efb124f98711b9919885e7e4de2
+      size: 6235
     - path: data/processed/train.csv
       hash: md5
-      md5: f2cd7983b1bfa0b7ae36242aa57434a5
-      size: 22359
+      md5: d491f12f19682da82268756dc516d42e
+      size: 24788
     - path: models/cognitive_load_model.joblib
       hash: md5
-      md5: cd52ce419b708e27362c6af5079f8c10
-      size: 1895866
+      md5: 77c7801a7aaac6537475601eff1ce99c
+      size: 1866298
     - path: reports/metrics.json
       hash: md5
-      md5: c99a0747233ee5c2b5b2712cbf77b608
-      size: 929
+      md5: 1f4b950075932d3522290800d04b5a26
+      size: 1974
   drift_report:
-    cmd: uv run --extra dev python scripts/generate_drift_report.py --reference 
-      data/processed/train.csv --current data/processed/test.csv --output 
-      reports/evidently/data_drift.html
+    cmd: uv run --extra dev python scripts/generate_drift_report.py --reference data/processed/train.csv --current data/processed/test.csv --output reports/evidently/data_drift.html
     deps:
     - path: data/processed/test.csv
       hash: md5
-      md5: 0741b9d1f7c1574e49d7d34d4b7896ba
-      size: 5599
+      md5: e9ce1efb124f98711b9919885e7e4de2
+      size: 6235
     - path: data/processed/train.csv
       hash: md5
-      md5: f2cd7983b1bfa0b7ae36242aa57434a5
-      size: 22359
+      md5: d491f12f19682da82268756dc516d42e
+      size: 24788
     - path: scripts/generate_drift_report.py
       hash: md5
-      md5: 8f341cd22fa3592429d5fad7137cb0e8
-      size: 3148
+      md5: 02214fe5c290a63707093551dd07dd4a
+      size: 1617
+    params:
+      params.yaml:
+        reports.drift_report: reports/evidently/data_drift.html
     outs:
     - path: reports/evidently/data_drift.html
       hash: md5
-      md5: 1d69ec5a69ed5d2b57deff4e2003a428
-      size: 3982794
+      md5: 6e199e349013d42c7353c153dd6eeda7
+      size: 3986357

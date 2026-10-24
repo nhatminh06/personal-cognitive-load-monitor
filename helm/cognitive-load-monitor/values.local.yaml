@@ -1,0 +1,15 @@
+replicaCount: 1
+image:
+  repository: cognitive-load-api
+  tag: local
+config:
+  inferenceMode: demo_rule
+  enableTracing: "false"
+autoscaling:
+  enabled: false
+kserve:
+  enabled: false
+ingress:
+  enabled: false
+serviceMonitor:
+  enabled: false

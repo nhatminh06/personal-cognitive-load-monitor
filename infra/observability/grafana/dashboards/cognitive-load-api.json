@@ -27,6 +27,24 @@
       "targets": [
         {"expr": "histogram_quantile(0.95, sum(rate(cognitive_load_api_request_duration_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "{{endpoint}}"}
       ]
+    },
+    {
+      "type": "logs",
+      "title": "Structured API logs",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {"expr": "{job=\"cognitive-load-api\"}", "refId": "A"}
+      ]
+    },
+    {
+      "type": "traces",
+      "title": "Prediction traces",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "tempo", "uid": "tempo"},
+      "targets": [
+        {"queryType": "search", "serviceName": "cognitive-load-api", "refId": "A"}
+      ]
     }
   ]
 }

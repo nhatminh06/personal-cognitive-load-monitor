@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CogniFlow prediction demo</title>
+  <style>
+    :root{color-scheme:light;--ink:#172554;--muted:#475569;--brand:#1d4ed8;--surface:#fff;--bg:#eff6ff;--danger:#b91c1c}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,var(--bg),#f8fafc);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+    main{width:min(960px,calc(100% - 2rem));margin:3rem auto;display:grid;gap:1.5rem;grid-template-columns:1.3fr .7fr}
+    article,aside{background:var(--surface);padding:clamp(1.25rem,4vw,2rem);border-radius:1rem;box-shadow:0 12px 36px #1e3a8a18}
+    h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.05;margin:.25rem 0}.eyebrow{color:var(--brand);font-weight:700}.subtle{color:var(--muted)}
+    form,fieldset{display:grid;grid-template-columns:1fr 1fr;gap:1rem}fieldset{display:contents}legend{position:absolute;clip:rect(0 0 0 0);clip-path:inset(50%)}label{font-weight:650}input{display:block;width:100%;margin-top:.35rem;padding:.7rem;border:1px solid #94a3b8;border-radius:.5rem;font:inherit}
+    input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}button{grid-column:1/-1;padding:.8rem;border:0;border-radius:.5rem;background:var(--brand);color:white;font:700 1rem inherit;cursor:pointer}button[disabled]{opacity:.55}
+    #result{margin-top:1.25rem;padding:1rem;border-left:4px solid var(--brand);background:#eff6ff}#error{min-height:1.5rem;color:var(--danger);font-weight:650}.badge{display:inline-block;padding:.2rem .55rem;border-radius:999px;background:#dbeafe;font-weight:800}.status{display:inline-flex;align-items:center;gap:.5rem}.status::before{content:"";width:.65rem;height:.65rem;border-radius:50%;background:#64748b}.status.ready::before{background:#15803d}.status.error::before{background:var(--danger)}
+    @media(max-width:700px){main{grid-template-columns:1fr;margin:1rem auto}form,fieldset{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main><article><p class="eyebrow">CogniFlow · Module I</p><h1>Workload estimate</h1><p class="subtle">A transparent demonstration using the configured API backend.</p>
+  <form id="form"><fieldset><legend>Workload signals</legend><label>Focus minutes<input name="focus_minutes" type="number" min="0" max="1440" value="120" required></label><label>Distraction minutes<input name="distraction_minutes" type="number" min="0" max="1440" value="30" required></label><label>Tasks due<input name="tasks_due" type="number" min="0" max="1000" value="3" required></label><label>Hours to deadline<input name="hours_to_deadline" type="number" min="0" max="87600" step="0.5" value="24" required></label><button aria-describedby="form-help">Estimate workload</button></fieldset></form><p id="form-help" class="subtle">All fields are required and must be zero or greater.</p>
+  <p id="error" role="alert" tabindex="-1"></p><section id="result" aria-live="polite" tabindex="-1" hidden></section>
+  </article><aside><h2>System status</h2><p id="status" class="status" role="status" aria-live="polite">Checking…</p><p><a href="/docs">API documentation</a></p><p class="subtle">Synthetic demonstration only. This estimate is not medical or psychological advice and has not been validated on real people.</p></aside></main>
+<script>
+const form=document.querySelector('#form'),button=form.querySelector('button'),result=document.querySelector('#result'),error=document.querySelector('#error'),status=document.querySelector('#status');
+fetch('/model-info').then(async r=>{if(!r.ok)throw new Error();return r.json()}).then(x=>{status.textContent=`Ready · ${x.inference_mode}${x.model_version?' · model '+x.model_version:''}`;status.classList.add('ready')}).catch(()=>{status.textContent='Status unavailable';status.classList.add('error')});
+form.addEventListener('submit',async e=>{e.preventDefault();form.setAttribute('aria-busy','true');button.disabled=true;button.textContent='Estimating…';error.textContent='';result.hidden=true;const body=Object.fromEntries(new FormData(form));for(const k in body)body[k]=Number(body[k]);try{const r=await fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),x=await r.json();if(!r.ok)throw new Error(x.detail||'Prediction failed');result.replaceChildren();const badge=document.createElement('span'),details=document.createElement('p');badge.className='badge';badge.textContent=x.cognitive_load_level;details.textContent=`Estimate source: ${x.inference_source}${x.model_version?' · model '+x.model_version:''}`;result.append(badge,details);result.hidden=false;result.focus()}catch(x){error.textContent=x.message||'Prediction failed';error.focus()}finally{form.removeAttribute('aria-busy');button.disabled=false;button.textContent='Estimate workload'}});
+</script></body></html>

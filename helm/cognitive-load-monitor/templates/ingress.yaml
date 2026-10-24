@@ -6,7 +6,15 @@ metadata:
   labels:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
   annotations:
-    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- if not .Values.ingress.authSecret }}
+    {{- fail "ingress.authSecret must name an externally created Secret when ingress is enabled" }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: {{ .Values.ingress.authSecret | quote }}
+    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required - CogniFlow"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   {{- if .Values.ingress.tls }}

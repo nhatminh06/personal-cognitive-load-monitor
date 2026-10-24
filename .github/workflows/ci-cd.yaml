@@ -45,11 +45,12 @@ jobs:
           cache-dependency-glob: pyproject.toml
 
       - name: Install dependencies with uv
-        run: uv sync --all-extras
+        run: uv sync --frozen --all-extras
 
       - name: Run Pytest and enforce coverage > 80%
         run: |
-          uv run pytest src/tests             --cov=src/preprocessing_api             --cov-report=term-missing             --cov-report=xml             --cov-fail-under=80
+          uv run ruff check src scripts
+          uv run pytest src/tests --cov=src/preprocessing_api --cov-report=term-missing --cov-report=xml --cov-fail-under=81
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4

@@ -1,51 +1,120 @@
 {
-  "accuracy": 0.91,
-  "baseline_majority_class_accuracy": 0.57,
-  "macro_f1": 0.9052193497845672,
-  "weighted_f1": 0.9095467097532315,
-  "per_class": {
-    "LOW": {
-      "precision": 0.9130434782608695,
-      "recall": 0.84,
-      "f1-score": 0.875,
-      "support": 25.0
+  "label_provenance": "synthetic_proxy",
+  "dataset_sha256": "ab67e62ee1c401d135bb6ba32b9baf48bbcbf83c0bbbdec64fde366c21fbf0e7",
+  "split": "chronological_80_20",
+  "feature_names": [
+    "focus_minutes",
+    "distraction_minutes",
+    "tasks_due",
+    "hours_to_deadline",
+    "focus_ratio",
+    "distraction_ratio"
+  ],
+  "models": {
+    "rule_baseline": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class_recall": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "confusion_matrix": [
+        [
+          24,
+          0,
+          0
+        ],
+        [
+          0,
+          60,
+          0
+        ],
+        [
+          0,
+          0,
+          16
+        ]
+      ]
     },
-    "MEDIUM": {
-      "precision": 0.9137931034482759,
-      "recall": 0.9298245614035088,
-      "f1-score": 0.9217391304347826,
-      "support": 57.0
+    "dummy_majority": {
+      "accuracy": 0.6,
+      "macro_f1": 0.25,
+      "per_class_recall": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "confusion_matrix": [
+        [
+          0,
+          24,
+          0
+        ],
+        [
+          0,
+          60,
+          0
+        ],
+        [
+          0,
+          16,
+          0
+        ]
+      ]
     },
-    "HIGH": {
-      "precision": 0.8947368421052632,
-      "recall": 0.9444444444444444,
-      "f1-score": 0.918918918918919,
-      "support": 18.0
+    "logistic_regression": {
+      "accuracy": 0.96,
+      "macro_f1": 0.9514687100893998,
+      "per_class_recall": [
+        1.0,
+        0.9333333333333333,
+        1.0
+      ],
+      "confusion_matrix": [
+        [
+          24,
+          0,
+          0
+        ],
+        [
+          0,
+          56,
+          4
+        ],
+        [
+          0,
+          0,
+          16
+        ]
+      ]
+    },
+    "random_forest": {
+      "accuracy": 0.88,
+      "macro_f1": 0.8678356121965144,
+      "per_class_recall": [
+        0.9166666666666666,
+        0.85,
+        0.9375
+      ],
+      "confusion_matrix": [
+        [
+          22,
+          2,
+          0
+        ],
+        [
+          3,
+          51,
+          6
+        ],
+        [
+          0,
+          1,
+          15
+        ]
+      ]
     }
   },
-  "confusion_matrix": [
-    [
-      21,
-      4,
-      0
-    ],
-    [
-      2,
-      53,
-      2
-    ],
-    [
-      0,
-      1,
-      17
-    ]
-  ],
-  "class_distribution": {
-    "MEDIUM": 285,
-    "LOW": 123,
-    "HIGH": 92
-  },
-  "train_size": 400,
-  "test_size": 100,
-  "git_commit": "a74b9756d3c2c0f78ea8271ce688dd5e2e644c65"
+  "warning": "Scores measure fidelity to synthetic rules, not real cognitive load validity."
 }

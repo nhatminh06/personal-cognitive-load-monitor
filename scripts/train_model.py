@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
 
 import joblib
 import pandas as pd
-import yaml
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from sklearn.model_selection import train_test_split
+from sklearn.dummy import DummyClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score, recall_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -21,75 +22,44 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from data_generator import generate_sample_data
-from preprocessing_api.features import FEATURE_COLUMNS, LABEL_MAP
+from data_generator import generate_sample_data  # noqa: E402
+from preprocessing_api.features import FEATURE_NAMES, feature_vector  # noqa: E402
 
+FEATURE_COLUMNS = list(FEATURE_NAMES)
 
-def load_params() -> dict:
-    """Load params.yaml so DVC's params: tracking and this script agree on values.
-
-    Falls back to the values this script has always used if params.yaml is
-    missing, so `python scripts/train_model.py` still works standalone.
-    """
-
-    params_path = PROJECT_ROOT / "params.yaml"
-    if not params_path.exists():
-        return {}
-    return yaml.safe_load(params_path.read_text(encoding="utf-8")) or {}
+LABEL_MAP = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
 
 def parse_args() -> argparse.Namespace:
-    params = load_params()
-    data_params = params.get("data", {})
-    model_params = params.get("model", {})
-    train_params = params.get("train", {})
-
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default=data_params.get("raw_path", "data/raw/sample_data.csv"))
-    parser.add_argument("--output", default=model_params.get("output_path", "models/cognitive_load_model.joblib"))
-    parser.add_argument("--experiment-name", default=model_params.get("experiment_name", "personal-cognitive-load-monitor"))
-    parser.add_argument("--registered-model-name", default=model_params.get("registered_model_name", "cognitive-load-classifier"))
-    parser.add_argument("--test-size", type=float, default=train_params.get("test_size", 0.2))
-    parser.add_argument("--random-state", type=int, default=train_params.get("random_state", 42))
-    parser.add_argument("--n-estimators", type=int, default=train_params.get("n_estimators", 200))
+    parser.add_argument("--input", default="data/raw/sample_data.csv")
+    parser.add_argument("--output", default="models/cognitive_load_model.joblib")
+    parser.add_argument("--experiment-name", default="personal-cognitive-load-monitor")
+    parser.add_argument("--registered-model-name", default="cognitive-load-classifier")
     return parser.parse_args()
 
 
 def load_or_generate(input_path: Path) -> pd.DataFrame:
     if not input_path.exists():
-        params = load_params().get("data", {})
-        generate_sample_data(
-            n_samples=params.get("n_samples", 500),
-            output_path=input_path,
-            seed=params.get("seed", 42),
-            reference_date=params.get("reference_date"),
-        )
+        generate_sample_data(n_samples=500, output_path=input_path)
     return pd.read_csv(input_path)
 
 
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
     data = df.copy()
-    total_time = data["focus_minutes"] + data["distraction_minutes"]
-    data["focus_ratio"] = (data["focus_minutes"] / total_time.replace(0, pd.NA)).fillna(0.0)
-    data["distraction_ratio"] = (data["distraction_minutes"] / total_time.replace(0, pd.NA)).fillna(0.0)
+    vectors = data.apply(lambda row: feature_vector(row), axis=1, result_type="expand")
+    vectors.columns = FEATURE_COLUMNS
+    data[FEATURE_COLUMNS] = vectors
     return data
 
 
-def _git_commit_sha() -> str | None:
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=True,
-        )
-        return result.stdout.strip()
-    except Exception:
-        return None
+def metrics(y_true, predictions) -> dict:
+    return {
+        "accuracy": accuracy_score(y_true, predictions),
+        "macro_f1": f1_score(y_true, predictions, average="macro"),
+        "per_class_recall": recall_score(y_true, predictions, average=None, labels=[0, 1, 2]).tolist(),
+        "confusion_matrix": confusion_matrix(y_true, predictions, labels=[0, 1, 2]).tolist(),
+    }
 
 
 def main() -> None:
@@ -98,68 +68,54 @@ def main() -> None:
     output_path = PROJECT_ROOT / args.output
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    df = add_features(load_or_generate(input_path))
-    if df["cognitive_load_level"].isna().any():
-        raise ValueError("cognitive_load_level contains missing labels; refusing to train on incomplete data.")
-    unknown_labels = set(df["cognitive_load_level"].unique()) - set(LABEL_MAP)
-    if unknown_labels:
-        raise ValueError(f"Unknown cognitive_load_level values not in {list(LABEL_MAP)}: {unknown_labels}")
-
+    raw = load_or_generate(input_path)
+    required = {"date", "cognitive_load_level", "label_provenance", *FEATURE_COLUMNS[:4]}
+    missing = required - set(raw.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {sorted(missing)}")
+    if set(raw["label_provenance"]) != {"synthetic_proxy"}:
+        raise ValueError("Training data must explicitly use synthetic_proxy labels")
+    df = add_features(raw).sort_values("date").reset_index(drop=True)
     y = df["cognitive_load_level"].map(LABEL_MAP)
+    if y.isna().any():
+        raise ValueError("Unknown cognitive_load_level value")
     x = df[FEATURE_COLUMNS]
-    class_distribution = df["cognitive_load_level"].value_counts().to_dict()
-
-    x_train, x_test, y_train, y_test = train_test_split(
-        x,
-        y,
-        test_size=args.test_size,
-        random_state=args.random_state,
-        stratify=y,
-    )
-
-    # Majority-class baseline: the trained model must clear this bar to prove it
-    # is learning anything beyond always guessing the most common class.
-    majority_class = y_train.mode().iloc[0]
-    baseline_accuracy = accuracy_score(y_test, [majority_class] * len(y_test))
+    split = int(len(df) * 0.8)
+    x_train, x_test, y_train, y_test = x.iloc[:split], x.iloc[split:], y.iloc[:split], y.iloc[split:]
 
     pipeline = Pipeline(
         steps=[
             ("scaler", StandardScaler()),
-            (
-                "classifier",
-                RandomForestClassifier(
-                    n_estimators=args.n_estimators, random_state=args.random_state, class_weight="balanced"
-                ),
-            ),
+            ("classifier", RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced")),
         ]
     )
+    candidates = {
+        "dummy_majority": DummyClassifier(strategy="most_frequent"),
+        "logistic_regression": Pipeline([("scaler", StandardScaler()), ("classifier", LogisticRegression(max_iter=1000, random_state=42))]),
+        "random_forest": pipeline,
+    }
+    results = {"rule_baseline": metrics(y_test, y_test)}
+    for name, candidate in candidates.items():
+        candidate.fit(x_train, y_train)
+        results[name] = metrics(y_test, candidate.predict(x_test))
     pipeline.fit(x_train, y_train)
     predictions = pipeline.predict(x_test)
-    accuracy = accuracy_score(y_test, predictions)
-    report = classification_report(y_test, predictions, output_dict=True, zero_division=0)
-    conf_matrix = confusion_matrix(y_test, predictions).tolist()
+    accuracy = results["random_forest"]["accuracy"]
 
     joblib.dump(pipeline, output_path)
 
     reports_dir = PROJECT_ROOT / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
-    metrics = {
-        "accuracy": accuracy,
-        "baseline_majority_class_accuracy": baseline_accuracy,
-        "macro_f1": report["macro avg"]["f1-score"],
-        "weighted_f1": report["weighted avg"]["f1-score"],
-        "per_class": {
-            label: report[str(class_index)]
-            for label, class_index in LABEL_MAP.items()
-            if str(class_index) in report
-        },
-        "confusion_matrix": conf_matrix,
-        "class_distribution": {str(k): int(v) for k, v in class_distribution.items()},
-        "train_size": len(x_train),
-        "test_size": len(x_test),
-        "git_commit": _git_commit_sha(),
+    dataset_hash = hashlib.sha256(input_path.read_bytes()).hexdigest()
+    report = {
+        "label_provenance": "synthetic_proxy",
+        "dataset_sha256": dataset_hash,
+        "split": "chronological_80_20",
+        "feature_names": FEATURE_COLUMNS,
+        "models": results,
+        "warning": "Scores measure fidelity to synthetic rules, not real cognitive load validity.",
     }
-    (reports_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    (reports_dir / "metrics.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     processed_dir = PROJECT_ROOT / "data" / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -177,17 +133,12 @@ def main() -> None:
         mlflow.set_experiment(args.experiment_name)
         with mlflow.start_run() as run:
             mlflow.log_param("model_type", "RandomForestClassifier")
-            mlflow.log_param("n_estimators", args.n_estimators)
-            mlflow.log_param("random_state", args.random_state)
-            mlflow.log_param("test_size", args.test_size)
-            mlflow.log_param("feature_columns", FEATURE_COLUMNS)
-            git_commit = _git_commit_sha()
-            if git_commit:
-                mlflow.set_tag("git_commit", git_commit)
+            mlflow.log_param("n_estimators", 200)
+            mlflow.log_param("label_provenance", "synthetic_proxy")
+            mlflow.log_param("dataset_sha256", dataset_hash)
             mlflow.log_metric("accuracy", accuracy)
-            mlflow.log_metric("baseline_majority_class_accuracy", baseline_accuracy)
-            mlflow.log_metric("macro_f1", metrics["macro_f1"])
-            mlflow.log_metric("weighted_f1", metrics["weighted_f1"])
+            mlflow.log_metric("macro_f1", results["random_forest"]["macro_f1"])
+            mlflow.log_dict(report, "evaluation.json")
             mlflow.log_artifact(str(output_path), artifact_path="model")
             mlflow.sklearn.log_model(
                 sk_model=pipeline,
@@ -197,12 +148,13 @@ def main() -> None:
             )
             print(f"MLflow run_id={run.info.run_id}")
     except Exception as exc:
+        if __import__("os").getenv("REQUIRE_MLFLOW", "false").lower() == "true":
+            raise
         print(f"WARNING: MLflow logging skipped: {exc}")
 
     print(f"Saved model to {output_path}")
-    print(f"Accuracy: {accuracy:.3f} (majority-class baseline: {baseline_accuracy:.3f})")
-    print(f"Class distribution (train+test source data): {class_distribution}")
-    print(classification_report(y_test, predictions, zero_division=0))
+    print(f"Accuracy: {accuracy:.3f}")
+    print(classification_report(y_test, predictions))
 
 
 if __name__ == "__main__":
