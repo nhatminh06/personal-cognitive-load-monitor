@@ -4,7 +4,7 @@ An end-to-end **Full Stack Data Science / MLOps** project for predicting persona
 
 > This is a behavioral monitoring demo for learning MLOps. It is **not** a medical, psychological, or productivity diagnosis system.
 
-> **Verification status (2026-10-23):** the local Python/API, DVC, MLflow, Evidently, four-notebook, Docker, NGINX-auth and observability paths are verified. Kubernetes manifests are statically checked only. GKE, live KServe, HPA/scale-to-zero, deployment and PR evidence remain intentionally pending. See [the Module I grading matrix](docs/module1/rubric-matrix.md).
+> **Verification status (2026-10-24):** Module I's MLOps path and Module II's local batch/streaming path have runtime evidence. The combined Python gate covers both application packages (69 tests, 88.61%). Kubernetes manifests are statically checked only; GKE, live KServe, HPA/scale-to-zero and cloud deployment remain deferred. See the [Module I rubric](docs/module1/rubric-matrix.md), [Module II evidence](docs/module2/testing.md), and [security gate](docs/security-audit/publication-readiness.md).
 
 ---
 
@@ -32,7 +32,7 @@ The system predicts one of three cognitive-load levels:
 - `MEDIUM`
 - `HIGH`
 
-The repository scaffolds the full path required by the FSDS final project; the status above distinguishes implementation from runtime proof:
+The repository implements two compatible layers. Module I owns synchronous prediction and model lifecycle; Module II adds asynchronous ingestion, lakehouse processing and online features without placing Kafka on the `/predict` request path:
 
 ```text
 Jupyter experiments
@@ -40,6 +40,10 @@ Jupyter experiments
 → MLflow model tracking and registry
 → Docker image build
 → FastAPI pre/post-processing API
+→ Kafka event ingestion → MinIO Bronze
+→ Spark/Delta Silver → Trino/dbt Gold
+→ Airflow development orchestration
+→ Flink event-time windows → Redis online features
 → KServe model serving with scale-to-zero
 → NGINX API gateway with basic authentication
 → Kubernetes HPA autoscaling
@@ -64,7 +68,7 @@ The FastAPI API runs in one explicit mode selected with `INFERENCE_MODE`:
 |---|---|
 | Python project | Python FastAPI app under `src/preprocessing_api` |
 | Pytest testing | `src/tests/` |
-| Coverage > 80% | GitHub Actions uses `--cov-fail-under=81`; latest local result 88.41% |
+| Coverage > 80% | GitHub Actions measures both application packages with `--cov-fail-under=81`; latest local result 88.61% |
 | CI/CD test → build → deploy | `.github/workflows/ci-cd.yaml` |
 | Automatic build only after tests pass | `build` job depends on `test` job |
 | Manual deploy trigger | `workflow_dispatch` deploy job with GitHub environment approval |
@@ -115,7 +119,9 @@ personal-cognitive-load-monitor/
 │       └── ...
 ├── infra/
 │   ├── observability/                    # Local Prometheus/Grafana/Loki/Tempo stack
+│   ├── module2/                          # Profile-based Kafka/lake/batch/streaming stack
 │   └── terraform/gke/                    # GKE cloud Kubernetes IaC
+├── analytics/                            # Trino catalog and dbt transformations
 ├── kserve/inferenceservice.yaml          # Standalone KServe example
 ├── notebooks/
 │   ├── 01_eda.ipynb
@@ -130,6 +136,7 @@ personal-cognitive-load-monitor/
 │   └── train_model.py
 └── src/
     ├── data_generator.py
+    ├── cogniflow_data/                   # Event, Kafka, Bronze and Redis boundaries
     ├── preprocessing_api/
     │   ├── main.py
     │   ├── model_client.py
@@ -147,12 +154,22 @@ personal-cognitive-load-monitor/
 
 ```mermaid
 flowchart LR
-    Dev[Developer] --> GitHub[GitHub Repository]
-    GitHub --> CI[GitHub Actions CI/CD]
-    CI --> Test[Pytest + Coverage Gate > 80%]
-    Test --> Build[Docker Build + Push Image]
-    Build --> Manual[Manual Deploy Trigger]
-    Manual --> Helm[Helm Upgrade/Install]
+    Browser[Demo/client] --> API[FastAPI]
+    API --> Predict[Module I prediction]
+    API --> Kafka[Kafka events]
+    Kafka --> Bronze[MinIO Bronze]
+    Bronze --> Spark[Spark + Delta Silver]
+    Spark --> Trino[Trino + dbt Gold]
+    Airflow[Airflow dev profile] --> Spark
+    Airflow --> Trino
+    Kafka --> Flink[Flink event-time windows]
+    Flink --> Redis[Redis online features]
+    Redis --> API
+
+    DVC[DVC data lineage] --> Train[Training]
+    Train --> MLflow[MLflow registry]
+    MLflow --> Image[Immutable API image]
+    Image --> API
 
     subgraph GKE[Cloud Kubernetes / GKE]
         NGINX[NGINX Ingress + Basic Auth]
@@ -162,20 +179,17 @@ flowchart LR
         Grafana[Grafana]
         Loki[Loki Logging]
         Tempo[Tempo Tracing]
-        NGINX --> API
-        API --> KServe
-        API --> Prom
-        API --> Loki
-        API --> Tempo
+        NGINX --> CloudAPI[FastAPI]
+        CloudAPI --> KServe
+        CloudAPI --> Prom
+        CloudAPI --> Loki
+        CloudAPI --> Tempo
         Prom --> Grafana
         Loki --> Grafana
         Tempo --> Grafana
     end
 
-    DVC[DVC Data Versioning] --> Train[Model Training]
-    Train --> MLflow[MLflow Tracking/Registry]
-    MLflow --> Build
-    Train --> Evidently[Evidently Drift Dashboard]
+    Train --> Evidently[Evidently drift report]
 ```
 
 ---
@@ -207,6 +221,7 @@ uv sync --frozen --all-extras
 ```bash
 uv run pytest src/tests \
   --cov=src/preprocessing_api \
+  --cov=src/cogniflow_data \
   --cov-report=term-missing \
   --cov-fail-under=81
 ```
@@ -241,6 +256,8 @@ Expected response:
 ```json
 {"cognitive_load_level":"MEDIUM"}
 ```
+
+Development mode is intentionally unauthenticated. In production, set a nonblank `COGNIFLOW_API_KEY` and send it as `X-API-Key`; `/predict`, `/model-info`, `/events`, and `/features/{session_id}` fail closed when authentication is absent or misconfigured.
 
 ### 5. Check service health and metrics
 
@@ -297,14 +314,16 @@ Run it:
 docker run --rm -p 8000:8000 cognitive-load-api:local
 ```
 
-Build while pulling a model artifact from MLflow:
+For model-backed production images, retrieve the exact approved MLflow model before building and record its SHA-256 digest in deployment secrets:
 
 ```bash
-docker build \
-  --build-arg MLFLOW_TRACKING_URI=http://YOUR_MLFLOW_SERVER:5000 \
-  --build-arg MODEL_URI=models:/cognitive-load-classifier/Production \
-  -t cognitive-load-api:mlflow .
+uv run python scripts/download_model_from_mlflow.py \
+  --model-uri models:/cognitive-load-classifier/APPROVED_VERSION \
+  --output models/cognitive_load_model.joblib
+docker build -t cognitive-load-api:$(git rev-parse --short=12 HEAD) .
 ```
+
+The Docker build accepts no registry credentials or model download arguments.
 
 ---
 
@@ -340,7 +359,7 @@ Install KServe and its dependencies according to your cluster setup. The submitt
 Install metrics server for HPA:
 
 ```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/<PINNED_VERSION>/components.yaml
 ```
 
 ### 3. Deploy the application with Helm
@@ -350,7 +369,7 @@ helm upgrade --install cognitive-load-monitor ./helm/cognitive-load-monitor \
   --namespace cognitive-load \
   --create-namespace \
   --set image.repository=ghcr.io/YOUR_GITHUB_USER/YOUR_REPO/cognitive-load-api \
-  --set image.tag=latest \
+  --set image.tag=IMMUTABLE_COMMIT_SHA \
   --set ingress.hosts[0].host=cognitive-load.example.com \
   --set kserve.storageUri=gs://YOUR_MODEL_BUCKET/models/cognitive-load-classifier
 ```
@@ -435,9 +454,8 @@ The GitHub Actions workflow installs and caches dependencies with `uv` using `py
    baking it into the Docker image — so "pull the model from MLflow" is a real,
    CI-enforced step (`REQUIRE_MODEL=true`, no silent fallback) on every build, not
    just something the code supports if you happen to run a persistent MLflow
-   server. Point the `MLFLOW_TRACKING_URI`/`MODEL_URI` Docker build-args (see
-   [Docker Build](#docker-build)) at a real persistent MLflow server instead if you
-   have one for production use.
+   server. The model is packaged before Docker build so registry credentials never
+   enter the build context or image history.
 4. `deploy` runs only from manual `workflow_dispatch`.
 5. `deploy` uses Helm to deploy to GKE.
 
@@ -451,8 +469,6 @@ GKE_CLUSTER
 GKE_LOCATION
 KSERVE_STORAGE_URI
 APP_HOST
-MLFLOW_TRACKING_URI
-MLFLOW_MODEL_URI
 ```
 
 For the PR submission, the test/build code is already complete. The deploy job requires your real cloud credentials and host name.
@@ -477,18 +493,11 @@ make module2-stop
 
 Start profiles with their dependencies (for example, `lake` plus `analytics`). Development credentials come from an ignored environment file based on `.env.module2.example`. The complete architecture, evidence, limitations, troubleshooting, and sequential demo are in [`docs/module2/`](docs/module2/README.md). No GCP resources are provisioned; the 100GB benchmark and production HA/security controls remain explicitly deferred.
 
+`make module2-orchestration-dev` is a deliberate exception: it starts root Airflow with Docker-socket authority and must never be used in cloud or shared environments. Stop active profiles with `make module2-stop`; named volumes are preserved.
+
 ## Submission Notes
 
-Before submitting the FSDS PR link:
-
-1. Push this code to a feature branch, for example `feature/full-fsds-mlops`.
-2. Open a pull request into `main`.
-3. Confirm the GitHub Actions test job passes with coverage above 80%.
-4. Add your actual PR link here:
-
-```text
-PR Link: TODO - paste your GitHub pull request link here
-```
+Published evidence: Module I is PR #4, Module II is PR #5, and subsequent security hardening is draft PR #6. Cloud deployment is not part of that evidence.
 
 Optional demo video checklist:
 

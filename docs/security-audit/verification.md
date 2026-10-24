@@ -4,7 +4,7 @@ Verified locally on 2026-10-24:
 
 | Check | Result |
 |---|---|
-| Pytest + coverage | 69 passed; 90.12%; threshold 81% |
+| Pytest + coverage | 69 passed; 88.61% across both application packages; threshold 81% |
 | Focused security tests | 48 passed |
 | Ruff 0.15.17 | passed for `src scripts` |
 | MyPy 2.4.0 | 14 application modules passed with explicit package bases; missing third-party stubs ignored |
@@ -13,13 +13,47 @@ Verified locally on 2026-10-24:
 | Targeted secrets/history scan | no high-confidence matches |
 | Compose config | Module II all profiles and observability passed |
 | Helm | base, local and GKE lint passed; GKE template rendered |
-| Terraform | `fmt -check` passed; `validate` unavailable because cached Google provider failed startup |
+| Terraform | `fmt -check` and provider-backed `validate` passed outside the restricted plugin sandbox; no plan/apply |
 | Graphify | 542-node graph queried; boundary hubs and paths reported |
 | DVC | all three stages unchanged/cached with isolated writable site cache |
 | Notebooks | all four executed; Notebook 3 was rerun successfully after an explicit skops tree-type allowlist |
 | Flink Docker/Maven | build-stage image produced; Maven/JUnit exit 0 |
 | API Docker smoke | image built; health 200, unauthenticated production prediction 401, authorized prediction 200, production docs 404 |
+| GitHub branch-head CI | run 40138099121 passed the coverage gate and model-package/Docker-build/GHCR-push jobs |
+| GitGuardian | draft PR #6 check passed after the final branch update |
+| Gitleaks 8.30.1 | tracked working tree 0; history 3 documented password placeholders, no real secret |
+| actionlint 1.7.12 | passed after CI fixes |
+| zizmor 1.31.1 | offline run passed after CI fixes; online audits unavailable |
+| Trivy 0.76.1 tracked filesystem | 0 High/Critical dependencies and 0 secrets; only accepted local MinIO-root High remains after GKE/container fixes |
+| Trivy API image | exact rebuilt image: 0 Critical, 44 High across 8 unfixed Debian advisories, 0 fixable findings |
+| Trivy Flink image | after Jackson 2.18.11 update: 0 Critical, 0 High |
+| Trivy Airflow image | 34 Critical, 386 High, 297 fixable occurrences; blocks merge pending major-version migration |
+| Trivy dbt image | 0 Critical, 47 High, 3 fixable `sqlparse` occurrences blocked by current dbt constraint |
+| Trivy MinIO image | 6 Critical, 66 High; blocks merge pending compatible server upgrade |
+| Trivy MinIO-init image | 0 Critical, 44 unfixed OS High, 0 fixable findings after packaging-tool removal |
+| UI/UX Pro Max dependency review | package-lock-only npm audit for pinned 2.15.0: 0 advisories; package not installed/executed |
+| GitHub governance | `main` unprotected; `production` has no protection rules/deployment branch policy; no reviews requested on PR #6 |
 
-Not yet verified in this audit: Trivy/container CVEs, Gitleaks, actionlint/zizmor, live Kubernetes/KServe/GCP controls, external IAM/environment protection, rate limiting, TLS, and production secret rotation. Host Maven was missing; Flink Java tests ran through the Docker build path.
+Not yet verified in this audit: live Kubernetes/KServe/GCP controls, external IAM/environment protection, ingress rate limiting, TLS, complete Java advisory resolution, and production secret rotation. Host Maven was missing; Flink Java tests ran through the Docker build path. Trivy's direct Maven resolution was blocked by Maven Central HTTP 429.
 
 No destructive/flood/fuzz test was run. Services were not started concurrently.
+
+The manual Kubernetes/Helm deployment job was intentionally skipped: it is restricted to an explicit `workflow_dispatch` on `main`, and remote deployment was outside the authorization for this audit and publication pass.
+
+Final gate commands (binaries were extracted under a temporary directory):
+
+```text
+gitleaks dir <tracked-files-snapshot> --redact --report-format json
+gitleaks git . --redact --report-format json
+trivy fs --scanners vuln,misconfig,secret --severity HIGH,CRITICAL <tracked-files-snapshot>
+trivy config --severity HIGH,CRITICAL .
+trivy image --scanners vuln --severity HIGH,CRITICAL <local-image>
+actionlint -no-color
+zizmor --format plain .
+pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov-fail-under=81
+ruff check src scripts
+mypy --explicit-package-bases --ignore-missing-imports src/preprocessing_api src/cogniflow_data
+dvc repro && dvc status
+terraform -chdir=infra/terraform/gke fmt -check
+terraform -chdir=infra/terraform/gke validate
+```

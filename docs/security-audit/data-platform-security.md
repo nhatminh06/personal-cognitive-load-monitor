@@ -7,3 +7,5 @@ Bronze keys are derived from validated schema date and event UUID digests, not u
 Flink bounds out-of-order time, dedupe state and window settings, quarantines invalid/late events, and protects Redis with atomic timestamp compare/set. Redis now requires authentication and is loopback-only. Production needs TLS, secret rotation and ACL-separated identities.
 
 Spark/dbt use fixed SQL and storage locations; no request-controlled shell or SQL construction was found. Data volume caps remain operational safeguards rather than adversarial quotas.
+
+Airflow's Docker-socket/root service exists only under `orchestration-dev`, is disabled by default, has read-only repository mounts and is absent from Helm. The socket remains daemon-equivalent authority despite `:ro`. Final image scanning makes this an active merge gate: Airflow 2.10.5 contains Critical advisories requiring an Airflow 3 compatibility migration, and the pinned 2025 MinIO server contains Critical advisories requiring a reviewed server/storage upgrade. Loopback binding and opt-in profiles reduce exposure but are not remediation.

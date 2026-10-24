@@ -1,10 +1,9 @@
 # Publication readiness gate
 
-Current decision: **READY WITH DOCUMENTED LIMITATIONS**.
+Current decision: **BLOCKED BY SECURITY FINDINGS**.
 
 Satisfied locally:
 
-- no known unresolved Critical/High issue in the normal executable/public repository path;
 - no confirmed committed secret awaiting rotation;
 - production authentication and artifact digest failure paths are tested;
 - local service bindings are loopback-only and Redis is authenticated;
@@ -12,12 +11,12 @@ Satisfied locally:
 - fixed Python advisory findings were remediated; the no-fix DVC/diskcache cache-write precondition is documented;
 - Airflow socket authority is isolated and accurately documented.
 
-Required before pressing publish:
+Publication follow-up:
 
-1. Run pinned Gitleaks and Trivy when those approved tools are available.
-2. Review the complete diff, especially the large dependency lock update and pre-existing Module II changes.
-3. Confirm branch protection and production-environment approvers in GitHub.
+1. The hardened feature branch was published as draft PR #6 under a later explicit authorization. GitHub tests, image build/push, and GitGuardian passed.
+2. Checksum-verified Gitleaks, Trivy and actionlint plus digest-verified zizmor were executed from a temporary directory. Tracked content has no Gitleaks finding; tracked dependency manifests have no High/Critical result; remaining image/IaC risks are documented.
+3. Keep PR #6 in draft until SEC-018 and SEC-019 are remediated and the upgraded Airflow DAG/MinIO data paths pass runtime regression. GitHub API checks also confirmed SEC-021: `main` is unprotected and `production` has no approvers or deployment policy.
 
-Required before cloud deployment: close SEC-011, provision managed secrets/digests, enforce TLS/rate limits/RBAC/image verification, and runtime-test KServe, NetworkPolicy and observability without using development Compose credentials.
+Required before merge: close SEC-018 and SEC-019. Required before cloud deployment: also close SEC-011 and SEC-021, provision managed secrets/digests, enforce TLS/rate limits/RBAC/image verification, and runtime-test KServe, NetworkPolicy and observability without using development Compose credentials.
 
-Git safety: this audit performed no commit, push, pull request, merge, history rewrite, Terraform apply, cloud provisioning or remote deployment.
+Git safety: this audit itself performed no Git publication action. A later authorized task created commits, normally pushed the feature branch, merged updated `main` into that branch, and opened draft PR #6. It did not merge the PR, rewrite history, run Terraform apply, provision cloud resources or deploy remotely.

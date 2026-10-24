@@ -32,3 +32,16 @@ variable "github_repository" {
   type        = string
 }
 
+variable "master_authorized_networks" {
+  description = "CIDRs allowed to reach the GKE control plane. Use narrow operator/VPN ranges."
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+
+  validation {
+    condition     = length(var.master_authorized_networks) > 0 && alltrue([for network in var.master_authorized_networks : can(cidrnetmask(network.cidr_block))])
+    error_message = "Provide at least one valid authorized control-plane CIDR."
+  }
+}
+

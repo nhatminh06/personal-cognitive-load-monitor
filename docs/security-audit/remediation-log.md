@@ -9,5 +9,10 @@
 - Added production `APP_ENV` and external Secret support to Helm.
 - Updated vulnerable locked dependencies and pinned Ruff to the verified policy version.
 - Added API, model-integrity and DLQ privacy regression tests.
+- Expanded the enforced coverage denominator to both application packages.
+- Disabled persisted checkout credentials and publishing-job dependency caching; removed direct workflow-expression interpolation from deploy shell.
+- Added explicit non-root users to Airflow, dbt, Flink and MinIO-init images; retained local MinIO root only for persistent-volume compatibility.
+- Removed curl and unused packaging tools from runtime images, upgraded Flink's shaded Jackson dependencies, and required GKE control-plane CIDRs plus protected workload metadata.
+- Rejected incompatible dbt `sqlparse` and MinIO UID changes after real build/runtime failures instead of weakening compatibility.
 
-No commit, push, PR, merge, history rewrite, cloud provisioning or remote deployment occurred.
+During the security-audit task itself, no commit, push, PR, merge, history rewrite, cloud provisioning or remote deployment occurred. A later, separately authorized publication task committed these remediations, merged the updated `main` into the feature branch without rewriting history, pushed normally, and opened draft PR #6. No PR merge, cloud provisioning or remote deployment was performed by that task.

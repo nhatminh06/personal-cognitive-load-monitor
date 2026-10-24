@@ -50,6 +50,16 @@ resource "google_container_cluster" "primary" {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
 
+  master_authorized_networks_config {
+    dynamic "cidr_blocks" {
+      for_each = var.master_authorized_networks
+      content {
+        cidr_block   = cidr_blocks.value.cidr_block
+        display_name = cidr_blocks.value.display_name
+      }
+    }
+  }
+
   addons_config {
     http_load_balancing {
       disabled = false
@@ -72,6 +82,10 @@ resource "google_container_node_pool" "primary_nodes" {
     machine_type    = var.machine_type
     service_account = google_service_account.gke_nodes.email
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
 
     labels = {
       project = "cognitive-load-monitor"
