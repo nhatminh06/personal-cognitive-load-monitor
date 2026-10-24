@@ -5,7 +5,7 @@ description = "Full Stack Data Science/MLOps project for personal cognitive load
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115.0,<0.116",
+    "fastapi>=0.115.0,<1",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
     "requests>=2.31.0",
@@ -34,7 +34,7 @@ dev = [
     "jupyterlab>=4.0.0",
     "ipykernel>=6.25.0",
     "notebook>=7.0.0",
-    "pandas>=2.0.0",
+    "pandas>=2.0.0,<3",
     "numpy>=1.24.0",
     "matplotlib>=3.7.0",
     "seaborn>=0.12.0",
@@ -43,7 +43,7 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
-    "ruff>=0.4.0",
+    "ruff==0.15.17",
 ]
 
 [tool.uv]

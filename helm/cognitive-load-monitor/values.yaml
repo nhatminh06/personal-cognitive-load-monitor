@@ -50,12 +50,17 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
 
 config:
+  appEnv: production
   logLevel: INFO
   enableTracing: "true"
   otelExporterOtlpEndpoint: http://tempo.monitoring.svc.cluster.local:4317
   kserveTimeoutSeconds: "3"
   inferenceMode: demo_rule
   modelVersion: ""
+
+# Pre-create this Secret with COGNIFLOW_API_KEY and, for local_model mode,
+# MODEL_SHA256. Secret values never belong in Helm values or ConfigMaps.
+existingSecret: ""
 
 kserve:
   enabled: false

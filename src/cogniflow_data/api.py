@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import hmac
 import os
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from prometheus_client import Counter
 
 from cogniflow_data.events import EventAccepted, SESSION_TOPIC, SessionEvent
 from cogniflow_data.kafka import EventPublisher, KafkaPublisher, PublishError
 from cogniflow_data.online import OnlineFeatureRecord, OnlineFeatureStore, RedisFeatureStore
+from preprocessing_api.security import require_api_key
 
 router = APIRouter(tags=["data-ingestion"])
 EVENT_INGESTION = Counter(
@@ -38,16 +38,10 @@ async def feature_store_dependency() -> OnlineFeatureStore:
     return get_feature_store()
 
 
-async def authorize_event(x_api_key: str | None = Header(default=None)) -> None:
-    expected = os.getenv("EVENT_API_KEY")
-    if expected and (x_api_key is None or not hmac.compare_digest(x_api_key, expected)):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
-
-
 @router.post("/events", response_model=EventAccepted, status_code=status.HTTP_202_ACCEPTED)
 async def ingest_event(
     event: SessionEvent,
-    _: None = Depends(authorize_event),
+    _: None = Depends(require_api_key),
     publisher: EventPublisher = Depends(event_publisher_dependency),
 ) -> EventAccepted:
     """Validate and publish an event; never acknowledge an unavailable broker."""
@@ -65,8 +59,9 @@ async def ingest_event(
 
 @router.get("/features/{session_id}", response_model=OnlineFeatureRecord)
 async def online_features(
-    session_id: str,
+    session_id: str = Path(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$"),
     store: OnlineFeatureStore = Depends(feature_store_dependency),
+    _: None = Depends(require_api_key),
 ) -> OnlineFeatureRecord:
     try:
         record = store.get(session_id)

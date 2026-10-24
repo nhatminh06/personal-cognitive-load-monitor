@@ -3,6 +3,7 @@ image:
   repository: cognitive-load-api
   tag: local
 config:
+  appEnv: development
   inferenceMode: demo_rule
   enableTracing: "false"
 autoscaling:

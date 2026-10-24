@@ -1,5 +1,5 @@
 [
-  {"input":{"focus_minutes":0,"distraction_minutes":0,"tasks_due":0,"hours_to_deadline":168},"expected":[0.0,0.0,0.0,168.0,0.0,0.0]},
-  {"input":{"focus_minutes":120,"distraction_minutes":30,"tasks_due":3,"hours_to_deadline":24},"expected":[120.0,30.0,3.0,24.0,0.8,0.2]},
-  {"input":{"focus_minutes":60,"distraction_minutes":60,"tasks_due":5,"hours_to_deadline":12},"expected":[60.0,60.0,5.0,12.0,0.5,0.5]}
+  {"feature_schema_version":"1.0","feature_names":["focus_minutes","distraction_minutes","tasks_due","hours_to_deadline","focus_ratio","distraction_ratio"],"units":["minutes","minutes","count","hours","ratio","ratio"],"event_time":"2026-01-01T00:00:00Z","input":{"focus_minutes":0,"distraction_minutes":0,"tasks_due":0,"hours_to_deadline":168},"expected":[0.0,0.0,0.0,168.0,0.0,0.0]},
+  {"feature_schema_version":"1.0","feature_names":["focus_minutes","distraction_minutes","tasks_due","hours_to_deadline","focus_ratio","distraction_ratio"],"units":["minutes","minutes","count","hours","ratio","ratio"],"event_time":"2026-01-01T00:01:00Z","input":{"focus_minutes":120,"distraction_minutes":30,"tasks_due":3,"hours_to_deadline":24},"expected":[120.0,30.0,3.0,24.0,0.8,0.2]},
+  {"feature_schema_version":"1.0","feature_names":["focus_minutes","distraction_minutes","tasks_due","hours_to_deadline","focus_ratio","distraction_ratio"],"units":["minutes","minutes","count","hours","ratio","ratio"],"event_time":"2026-01-01T00:02:00Z","input":{"focus_minutes":60,"distraction_minutes":60,"tasks_due":5,"hours_to_deadline":12},"expected":[60.0,60.0,5.0,12.0,0.5,0.5]}
 ]

@@ -1,5 +1,7 @@
 """Tests for optional KServe and local-model client helpers."""
 
+import hashlib
+
 import pytest
 
 from preprocessing_api import model_client
@@ -121,6 +123,25 @@ def test_predict_with_local_model_success(monkeypatch, tmp_path):
     monkeypatch.setenv("MODEL_PATH", str(model_path))
     monkeypatch.setattr("joblib.load", lambda path: _FakeModel())
 
+    assert predict_with_local_model(_request()) == CognitiveLoadLevel.MEDIUM
+
+
+def test_production_model_requires_matching_digest(monkeypatch, tmp_path):
+    model_path = tmp_path / "model.joblib"
+    model_path.write_bytes(b"trusted-model")
+    monkeypatch.setenv("MODEL_PATH", str(model_path))
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("MODEL_SHA256", raising=False)
+    assert predict_with_local_model(_request()) is None
+
+    model_client.reset_local_model_cache()
+    monkeypatch.setenv("MODEL_SHA256", "0" * 64)
+    assert predict_with_local_model(_request()) is None
+
+    model_client.reset_local_model_cache()
+    monkeypatch.setenv("MODEL_SHA256", hashlib.sha256(b"trusted-model").hexdigest())
+    fake_model = type("Model", (), {"predict": lambda self, _: [1]})()
+    monkeypatch.setattr("joblib.load", lambda path: fake_model)
     assert predict_with_local_model(_request()) == CognitiveLoadLevel.MEDIUM
 
 

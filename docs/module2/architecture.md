@@ -15,9 +15,15 @@ flowchart TB
   TRINO --> DBT[dbt Gold models]
   AIRFLOW[Airflow DAG] --> SPARK
   AIRFLOW --> DBT
-  KAFKA --> FLINK[Flink event-time job]
-  FLINK --> REDIS[Redis online features]
-  FLINK --> FEATURETOPIC[Kafka features.v1]
+  KAFKA --> FLINK[Flink watermarks + dedup]
+  FLINK --> ROLLING[Sliding windows]
+  FLINK --> TUMBLING[Tumbling windows]
+  ROLLING --> REDIS
+  ROLLING --> FEATURETOPIC
+  TUMBLING --> FEATURETOPIC
+  FLINK --> LATE[Late-event quarantine]
+  REDIS[Redis freshness-safe online features]
+  FEATURETOPIC[Kafka features.v1]
   REDIS --> FEATUREAPI[GET /features/{session_id}]
   PREDICT[POST /predict] --> MODEL[Module I inference modes]
 ```
@@ -29,12 +35,12 @@ flowchart TB
 - Bronze acknowledges Kafka offsets only after durable object storage succeeds. Delivery is at least once; deterministic object keys make replay duplicate-safe.
 - Spark is the sole Silver writer. Trino/dbt read Silver and create Gold on a schedule, avoiding concurrent Delta writers.
 - Flink is the genuine streaming engine. Redis is a timestamped online projection, not a source of truth.
-- Shared JSON parity vectors prove Spark/Python feature parity. The Flink formulas use the same zero-total rule, but Java-level fixture automation remains pending.
+- Shared JSON parity vectors carry exact ordered names, units, schema version, timestamps and zero-total cases. Python and Java tests consume the same file; the Spark runtime uses the same checked expressions.
 
 ## Module I extension points
 
 Graphify baseline: 281 nodes, 419 edges, 24 communities. `main.py` is the API composition point; `schemas.py` is the validation boundary; `feature_vector` is the train/serve parity anchor. Module II code belongs in a separate `cogniflow_data` package and thin API router so batch dependencies never enter the core API process.
 
-Post-implementation structural update: 497 nodes, 838 edges, 35 communities. The new API router/online adapter form one bounded community, Kafka primitives another, and Bronze storage another. The graph confirmed that `main.py` remains the only composition edge from Module I to `cogniflow_data`. Spark and Flink duplicate ratio expressions because their runtimes cannot import the Python helper; Spark parity is fixture-tested, while Java parity automation remains a documented gap. SQL/HCL and semantic extraction were unavailable, so their relationships are represented by this reviewed diagram rather than claimed Graphify output.
+The prior post-implementation graph contained 497 nodes, 838 edges and 35 communities. The final code-only structural update contains 542 nodes, 944 edges and 31 communities. It confirms the native Spark/Flink feature implementations remain separated from Module I by the shared fixture/API contract; no reverse import from `preprocessing_api` into Kafka/storage was introduced. Spark and Flink necessarily express the ratio formula in their native runtimes, so the shared fixture is the cross-language contract rather than a runtime import.
 
 No circular dependency is permitted: Module II may import the stable feature contract, while `preprocessing_api.features` must not import Kafka, storage, or streaming modules.

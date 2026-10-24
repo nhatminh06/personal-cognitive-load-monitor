@@ -1,5 +1,6 @@
 """Versioned event contract and ingestion API tests."""
 
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -109,6 +110,14 @@ def test_events_optional_api_key(client, monkeypatch):
         app.dependency_overrides.clear()
 
 
+def test_feature_lookup_requires_key_and_valid_session_id(client, monkeypatch):
+    monkeypatch.setenv("COGNIFLOW_API_KEY", "test-secret")
+    assert client.get("/features/session-001").status_code == 401
+    assert client.get(
+        "/features/not!valid", headers={"x-api-key": "test-secret"}
+    ).status_code == 422
+
+
 def test_recent_event_ids_is_bounded_and_detects_duplicates():
     seen = RecentEventIds(capacity=2)
     assert seen.add("a") is True
@@ -130,6 +139,19 @@ def test_kafka_publisher_checks_delivery_acknowledgment():
 
     with pytest.raises(PublishError, match="acknowledge"):
         KafkaPublisher(FakeProducer()).publish(SessionEvent.model_validate(event_body()))
+
+
+def test_kafka_publisher_can_send_raw_invalid_fixture():
+    captured = []
+
+    class FakeProducer:
+        def produce(self, topic, key, value, on_delivery):
+            captured.append((topic, key, value))
+            on_delivery(None, None)
+        def flush(self, _timeout): return 0
+
+    KafkaPublisher(FakeProducer()).publish_bytes(b'{"invalid":true}', b"fixture", SESSION_TOPIC)
+    assert captured == [(SESSION_TOPIC, b"fixture", b'{"invalid":true}')]
 
 
 def test_consumer_deduplicates_and_dead_letters_before_committing():
@@ -161,3 +183,7 @@ def test_consumer_deduplicates_and_dead_letters_before_committing():
     assert len(handled) == 1
     assert len(consumer.commits) == 3
     assert dead_letters.records[0][0] == "cogniflow.dead-letter.v1"
+    quarantined = json.loads(dead_letters.records[0][2])
+    assert "raw_value" not in quarantined
+    assert quarantined["raw_size_bytes"] == len(b"not-json")
+    assert len(quarantined["raw_sha256"]) == 64

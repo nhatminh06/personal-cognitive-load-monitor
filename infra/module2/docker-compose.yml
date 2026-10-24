@@ -1,5 +1,9 @@
 name: cogniflow-module2
 
+networks:
+  default:
+    name: cogniflow-module2
+
 services:
   kafka:
     image: apache/kafka:3.9.2
@@ -20,7 +24,7 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 24
       KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
     ports:
-      - "29092:29092"
+      - "127.0.0.1:29092:29092"
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -58,8 +62,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio-data:/data
     healthcheck:
@@ -120,7 +124,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     volumes:
       - ./trino/etc:/etc/trino:ro
     mem_limit: 1280m
@@ -168,7 +172,7 @@ services:
     image: cogniflow-airflow:2.10.5
     build:
       context: ./airflow
-    profiles: [orchestration]
+    profiles: [orchestration-dev]
     user: root
     command: bash -c 'airflow db migrate && sleep infinity'
     environment:
@@ -177,20 +181,22 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     volumes:
       - ../../dags:/opt/airflow/dags:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - airflow-data:/opt/airflow
     mem_limit: 640m
 
   redis:
     image: redis:7.4.2-alpine
     profiles: [streaming]
-    command: [redis-server, --appendonly, "yes", --maxmemory, 128mb, --maxmemory-policy, allkeys-lru]
+    command: [sh, -c, 'exec redis-server --requirepass "$${REDIS_PASSWORD}" --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-local-development-only}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: [CMD, redis-cli, ping]
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -199,16 +205,19 @@ services:
   flink-jobmanager:
     image: cogniflow-flink:1.20.5
     build:
-      context: ./flink
+      context: ../..
+      dockerfile: infra/module2/flink/Dockerfile
     profiles: [streaming]
     command: jobmanager
     ports:
-      - "8082:8081"
+      - "127.0.0.1:8082:8081"
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
         parallelism.default: 1
         taskmanager.numberOfTaskSlots: 1
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
     mem_limit: 640m
 
   flink-taskmanager:
@@ -220,6 +229,8 @@ services:
         jobmanager.rpc.address: flink-jobmanager
         parallelism.default: 1
         taskmanager.numberOfTaskSlots: 1
+        metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+        metrics.reporter.prom.port: 9249
     depends_on: [flink-jobmanager, redis, kafka]
     mem_limit: 768m
 
@@ -233,6 +244,11 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-local-development-only}
+      FLINK_WINDOW_SECONDS: ${FLINK_WINDOW_SECONDS:-300}
+      FLINK_SLIDE_SECONDS: ${FLINK_SLIDE_SECONDS:-60}
+      FLINK_OUT_OF_ORDER_SECONDS: ${FLINK_OUT_OF_ORDER_SECONDS:-120}
+      FLINK_ALLOWED_LATENESS_SECONDS: ${FLINK_ALLOWED_LATENESS_SECONDS:-30}
     depends_on:
       flink-jobmanager:
         condition: service_started

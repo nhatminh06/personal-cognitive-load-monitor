@@ -1,5 +1,9 @@
 .git
 .github
+.agents
+.aws
+.codex
+graphify-out
 __pycache__
 *.pyc
 .pytest_cache
@@ -10,5 +14,7 @@ __pycache__
 notebooks/.ipynb_checkpoints
 mlruns
 outputs
+data
+reports
 *.zip
 __MACOSX

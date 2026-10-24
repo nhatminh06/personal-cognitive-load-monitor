@@ -107,6 +107,8 @@ high-performance-python.ipynb
 *.log
 logs/
 *.pid
+*.tmp
+.cache/
 
 # Local data-engineering runtimes
 kafka-data/
@@ -124,6 +126,9 @@ airflow/logs/
 analytics/target/
 analytics/logs/
 analytics/dbt_packages/
+**/target/
+*.class
+*.jar
 infra/module2/runtime/
 tmp/integration/
 data/**/*.parquet
@@ -154,6 +159,9 @@ terraform.rc
 *.crt
 credentials.json
 service-account*.json
+*.secrets.yaml
+*.secrets.yml
+.kube/
 
 # Local architecture analysis
 graphify-out/

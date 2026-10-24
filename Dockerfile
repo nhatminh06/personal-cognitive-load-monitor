@@ -22,18 +22,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 ENV PATH="/app/.venv/bin:${PATH}"
 
 COPY src ./src
-COPY scripts/download_model_from_mlflow.py ./scripts/download_model_from_mlflow.py
 COPY models ./models
 
-ARG MLFLOW_TRACKING_URI=""
-ARG MODEL_URI=""
-ENV MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} \
-    MODEL_URI=${MODEL_URI} \
-    MODEL_PATH=/app/models/cognitive_load_model.joblib
-
-RUN uv run python scripts/download_model_from_mlflow.py \
-    --model-uri "${MODEL_URI}" \
-    --output "${MODEL_PATH}"
+ENV MODEL_PATH=/app/models/cognitive_load_model.joblib
 
 RUN useradd --create-home --uid 10001 appuser
 USER appuser

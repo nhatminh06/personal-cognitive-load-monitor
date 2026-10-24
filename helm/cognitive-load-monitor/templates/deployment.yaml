@@ -30,6 +30,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "cognitive-load-monitor.fullname" . }}-config
+            {{- if .Values.existingSecret }}
+            - secretRef:
+                name: {{ .Values.existingSecret | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 8000
