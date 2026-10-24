@@ -1,0 +1,18 @@
+version: 2
+sources:
+  - name: silver
+    database: lakehouse
+    schema: silver
+    tables:
+      - name: session_features
+        description: Validated, deduplicated session snapshots from the Delta Silver zone.
+        columns:
+          - name: event_id
+            tests: [unique, not_null]
+          - name: session_id
+            tests: [not_null]
+          - name: schema_version
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['1.0']

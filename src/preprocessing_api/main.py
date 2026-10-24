@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
+from cogniflow_data.api import router as event_router
 from preprocessing_api.model_client import predict_with_kserve, predict_with_local_model
 from preprocessing_api.observability import (
     CONTENT_TYPE_LATEST,
@@ -33,6 +34,7 @@ app = FastAPI(
 )
 configure_tracing(app)
 app.add_middleware(MetricsMiddleware)
+app.include_router(event_router)
 
 
 @app.get("/")

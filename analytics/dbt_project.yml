@@ -1,0 +1,10 @@
+name: cogniflow
+version: 1.0.0
+config-version: 2
+profile: cogniflow
+model-paths: [models]
+models:
+  cogniflow:
+    +materialized: table
+    staging:
+      +materialized: view

@@ -1,0 +1,252 @@
+name: cogniflow-module2
+
+services:
+  kafka:
+    image: apache/kafka:3.9.2
+    profiles: [ingestion]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:9092,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    ports:
+      - "29092:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: [CMD-SHELL, "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    mem_limit: 768m
+    cpus: 1.0
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  kafka-init:
+    image: apache/kafka:3.9.2
+    profiles: [ingestion]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >-
+      sh -c '
+      for topic in cogniflow.session-events.v1 cogniflow.features.v1 cogniflow.dead-letter.v1; do
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 3 --replication-factor 1;
+      done'
+    mem_limit: 128m
+
+  minio:
+    image: cogniflow-minio:RELEASE.2025-04-22T22-12-26Z
+    build:
+      context: ./minio
+    profiles: [lake]
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:9000/minio/health/live]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    mem_limit: 512m
+    cpus: 0.75
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  minio-init:
+    image: cogniflow-minio-init:module2
+    build:
+      context: ./minio-init
+    profiles: [lake]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}
+      MINIO_BRONZE_BUCKET: ${MINIO_BRONZE_BUCKET:-cogniflow-bronze}
+      MINIO_LAKEHOUSE_BUCKET: ${MINIO_LAKEHOUSE_BUCKET:-cogniflow-lakehouse}
+    mem_limit: 128m
+
+  spark:
+    image: cogniflow-spark:3.5.5-delta-3.3.2
+    build:
+      context: ./spark
+    profiles: [batch]
+    user: root
+    working_dir: /opt/cogniflow
+    entrypoint: [sh, -c, "sleep infinity"]
+    environment:
+      PYTHONPATH: /opt/cogniflow/src
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}
+      MINIO_BRONZE_BUCKET: ${MINIO_BRONZE_BUCKET:-cogniflow-bronze}
+      MINIO_LAKEHOUSE_BUCKET: ${MINIO_LAKEHOUSE_BUCKET:-cogniflow-lakehouse}
+    volumes:
+      - ../..:/opt/cogniflow:ro
+      - spark-ivy:/root/.ivy2
+    mem_limit: 1792m
+    cpus: 1.5
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  trino:
+    image: trinodb/trino:478
+    profiles: [analytics]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./trino/etc:/etc/trino:ro
+    mem_limit: 1280m
+    cpus: 1.0
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsS http://127.0.0.1:8080/v1/info >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  dbt:
+    image: cogniflow-dbt-trino:1.10.3
+    build:
+      context: ./dbt
+    profiles: [analytics]
+    working_dir: /analytics
+    volumes:
+      - ../../analytics:/analytics:ro
+    environment:
+      DBT_PROFILES_DIR: /analytics
+      DBT_TARGET_PATH: /tmp/dbt-target
+      DBT_LOG_PATH: /tmp/dbt-logs
+    depends_on:
+      trino:
+        condition: service_healthy
+    mem_limit: 512m
+
+  dbt-runner:
+    image: cogniflow-dbt-trino:1.10.3
+    profiles: [orchestration]
+    entrypoint: [sh, -c, "sleep infinity"]
+    working_dir: /analytics
+    volumes:
+      - ../../analytics:/analytics:ro
+    environment:
+      DBT_PROFILES_DIR: /analytics
+      DBT_TARGET_PATH: /tmp/dbt-target
+      DBT_LOG_PATH: /tmp/dbt-logs
+    mem_limit: 384m
+
+  airflow:
+    image: cogniflow-airflow:2.10.5
+    build:
+      context: ./airflow
+    profiles: [orchestration]
+    user: root
+    command: bash -c 'airflow db migrate && sleep infinity'
+    environment:
+      AIRFLOW_HOME: /opt/airflow
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    volumes:
+      - ../../dags:/opt/airflow/dags:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - airflow-data:/opt/airflow
+    mem_limit: 640m
+
+  redis:
+    image: redis:7.4.2-alpine
+    profiles: [streaming]
+    command: [redis-server, --appendonly, "yes", --maxmemory, 128mb, --maxmemory-policy, allkeys-lru]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 192m
+
+  flink-jobmanager:
+    image: cogniflow-flink:1.20.5
+    build:
+      context: ./flink
+    profiles: [streaming]
+    command: jobmanager
+    ports:
+      - "8082:8081"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        parallelism.default: 1
+        taskmanager.numberOfTaskSlots: 1
+    mem_limit: 640m
+
+  flink-taskmanager:
+    image: cogniflow-flink:1.20.5
+    profiles: [streaming]
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        parallelism.default: 1
+        taskmanager.numberOfTaskSlots: 1
+    depends_on: [flink-jobmanager, redis, kafka]
+    mem_limit: 768m
+
+  flink-submit:
+    image: cogniflow-flink:1.20.5
+    profiles: [streaming]
+    command: >-
+      sh -c 'flink run -d -m flink-jobmanager:8081
+      -c io.cogniflow.streaming.SessionFeatureJob
+      /opt/flink/usrlib/cogniflow-streaming.jar'
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_HOST: redis
+    depends_on:
+      flink-jobmanager:
+        condition: service_started
+      flink-taskmanager:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 192m
+
+volumes:
+  kafka-data:
+  minio-data:
+  spark-ivy:
+  redis-data:
+  airflow-data:
