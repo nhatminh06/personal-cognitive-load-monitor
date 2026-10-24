@@ -3,6 +3,12 @@ stages:
     cmd: uv run --extra dev python src/data_generator.py
     deps:
       - src/data_generator.py
+      - src/preprocessing_api/schemas.py
+      - src/preprocessing_api/service.py
+    params:
+      - data.n_samples
+      - data.seed
+      - data.reference_date
     outs:
       - data/raw/sample_data.csv
   train_model:
@@ -10,7 +16,14 @@ stages:
     deps:
       - scripts/train_model.py
       - src/data_generator.py
+      - src/preprocessing_api/features.py
       - data/raw/sample_data.csv
+    params:
+      - model.experiment_name
+      - model.registered_model_name
+      - train.test_size
+      - train.random_state
+      - train.n_estimators
     outs:
       - data/processed/train.csv
       - data/processed/test.csv

@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from preprocessing_api.features import INVERSE_LABEL_MAP, feature_vector
 from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest
 
 LOGGER = logging.getLogger(__name__)
@@ -29,31 +30,20 @@ _CLASS_MAP = {
     "HIGH": CognitiveLoadLevel.HIGH,
 }
 
-# Mirrors LABEL_MAP in scripts/train_model.py, which encodes classes as 0/1/2 in that order.
-_INVERSE_LABEL_MAP = {0: CognitiveLoadLevel.LOW, 1: CognitiveLoadLevel.MEDIUM, 2: CognitiveLoadLevel.HIGH}
+# Derived from preprocessing_api.features.INVERSE_LABEL_MAP (the single source
+# of truth also used by scripts/train_model.py), not a hand-copied duplicate.
+_INVERSE_LABEL_MAP = {
+    class_index: CognitiveLoadLevel(level_name) for class_index, level_name in INVERSE_LABEL_MAP.items()
+}
 
 _local_model: Any = None
 _local_model_load_attempted = False
 
 
-def _feature_vector(request: PredictionRequest) -> list[float]:
-    total_time = request.focus_minutes + request.distraction_minutes
-    focus_ratio = request.focus_minutes / total_time if total_time else 0.0
-    distraction_ratio = request.distraction_minutes / total_time if total_time else 0.0
-    return [
-        float(request.focus_minutes),
-        float(request.distraction_minutes),
-        float(request.tasks_due),
-        float(request.hours_to_deadline),
-        float(focus_ratio),
-        float(distraction_ratio),
-    ]
-
-
 def kserve_payload(request: PredictionRequest) -> dict[str, list[list[float]]]:
     """Build a V1 inference payload accepted by common KServe sklearn servers."""
 
-    return {"instances": [_feature_vector(request)]}
+    return {"instances": [feature_vector(request)]}
 
 
 def _extract_prediction(payload: dict[str, Any]) -> CognitiveLoadLevel | None:
@@ -101,6 +91,67 @@ def _load_local_model() -> Any:
     return _local_model
 
 
+def read_model_manifest() -> dict[str, Any] | None:
+    """Read the manifest scripts/download_model_from_mlflow.py writes alongside
+    the model artifact, if present. Returns None (not an error) when no
+    manifest exists, e.g. a fresh checkout with no model trained yet."""
+
+    import json
+
+    model_path = Path(os.getenv("MODEL_PATH", "models/cognitive_load_model.joblib"))
+    manifest_path = model_path.with_suffix(model_path.suffix + ".manifest.json")
+    if not manifest_path.exists():
+        return None
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - corrupt manifest is not fatal
+        LOGGER.warning("Failed to read model manifest at %s: %s", manifest_path, exc)
+        return None
+
+
+def local_model_available() -> bool:
+    """Whether the local joblib model can currently be loaded from MODEL_PATH.
+
+    Used by /ready and /model-info so INFERENCE_MODE=local_model reports its
+    real readiness state instead of always reporting healthy.
+    """
+
+    return _load_local_model() is not None
+
+
+def kserve_configured() -> bool:
+    """Whether KSERVE_PREDICT_URL is set. Does not check network reachability."""
+
+    return bool(os.getenv("KSERVE_PREDICT_URL"))
+
+
+def kserve_reachable(timeout_seconds: float = 2.0) -> bool:
+    """Best-effort connectivity check against the configured KServe endpoint.
+
+    This is a lightweight GET against the predictor host, not a guarantee that
+    the model itself is healthy or that a POST /predict would succeed — a full
+    synthetic-prediction health check would add latency and risk to every
+    readiness probe tick. Returns False (not ready) on any error, including a
+    missing KSERVE_PREDICT_URL.
+    """
+
+    predict_url = os.getenv("KSERVE_PREDICT_URL")
+    if not predict_url:
+        return False
+
+    try:
+        import requests
+
+        response = requests.get(predict_url, timeout=timeout_seconds)
+        # Any HTTP response (even 404/405 for a GET on a predict-only route)
+        # means the endpoint is reachable; only network-level failures count
+        # as "not ready".
+        return response.status_code < 500
+    except Exception as exc:  # pragma: no cover - network failure path
+        LOGGER.warning("KServe readiness check failed: %s", exc)
+        return False
+
+
 def predict_with_local_model(request: PredictionRequest) -> CognitiveLoadLevel | None:
     """Run inference with the locally packaged joblib model, if one is available.
 
@@ -113,7 +164,7 @@ def predict_with_local_model(request: PredictionRequest) -> CognitiveLoadLevel |
         return None
 
     try:
-        prediction = model.predict([_feature_vector(request)])[0]
+        prediction = model.predict([feature_vector(request)])[0]
         return _INVERSE_LABEL_MAP.get(int(prediction))
     except Exception as exc:
         LOGGER.warning("Local model prediction failed; using fallback. Error: %s", exc)
