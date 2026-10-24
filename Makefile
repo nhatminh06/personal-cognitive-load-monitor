@@ -1,15 +1,15 @@
-.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro helm-template clean
+.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro notebooks helm-template verify-local clean
 
 install sync:
 	uv sync --all-extras
 
 test:
-	uv run pytest src/tests --cov=src/preprocessing_api --cov-report=term-missing --cov-fail-under=80
+	uv run pytest src/tests --cov=src/preprocessing_api --cov-report=term-missing --cov-fail-under=81
 
 coverage: test
 
 run:
-	uv run uvicorn preprocessing_api.main:app --host 0.0.0.0 --port 8000 --reload
+	uv run uvicorn --app-dir src preprocessing_api.main:app --host 0.0.0.0 --port 8000 --reload
 
 docker-build:
 	docker build -t cognitive-load-api:local .
@@ -25,6 +25,16 @@ drift:
 
 dvc-repro:
 	uv run --extra dev dvc repro
+
+notebooks:
+	@for notebook in notebooks/*.ipynb; do uv run jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=python3 --ExecutePreprocessor.timeout=180 "$$notebook"; done
+
+verify-local:
+	uv run ruff check src scripts
+	$(MAKE) test
+	$(MAKE) dvc-repro
+	$(MAKE) notebooks
+	$(MAKE) helm-template
 
 helm-template:
 	helm template cognitive-load-monitor ./helm/cognitive-load-monitor --namespace cognitive-load

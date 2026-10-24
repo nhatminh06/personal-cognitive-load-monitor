@@ -5,11 +5,25 @@ from unittest.mock import MagicMock
 from fastapi import FastAPI
 
 from preprocessing_api.observability import (
+    JsonFormatter,
     configure_logging,
     configure_tracing,
     generate_latest,
     record_prediction,
 )
+
+
+def test_json_formatter_emits_structured_safe_fields():
+    import json
+    import logging
+
+    payload = json.loads(JsonFormatter().format(logging.LogRecord(
+        "api", logging.INFO, __file__, 1, "prediction complete", (), None
+    )))
+    assert payload["level"] == "INFO"
+    assert payload["logger"] == "api"
+    assert payload["message"] == "prediction complete"
+    assert "timestamp" in payload
 
 
 def test_generate_latest_returns_bytes():

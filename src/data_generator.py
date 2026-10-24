@@ -1,9 +1,10 @@
 """Generate sample data for development and testing."""
 
 import csv
+import argparse
 import random
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SRC_DIR = Path(__file__).resolve().parent
@@ -14,7 +15,12 @@ from preprocessing_api.schemas import PredictionRequest  # noqa: E402
 from preprocessing_api.service import calculate_cognitive_load  # noqa: E402
 
 
-def generate_sample_data(n_samples: int = 100, output_path: Path = None, seed: int = 42):
+def generate_sample_data(
+    n_samples: int = 500,
+    output_path: Path | None = None,
+    seed: int = 42,
+    start_date: datetime = datetime(2025, 1, 1, tzinfo=timezone.utc),
+) -> Path:
     """
     Generate sample cognitive load monitoring data.
 
@@ -29,24 +35,26 @@ def generate_sample_data(n_samples: int = 100, output_path: Path = None, seed: i
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    random.seed(seed)
+    if n_samples < 1:
+        raise ValueError("n_samples must be positive")
+    rng = random.Random(seed)
 
     # Generate realistic data
     data = []
     for i in range(n_samples):
         # Simulate a day's worth of monitoring
-        date = datetime.now() - timedelta(days=random.randint(0, 30))
+        date = start_date + timedelta(hours=12 * i)
 
         # Focus and distraction minutes (should sum to a reasonable work day)
-        total_minutes = random.randint(240, 480)  # 4-8 hours
-        focus_minutes = random.randint(int(total_minutes * 0.3), int(total_minutes * 0.9))
+        total_minutes = rng.randint(240, 480)  # 4-8 hours
+        focus_minutes = rng.randint(int(total_minutes * 0.3), int(total_minutes * 0.9))
         distraction_minutes = total_minutes - focus_minutes
 
         # Tasks due (0-10)
-        tasks_due = random.randint(0, 10)
+        tasks_due = rng.randint(0, 10)
 
         # Hours to deadline (0-168 hours = 0-7 days)
-        hours_to_deadline = random.uniform(0.5, 168.0)
+        hours_to_deadline = rng.uniform(0.5, 168.0)
 
         # Ground-truth label uses the same rule engine as the API's fallback path
         # (preprocessing_api.service.calculate_cognitive_load) so there is one
@@ -68,6 +76,7 @@ def generate_sample_data(n_samples: int = 100, output_path: Path = None, seed: i
                 "tasks_due": tasks_due,
                 "hours_to_deadline": round(hours_to_deadline, 2),
                 "cognitive_load_level": cognitive_load_level,
+                "label_provenance": "synthetic_proxy",
             }
         )
 
@@ -79,6 +88,7 @@ def generate_sample_data(n_samples: int = 100, output_path: Path = None, seed: i
         "tasks_due",
         "hours_to_deadline",
         "cognitive_load_level",
+        "label_provenance",
     ]
     with open(output_path, "w", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -90,5 +100,11 @@ def generate_sample_data(n_samples: int = 100, output_path: Path = None, seed: i
 
 
 if __name__ == "__main__":
-    generate_sample_data(n_samples=500)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--n-samples", type=int, default=500)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--start-date", default="2025-01-01T00:00:00+00:00")
+    parser.add_argument("--output", type=Path, default=Path("data/raw/sample_data.csv"))
+    args = parser.parse_args()
+    generate_sample_data(args.n_samples, args.output, args.seed, datetime.fromisoformat(args.start_date))
 

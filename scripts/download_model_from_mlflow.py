@@ -49,10 +49,15 @@ def main() -> None:
         if artifact_dir.is_file():
             shutil.copy2(artifact_dir, output)
         else:
-            candidates = list(artifact_dir.rglob("*.joblib")) + list(artifact_dir.rglob("*.pkl"))
-            if not candidates:
-                raise FileNotFoundError(f"No .joblib or .pkl model found under {artifact_dir}")
-            shutil.copy2(candidates[0], output)
+            mlmodel = artifact_dir / "MLmodel"
+            if not mlmodel.exists():
+                raise FileNotFoundError(f"MLflow model metadata missing under {artifact_dir}")
+            import mlflow.sklearn
+
+            model = mlflow.sklearn.load_model(str(artifact_dir))
+            import joblib
+
+            joblib.dump(model, output)
         print(f"Saved model artifact to {output}")
     except Exception as exc:
         if args.allow_missing or os.getenv("REQUIRE_MODEL", "false").lower() != "true":

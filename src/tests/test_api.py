@@ -1,20 +1,21 @@
 """Tests for the cognitive load prediction API."""
 
-from fastapi.testclient import TestClient
+from typing import Any
 
 from preprocessing_api.schemas import CognitiveLoadLevel
 
+TestClient = Any
 
-def test_root_endpoint(client: TestClient):
-    """Test root endpoint returns healthy status."""
+
+def test_root_endpoint(client):
+    """Test root endpoint serves the actual prediction demo."""
     response = client.get("/")
     assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert data["service"] == "cognitive-load-monitor"
+    assert "CogniFlow" in response.text
+    assert "fetch('/predict'" in response.text
 
 
-def test_health_endpoint(client: TestClient):
+def test_health_endpoint(client):
     """Test health endpoint returns healthy status."""
     response = client.get("/health")
     assert response.status_code == 200
@@ -35,6 +36,8 @@ def test_predict_low_cognitive_load(client: TestClient):
     data = response.json()
     assert "cognitive_load_level" in data
     assert data["cognitive_load_level"] in ["LOW", "MEDIUM", "HIGH"]
+    assert data["inference_source"] == "demo_rule"
+    assert data["is_fallback"] is False
 
 
 def test_predict_medium_cognitive_load(client: TestClient):
@@ -205,6 +208,37 @@ def test_ready_endpoint(client: TestClient):
     response = client.get("/ready")
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
+
+
+def test_model_info_demo_provenance(client: TestClient):
+    response = client.get("/model-info")
+    assert response.status_code == 200
+    assert response.json() == {
+        "inference_mode": "demo_rule",
+        "model_version": None,
+        "label_provenance": "synthetic_proxy",
+    }
+
+
+def test_invalid_inference_mode_fails_closed(client: TestClient, monkeypatch):
+    monkeypatch.setenv("INFERENCE_MODE", "surprise")
+    response = client.post("/predict", json={
+        "focus_minutes": 1, "distraction_minutes": 1, "tasks_due": 1,
+        "hours_to_deadline": 1,
+    })
+    assert response.status_code == 500
+
+
+def test_kserve_failure_does_not_fallback(client: TestClient, monkeypatch):
+    monkeypatch.setenv("INFERENCE_MODE", "kserve")
+    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://model.invalid")
+    monkeypatch.setattr("preprocessing_api.main.predict_with_kserve", lambda request: (_ for _ in ()).throw(ConnectionError()))
+    response = client.post("/predict", json={
+        "focus_minutes": 1, "distraction_minutes": 1, "tasks_due": 1,
+        "hours_to_deadline": 1,
+    })
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Model server is unavailable"}
 
 
 def test_metrics_endpoint(client: TestClient):

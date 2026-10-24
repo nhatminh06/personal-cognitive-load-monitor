@@ -4,6 +4,8 @@ An end-to-end **Full Stack Data Science / MLOps** project for predicting persona
 
 > This is a behavioral monitoring demo for learning MLOps. It is **not** a medical, psychological, or productivity diagnosis system.
 
+> **Verification status (2026-10-23):** the local Python/API, DVC, MLflow, Evidently, four-notebook, Docker, NGINX-auth and observability paths are verified. Kubernetes manifests are statically checked only. GKE, live KServe, HPA/scale-to-zero, deployment and PR evidence remain intentionally pending. See [the Module I grading matrix](docs/module1/rubric-matrix.md).
+
 ---
 
 ## Table of Contents
@@ -30,7 +32,7 @@ The system predicts one of three cognitive-load levels:
 - `MEDIUM`
 - `HIGH`
 
-The project includes the full path required by the FSDS final project:
+The repository scaffolds the full path required by the FSDS final project; the status above distinguishes implementation from runtime proof:
 
 ```text
 Jupyter experiments
@@ -48,10 +50,11 @@ Jupyter experiments
 → GitHub Actions test/build/manual deploy pipeline
 ```
 
-The FastAPI API can run in two modes:
+The FastAPI API runs in one explicit mode selected with `INFERENCE_MODE`:
 
-1. **Local mode:** deterministic rule-based fallback, useful for testing and demo.
-2. **Kubernetes mode:** pre/post-processing API forwards normalized features to KServe through `KSERVE_PREDICT_URL`.
+1. `demo_rule`: deterministic local demonstration.
+2. `local_model`: exact packaged model or a 503 response.
+3. `kserve`: KServe request or a sanitized 502/503/504 response; no silent fallback.
 
 ---
 
@@ -61,17 +64,17 @@ The FastAPI API can run in two modes:
 |---|---|
 | Python project | Python FastAPI app under `src/preprocessing_api` |
 | Pytest testing | `src/tests/` |
-| Coverage > 80% | GitHub Actions uses `--cov-fail-under=80` |
+| Coverage > 80% | GitHub Actions uses `--cov-fail-under=81`; latest local result 88.41% |
 | CI/CD test → build → deploy | `.github/workflows/ci-cd.yaml` |
 | Automatic build only after tests pass | `build` job depends on `test` job |
 | Manual deploy trigger | `workflow_dispatch` deploy job with GitHub environment approval |
 | FastAPI pre/post-processing API | `/predict`, `/health`, `/ready`, `/metrics` endpoints |
 | HPA autoscaling | `helm/cognitive-load-monitor/templates/hpa.yaml` |
 | KServe model serving | `helm/.../inferenceservice.yaml` and `kserve/inferenceservice.yaml` |
-| Scale down to 0 | KServe annotation `autoscaling.knative.dev/min-scale: "0"` |
+| Scale down to 0 | Manifest intent only; runtime and cloud proof pending |
 | NGINX API Gateway with auth | Helm Ingress with NGINX basic-auth annotations |
 | Metrics monitoring | Prometheus metrics endpoint and Grafana dashboard config |
-| Drift monitoring | `scripts/generate_drift_report.py` using Evidently/fallback HTML |
+| Drift monitoring | `scripts/generate_drift_report.py` using Evidently with fail-closed report generation |
 | Tracing | OpenTelemetry OTLP config for Tempo |
 | Logging | Structured app logs + Loki/Promtail local config |
 | IaC to provision Kubernetes | `infra/terraform/gke/` |
@@ -196,7 +199,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Create/sync the local environment from `pyproject.toml`:
 
 ```bash
-uv sync --all-extras
+uv sync --frozen --all-extras
 ```
 
 ### 2. Run tests with coverage gate
@@ -205,7 +208,7 @@ uv sync --all-extras
 uv run pytest src/tests \
   --cov=src/preprocessing_api \
   --cov-report=term-missing \
-  --cov-fail-under=80
+  --cov-fail-under=81
 ```
 
 Or use:
@@ -217,7 +220,7 @@ make test
 ### 3. Run the FastAPI service locally
 
 ```bash
-uv run uvicorn preprocessing_api.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn --app-dir src preprocessing_api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 4. Test the prediction endpoint

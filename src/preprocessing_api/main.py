@@ -2,89 +2,134 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Response
-from fastapi.responses import JSONResponse, PlainTextResponse
+import os
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from preprocessing_api.model_client import predict_with_kserve, predict_with_local_model
 from preprocessing_api.observability import (
     CONTENT_TYPE_LATEST,
+    MetricsMiddleware,
     configure_logging,
     configure_tracing,
     generate_latest,
-    metrics_middleware,
     record_prediction,
 )
-from preprocessing_api.schemas import PredictionRequest, PredictionResponse
+from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest, PredictionResponse
 from preprocessing_api.service import calculate_cognitive_load
 
 configure_logging()
+DEMO_HTML = (Path(__file__).with_name("static") / "index.html").read_text(encoding="utf-8")
 
 app = FastAPI(
     title="Personal Cognitive Load Monitoring API",
     description=(
         "Pre/post-processing API for cognitive load prediction. The service validates "
-        "focus/task signals, forwards to KServe when configured, and falls back to "
-        "deterministic rule-based inference for local demos."
+        "focus/task signals and uses one explicitly configured inference backend."
     ),
     version="1.0.0",
 )
-app.middleware("http")(metrics_middleware)
 configure_tracing(app)
+app.add_middleware(MetricsMiddleware)
 
 
 @app.get("/")
-def root():
-    """Basic service metadata endpoint."""
-    return {"status": "healthy", "service": "cognitive-load-monitor"}
+async def root():
+    """Serve the lightweight local demonstration."""
+    return HTMLResponse(DEMO_HTML)
 
 
 @app.get("/health")
-def health():
+async def health():
     """Liveness probe endpoint."""
     return {"status": "healthy"}
 
 
 @app.get("/ready")
-def ready():
+async def ready():
     """Readiness probe endpoint."""
-    return {"status": "ready"}
+    mode = inference_mode()
+    if mode == "local_model" and predict_with_local_model(PredictionRequest(
+        focus_minutes=1, distraction_minutes=0, tasks_due=0, hours_to_deadline=168
+    )) is None:
+        raise HTTPException(status_code=503, detail="Configured local model is unavailable")
+    if mode == "kserve" and not os.getenv("KSERVE_PREDICT_URL"):
+        raise HTTPException(status_code=503, detail="KServe endpoint is not configured")
+    return {"status": "ready", "inference_mode": mode}
+
+
+def inference_mode() -> str:
+    mode = os.getenv("INFERENCE_MODE", "demo_rule")
+    if mode not in {"demo_rule", "local_model", "kserve"}:
+        raise RuntimeError("INFERENCE_MODE must be demo_rule, local_model, or kserve")
+    return mode
+
+
+@app.get("/model-info")
+async def model_info():
+    mode = inference_mode()
+    return {
+        "inference_mode": mode,
+        "model_version": os.getenv("MODEL_VERSION") if mode != "demo_rule" else None,
+        "label_provenance": "synthetic_proxy",
+    }
 
 
 @app.get("/metrics")
-def metrics():
+async def metrics():
     """Prometheus scrape endpoint."""
     return PlainTextResponse(generate_latest().decode("utf-8"), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
-def favicon():
+async def favicon():
     """Return an empty favicon response to avoid 404 in logs."""
     return Response(status_code=204)
 
 
 @app.get("/robots.txt", include_in_schema=False)
-def robots():
+async def robots():
     """Return a minimal robots.txt to avoid 404 in logs."""
     return Response(content="User-agent: *\nDisallow:\n", media_type="text/plain")
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(request: PredictionRequest) -> PredictionResponse:
+async def predict(request: PredictionRequest) -> PredictionResponse:
     """Predict cognitive load from validated focus/task signals."""
 
-    cognitive_load_level = predict_with_kserve(request)
-    source = "kserve"
-
-    if cognitive_load_level is None:
-        cognitive_load_level = predict_with_local_model(request)
-        source = "model_local"
-
-    if cognitive_load_level is None:
+    mode = inference_mode()
+    cognitive_load_level: CognitiveLoadLevel | None
+    if mode == "demo_rule":
         cognitive_load_level = calculate_cognitive_load(request)
-        source = "rule_fallback"
+        source = "demo_rule"
+    elif mode == "local_model":
+        cognitive_load_level = predict_with_local_model(request)
+        source = "local_model"
+        if cognitive_load_level is None:
+            raise HTTPException(status_code=503, detail="Configured local model is unavailable")
+    else:
+        source = "kserve"
+        try:
+            cognitive_load_level = predict_with_kserve(request)
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="Model server timed out") from exc
+        except (ConnectionError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail="Model server is unavailable") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Model server returned an invalid response") from exc
 
+    if cognitive_load_level is None:
+        raise HTTPException(status_code=503, detail="Configured inference backend is unavailable")
     record_prediction(cognitive_load_level.value, source)
-    return PredictionResponse(cognitive_load_level=cognitive_load_level)
+    return PredictionResponse(
+        cognitive_load_level=cognitive_load_level,
+        inference_source=source,
+        model_version=os.getenv("MODEL_VERSION") if mode != "demo_rule" else None,
+        feature_as_of=request.feature_as_of,
+        is_fallback=False,
+    )
 
 
 @app.exception_handler(ValueError)

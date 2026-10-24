@@ -1,5 +1,7 @@
 # FSDS Submission Checklist
 
+> Evidence audit updated 2026-10-23. Checked artifacts below do not by themselves prove runtime behavior. Local evidence is in `docs/module1/verification.md`; cloud Kubernetes, live KServe/HPA/scale-to-zero, hosted observability, commit/push and PR remain pending.
+
 Use this checklist before sending the GitHub Pull Request link.
 
 ## Required code artifacts

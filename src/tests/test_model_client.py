@@ -55,7 +55,8 @@ def test_extract_prediction_unknown_payload_returns_none():
 
 def test_predict_with_kserve_disabled(monkeypatch):
     monkeypatch.delenv("KSERVE_PREDICT_URL", raising=False)
-    assert predict_with_kserve(_request()) is None
+    with pytest.raises(RuntimeError, match="KSERVE_PREDICT_URL"):
+        predict_with_kserve(_request())
 
 
 def test_predict_with_kserve_success(monkeypatch):
@@ -77,7 +78,7 @@ def test_predict_with_kserve_success(monkeypatch):
     assert predict_with_kserve(_request()) == CognitiveLoadLevel.HIGH
 
 
-def test_predict_with_kserve_unsupported_payload_returns_none(monkeypatch):
+def test_predict_with_kserve_unsupported_payload_fails(monkeypatch):
     monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
 
     class _FakeResponse:
@@ -90,17 +91,19 @@ def test_predict_with_kserve_unsupported_payload_returns_none(monkeypatch):
             return {"predictions": ["???"]}
 
     monkeypatch.setattr("requests.post", lambda url, json, timeout: _FakeResponse())
-    assert predict_with_kserve(_request()) is None
+    with pytest.raises(ValueError, match="unsupported"):
+        predict_with_kserve(_request())
 
 
-def test_predict_with_kserve_network_failure_returns_none(monkeypatch):
+def test_predict_with_kserve_network_failure_fails(monkeypatch):
     monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
 
     def _raise(*args, **kwargs):
         raise ConnectionError("boom")
 
     monkeypatch.setattr("requests.post", _raise)
-    assert predict_with_kserve(_request()) is None
+    with pytest.raises(ConnectionError, match="KServe prediction failed"):
+        predict_with_kserve(_request())
 
 
 def test_predict_with_local_model_missing_file_returns_none(monkeypatch, tmp_path):

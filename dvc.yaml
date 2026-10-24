@@ -1,8 +1,14 @@
 stages:
   generate_data:
-    cmd: uv run --extra dev python src/data_generator.py
+    cmd: uv run --extra dev python src/data_generator.py --n-samples ${data.n_samples} --seed ${data.seed} --start-date ${data.start_date} --output ${data.raw_path}
     deps:
       - src/data_generator.py
+      - src/preprocessing_api/service.py
+    params:
+      - data.n_samples
+      - data.seed
+      - data.start_date
+      - data.raw_path
     outs:
       - data/raw/sample_data.csv
   train_model:
@@ -10,7 +16,12 @@ stages:
     deps:
       - scripts/train_model.py
       - src/data_generator.py
+      - src/preprocessing_api/features.py
       - data/raw/sample_data.csv
+    params:
+      - model.output_path
+      - model.experiment_name
+      - model.registered_model_name
     outs:
       - data/processed/train.csv
       - data/processed/test.csv
@@ -19,11 +30,13 @@ stages:
       - reports/metrics.json:
           cache: false
   drift_report:
-    cmd: uv run --extra dev python scripts/generate_drift_report.py --reference data/processed/train.csv --current data/processed/test.csv --output reports/evidently/data_drift.html
+    cmd: uv run --extra dev python scripts/generate_drift_report.py --reference data/processed/train.csv --current data/processed/test.csv --output ${reports.drift_report}
     deps:
       - scripts/generate_drift_report.py
       - data/processed/train.csv
       - data/processed/test.csv
+    params:
+      - reports.drift_report
     outs:
       - reports/evidently/data_drift.html:
           cache: false

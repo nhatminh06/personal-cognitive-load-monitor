@@ -17,8 +17,8 @@ RUN apt-get update \
 
 COPY --from=uv /uv /uvx /bin/
 
-COPY pyproject.toml ./
-RUN uv sync --no-dev --no-install-project
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 ENV PATH="/app/.venv/bin:${PATH}"
 
 COPY src ./src
@@ -31,13 +31,9 @@ ENV MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI} \
     MODEL_URI=${MODEL_URI} \
     MODEL_PATH=/app/models/cognitive_load_model.joblib
 
-# Requirement hook: when MODEL_URI is provided, the image pulls the model artifact
-# from MLflow during build. In local/demo builds, --allow-missing keeps the image
-# buildable even before the class MLflow server is configured.
 RUN uv run python scripts/download_model_from_mlflow.py \
     --model-uri "${MODEL_URI}" \
-    --output "${MODEL_PATH}" \
-    --allow-missing
+    --output "${MODEL_PATH}"
 
 RUN useradd --create-home --uid 10001 appuser
 USER appuser

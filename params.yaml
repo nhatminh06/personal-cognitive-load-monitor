@@ -1,5 +1,7 @@
 data:
   n_samples: 500
+  seed: 42
+  start_date: "2025-01-01T00:00:00+00:00"
   raw_path: data/raw/sample_data.csv
   train_path: data/processed/train.csv
   test_path: data/processed/test.csv

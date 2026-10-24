@@ -1,0 +1,17 @@
+image:
+  repository: ghcr.io/OWNER/REPO/cognitive-load-api
+  tag: SET_IMMUTABLE_GIT_SHA
+config:
+  inferenceMode: kserve
+  modelVersion: SET_REGISTERED_MODEL_VERSION
+kserve:
+  enabled: true
+  storageUri: gs://SET_APPROVED_BUCKET/models/SET_IMMUTABLE_VERSION
+ingress:
+  enabled: true
+  authSecret: SET_EXTERNAL_BASIC_AUTH_SECRET
+  hosts:
+    - host: SET_REAL_HOST
+      paths:
+        - path: /
+          pathType: Prefix
