@@ -459,6 +459,24 @@ For the PR submission, the test/build code is already complete. The deploy job r
 
 ---
 
+## Module II: local data engineering
+
+Module II adds isolated Compose profiles for Kafka, MinIO, Spark/Delta, Trino/dbt, Airflow, Flink, and Redis while preserving the synchronous Module I prediction contract. The batch and streaming paths have been exercised sequentially on tiny data; they are not intended to run together on the constrained development host.
+
+Common commands:
+
+```bash
+make module2-ingestion
+make module2-lake
+make module2-batch
+make module2-analytics
+make module2-streaming
+make module2-ps
+make module2-stop
+```
+
+Start profiles with their dependencies (for example, `lake` plus `analytics`). Development credentials come from an ignored environment file based on `.env.module2.example`. The complete architecture, evidence, limitations, troubleshooting, and sequential demo are in [`docs/module2/`](docs/module2/README.md). No GCP resources are provisioned; the 100GB benchmark and production HA/security controls remain explicitly deferred.
+
 ## Submission Notes
 
 Before submitting the FSDS PR link:
