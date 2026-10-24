@@ -1,0 +1,20 @@
+version: 2
+models:
+  - name: gold_session_summary
+    description: Per-session behavioral aggregates; not a clinical assessment.
+    columns:
+      - name: session_id
+        tests: [unique, not_null]
+  - name: gold_daily_focus_metrics
+    description: Daily focus aggregates from accepted Silver events.
+    columns:
+      - name: event_date
+        tests: [unique, not_null]
+  - name: gold_distraction_trends
+    description: Daily distraction aggregates from accepted Silver events.
+  - name: gold_deadline_pressure
+    description: Descriptive workload pressure indicators, not health insights.
+  - name: gold_workload_patterns
+    description: Per-session workload aggregates.
+  - name: gold_data_quality_summary
+    description: Accepted and stale row counts for the current Silver snapshot.

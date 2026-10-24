@@ -1,0 +1,15 @@
+cogniflow:
+  target: local
+  outputs:
+    local:
+      type: trino
+      method: none
+      user: cogniflow
+      host: trino
+      port: 8080
+      database: lakehouse
+      schema: gold
+      threads: 1
+      http_scheme: http
+      session_properties:
+        query_max_run_time: 2m

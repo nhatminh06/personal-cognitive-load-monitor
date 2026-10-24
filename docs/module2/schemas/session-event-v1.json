@@ -1,0 +1,170 @@
+{
+  "$defs": {
+    "EventProvenance": {
+      "additionalProperties": false,
+      "description": "Non-sensitive origin metadata carried with every event.",
+      "properties": {
+        "producer": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Producer",
+          "type": "string"
+        },
+        "producer_version": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Producer Version",
+          "type": "string"
+        },
+        "label_provenance": {
+          "const": "synthetic_proxy",
+          "default": "synthetic_proxy",
+          "title": "Label Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer",
+        "producer_version"
+      ],
+      "title": "EventProvenance",
+      "type": "object"
+    },
+    "PredictionRequest": {
+      "description": "Request schema for cognitive load prediction.",
+      "example": {
+        "distraction_minutes": 30,
+        "focus_minutes": 120,
+        "hours_to_deadline": 24.0,
+        "tasks_due": 3
+      },
+      "properties": {
+        "focus_minutes": {
+          "description": "Minutes spent in focused work",
+          "maximum": 1440,
+          "minimum": 0,
+          "title": "Focus Minutes",
+          "type": "integer"
+        },
+        "distraction_minutes": {
+          "description": "Minutes spent distracted",
+          "maximum": 1440,
+          "minimum": 0,
+          "title": "Distraction Minutes",
+          "type": "integer"
+        },
+        "tasks_due": {
+          "description": "Number of tasks due",
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Tasks Due",
+          "type": "integer"
+        },
+        "hours_to_deadline": {
+          "description": "Hours until deadline",
+          "maximum": 87600,
+          "minimum": 0.0,
+          "title": "Hours To Deadline",
+          "type": "number"
+        },
+        "feature_as_of": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "UTC timestamp of the source features",
+          "title": "Feature As Of"
+        }
+      },
+      "required": [
+        "focus_minutes",
+        "distraction_minutes",
+        "tasks_due",
+        "hours_to_deadline"
+      ],
+      "title": "PredictionRequest",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Schema v1 session snapshot; event time is distinct from ingestion time.",
+  "properties": {
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "event_type": {
+      "const": "session.snapshot",
+      "default": "session.snapshot",
+      "title": "Event Type",
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "user_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 8,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional pseudonymous identifier; never an email or display name.",
+      "title": "User Id"
+    },
+    "event_time": {
+      "format": "date-time",
+      "title": "Event Time",
+      "type": "string"
+    },
+    "ingested_at": {
+      "format": "date-time",
+      "title": "Ingested At",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "payload": {
+      "$ref": "#/$defs/PredictionRequest"
+    },
+    "provenance": {
+      "$ref": "#/$defs/EventProvenance"
+    }
+  },
+  "required": [
+    "session_id",
+    "event_time",
+    "source",
+    "payload",
+    "provenance"
+  ],
+  "title": "SessionEvent",
+  "type": "object"
+}

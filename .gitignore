@@ -38,7 +38,10 @@ wheels/
 *.egg
 MANIFEST
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
+.coverage.*
 coverage.xml
 htmlcov/
 .tox/
@@ -48,7 +51,7 @@ htmlcov/
 venv/
 env/
 ENV/
-.venv
+.venv/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -76,7 +79,9 @@ Thumbs.db
 # MLflow
 mlruns/
 mlflow.db
+*.mlflow.db
 mlartifacts/
+.mlflow/
 
 # Model artifacts
 models/*
@@ -89,15 +94,42 @@ high-performance-python.ipynb
 .dvc/cache/
 .dvc/tmp/
 .dvc-storage/
-.dvcignore
+.dvc/config.local
 
 # Environment variables
 .env
-.env.local
+.env.*
+!.env.example
+!.env.*.example
+!.env.module2.example
 
 # Logs
 *.log
 logs/
+*.pid
+
+# Local data-engineering runtimes
+kafka-data/
+minio-data/
+redis-data/
+spark-warehouse/
+.sparkStaging/
+metastore_db/
+derby.log
+checkpoints/
+savepoints/
+airflow.db
+airflow.cfg
+airflow/logs/
+analytics/target/
+analytics/logs/
+analytics/dbt_packages/
+infra/module2/runtime/
+tmp/integration/
+data/**/*.parquet
+data/**/_delta_log/
+dump.rdb
+appendonly.aof
 
 # Terraform
 **/.terraform/*
@@ -114,5 +146,20 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Local credentials and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+credentials.json
+service-account*.json
+
 # Local architecture analysis
 graphify-out/
+
+# Editor and operating-system metadata
+.fleet/
+*.code-workspace
+.AppleDouble
+Desktop.ini

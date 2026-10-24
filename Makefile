@@ -1,4 +1,4 @@
-.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro notebooks helm-template verify-local clean
+.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro notebooks helm-template verify-local clean module2-ingestion module2-lake module2-batch module2-analytics module2-streaming module2-stop module2-ps
 
 install sync:
 	uv sync --all-extras
@@ -41,3 +41,24 @@ helm-template:
 
 clean:
 	rm -rf .pytest_cache .ruff_cache htmlcov coverage.xml .coverage
+
+module2-ingestion:
+	docker compose -f infra/module2/docker-compose.yml --profile ingestion up -d
+
+module2-lake:
+	docker compose -f infra/module2/docker-compose.yml --profile lake up -d
+
+module2-batch:
+	docker compose -f infra/module2/docker-compose.yml --profile lake --profile batch up -d
+
+module2-analytics:
+	docker compose -f infra/module2/docker-compose.yml --profile lake --profile analytics up -d
+
+module2-streaming:
+	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile streaming up -d
+
+module2-stop:
+	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile lake --profile batch --profile analytics --profile orchestration --profile streaming stop
+
+module2-ps:
+	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile lake --profile batch --profile analytics --profile orchestration --profile streaming ps -a
