@@ -35,4 +35,6 @@ Security-gate rerun on 2026-10-25:
 - The preserved MinIO volume contained 91 objects / 105,683 bytes. Every object SHA-256 matched after copying to a new SeaweedFS 4.50 volume; the source volume was not altered. boto3 read/write, S3A, Delta MERGE/reopen, Trino, dbt, and replay tests passed.
 - dbt-core 1.11.14, dbt-trino 1.10.6, and sqlparse 0.6.0 passed `pip check`, parse, compile, two builds (`PASS=15` each), and eight explicit tests.
 - Python: 73 passed with 88.67% coverage; Ruff and MyPy passed. Flink: four JUnit tests passed. DVC and all four notebooks executed.
-- Exact Airflow, SeaweedFS, dbt, API, and Flink images have zero fixable High/Critical findings. Spark remains blocked by SEC-022: 122 fixable High/Critical occurrences (103 distinct IDs), so this evidence does not authorize merge.
+- Exact Airflow, SeaweedFS, dbt, API, and Flink images have zero fixable High/Critical findings. A refreshed exact-digest scan found 126 fixable High/Critical Spark 3.5.5 occurrences (107 distinct IDs), so SEC-022 still blocks merge.
+- Later exact-digest scans rejected Spark 3.5.9 (719 fixable High/Critical occurrences, 699 distinct, 29 Critical) and Spark 4.1.3 (720, 685 distinct, 27 Critical). No unverified candidate replaced Spark 3.5.5.
+- The isolated SeaweedFS topology preserved authenticated S3 access and bucket inventory (Bronze 1 object, lakehouse 141 objects) while a default-network client could not resolve `seaweedfs:9333`.

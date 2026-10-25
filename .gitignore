@@ -165,6 +165,7 @@ service-account*.json
 
 # Local architecture analysis
 graphify-out/
+reports/security/
 
 # Editor and operating-system metadata
 .fleet/

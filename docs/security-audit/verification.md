@@ -30,7 +30,11 @@ Verified locally through 2026-10-25:
 | Trivy Airflow image | Airflow 3.3.2 exact image `sha256:6be8cf…`: 0 fixable High/Critical findings |
 | Trivy dbt image | exact image `sha256:989463…`: 0 fixable High/Critical findings |
 | Trivy SeaweedFS image | 4.50 exact image `sha256:89fa46…`: 0 fixable High/Critical findings |
-| Trivy Spark image | 122 fixable High/Critical occurrences, 103 distinct IDs; SEC-022 blocks merge |
+| Trivy Spark 3.5.5 baseline | exact digest `sha256:d55eac…`; 126 fixable High/Critical occurrences, 107 distinct IDs, 5 Critical; SEC-022 blocks merge |
+| Trivy Spark 3.5.9 candidate | exact digest `sha256:af02a4…`; 719 fixable occurrences, 699 distinct IDs, 29 Critical; rejected |
+| Trivy Spark 4.1.3 candidate | exact digest `sha256:bf9d03…`; 720 fixable occurrences, 685 distinct IDs, 27 Critical; rejected |
+| CI release integrity | actionlint 1.7.7 and zizmor 1.31.1 offline passed; Helm rendered `repository@sha256` |
+| SeaweedFS isolation | authenticated S3 lists Bronze 1 / lakehouse 141 objects; default network cannot resolve raw `seaweedfs:9333` |
 | UI/UX Pro Max dependency review | package-lock-only npm audit for pinned 2.15.0: 0 advisories; package not installed/executed |
 | GitHub governance | strict required checks, PR gate, admin enforcement, stale-review dismissal, conversation resolution and protected-only production deployment read back; sole collaborator prevents independent approval |
 

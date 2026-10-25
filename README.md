@@ -4,7 +4,7 @@ An end-to-end **Full Stack Data Science / MLOps** project for predicting persona
 
 > This is a behavioral monitoring demo for learning MLOps. It is **not** a medical, psychological, or productivity diagnosis system.
 
-> **Verification status (2026-10-25):** Module I's MLOps path and Module II's local batch/streaming path have runtime evidence. The combined Python gate has 73 tests and 88.67% coverage. Release remains blocked by SEC-022 in the Spark 3.5.5 image. Kubernetes manifests are statically checked only; GKE, live KServe, HPA/scale-to-zero and cloud deployment remain deferred. See the [Module I rubric](docs/module1/rubric-matrix.md), [Module II evidence](docs/module2/testing.md), and [security gate](docs/security-audit/publication-readiness.md).
+> **Verification status (2026-10-25):** Module I's MLOps path and Module II's local batch/streaming path have runtime evidence. The combined Python gate has 73 tests and 88.67% coverage. Release remains blocked by SEC-022: complete scans rejected both official Spark 3.5.9 and 4.1.3 images. CI renders immutable image digests and SeaweedFS raw APIs are isolated from application workloads. Kubernetes manifests are statically checked only; GKE, live KServe, HPA/scale-to-zero and cloud deployment remain deferred. See the [Module I rubric](docs/module1/rubric-matrix.md), [Module II evidence](docs/module2/testing.md), and [security gate](docs/security-audit/publication-readiness.md).
 
 ---
 

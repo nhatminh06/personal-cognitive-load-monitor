@@ -3,6 +3,8 @@ name: cogniflow-module2
 networks:
   default:
     name: cogniflow-module2
+  seaweedfs-control:
+    internal: true
 
 services:
   kafka:
@@ -52,17 +54,12 @@ services:
       done'
     mem_limit: 128m
 
-  minio:
+  seaweedfs:
     image: cogniflow-seaweedfs:4.50
     build:
       context: ./seaweedfs
     profiles: [lake]
-    command: server -dir=/data -s3 -s3.port=9000 -master.port=9333 -volume.port=8080 -filer.port=8888 -ip=minio
-    environment:
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-cogniflow-local}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-local-development-only}
-    ports:
-      - "127.0.0.1:9000:9000"
+    command: server -dir=/data -filer=true -master.port=9333 -volume.port=8080 -filer.port=8888 -ip=seaweedfs -master.telemetry=false
     volumes:
       - seaweedfs-data:/data
     healthcheck:
@@ -72,6 +69,32 @@ services:
       retries: 20
     mem_limit: 512m
     cpus: 0.75
+    networks: [seaweedfs-control]
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  minio:
+    image: cogniflow-seaweedfs:4.50
+    profiles: [lake]
+    command: s3 -filer=seaweedfs:8888 -port=9000 -port.iceberg=0 -port.lance=0
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-cogniflow-local}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-local-development-only}
+    ports:
+      - "127.0.0.1:9000:9000"
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "wget -S -O /dev/null http://127.0.0.1:9000 2>&1 | grep -Eq 'HTTP/[0-9.]+ (200|403)'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    mem_limit: 128m
+    cpus: 0.25
+    networks: [default, seaweedfs-control]
     logging:
       options:
         max-size: 10m

@@ -7,10 +7,6 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: "Image tag to deploy. Defaults to the current commit SHA."
-        required: false
-        type: string
       namespace:
         description: "Kubernetes namespace"
         required: false
@@ -73,7 +69,7 @@ jobs:
       contents: read
       packages: write # Publishes the verified image to this repository's GHCR namespace.
     outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
+      image_digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -106,7 +102,7 @@ jobs:
             > "${RUNNER_TEMP}/mlflow-server.log" 2>&1 &
           disown
           echo "MLFLOW_TRACKING_URI=http://127.0.0.1:5000" >> "$GITHUB_ENV"
-          for i in $(seq 1 30); do
+          for _ in {1..30}; do
             curl -sf http://127.0.0.1:5000/health && exit 0
             sleep 1
           done
@@ -141,21 +137,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Docker metadata
-        id: meta
-        env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          REQUESTED_TAG: ${{ inputs.image_tag }}
+      - name: Set immutable image tag
         run: |
-          TAG="${GITHUB_SHA::12}"
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ -n "$REQUESTED_TAG" ]; then
-            [[ "$REQUESTED_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || { echo "Invalid image tag" >&2; exit 1; }
-            TAG="$REQUESTED_TAG"
-          fi
-          echo "version=$TAG" >> "$GITHUB_OUTPUT"
-          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
 
       - name: Build and push image
+        id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -199,17 +186,18 @@ jobs:
       - name: Deploy chart
         env:
           DEPLOY_NAMESPACE: ${{ inputs.namespace }}
-          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.image_digest }}
           KSERVE_STORAGE_URI: ${{ secrets.KSERVE_STORAGE_URI }}
           APP_HOST: ${{ secrets.APP_HOST }}
         run: |
           NAMESPACE="$DEPLOY_NAMESPACE"
           [[ "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || { echo "Invalid namespace" >&2; exit 1; }
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid image digest" >&2; exit 1; }
           helm upgrade --install "$HELM_RELEASE" ./helm/cognitive-load-monitor \
             --namespace "$NAMESPACE" --create-namespace \
             --values ./helm/cognitive-load-monitor/values.gke.yaml \
-            --set image.repository="${IMAGE_NAME}" \
-            --set image.tag="$IMAGE_TAG" \
-            --set-string kserve.storageUri="$KSERVE_STORAGE_URI" \
-            --set-string ingress.hosts[0].host="$APP_HOST"
-          kubectl rollout status deployment/$HELM_RELEASE -n "$NAMESPACE" --timeout=180s
+            --set "image.repository=${IMAGE_NAME}" \
+            --set "image.digest=${IMAGE_DIGEST}" \
+            --set-string "kserve.storageUri=${KSERVE_STORAGE_URI}" \
+            --set-string "ingress.hosts[0].host=${APP_HOST}"
+          kubectl rollout status "deployment/$HELM_RELEASE" -n "$NAMESPACE" --timeout=180s

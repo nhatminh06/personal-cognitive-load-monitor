@@ -4,6 +4,7 @@ image:
   repository: ghcr.io/OWNER/REPO/cognitive-load-api
   pullPolicy: IfNotPresent
   tag: ""
+  digest: ""
 
 nameOverride: ""
 fullnameOverride: ""

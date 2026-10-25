@@ -28,3 +28,5 @@ Primary compatibility references:
 - Airflow 3 upgrade guidance: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
 
 These are intended pins, not runtime proof. Each image/connector must pass its checkpoint before it is marked verified.
+
+Security note (2026-10-25): Spark 3.5.5 remains the compatibility baseline but is not release-approved. Exact scans also rejected official 3.5.9 and 4.1.3 images. A future replacement must use a maintained minimal base and a Spark dependency set rebuilt or patched upstream, then repeat feature, Delta, S3A, Trino, dbt and Airflow regression before this matrix changes.

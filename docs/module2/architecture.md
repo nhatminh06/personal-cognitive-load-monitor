@@ -7,8 +7,10 @@ flowchart TB
   CLIENT[Demo or generator] --> EVENTS[POST /events]
   EVENTS --> KAFKA[Kafka session-events.v1]
   KAFKA --> BRONZE[Bronze writer]
-  BRONZE --> S3[SeaweedFS S3 immutable JSONL]
-  S3 --> SPARK[Spark 3.5 batch]
+  BRONZE --> S3[SeaweedFS S3 gateway]
+  S3 --> RAW[internal master/filer/volume network]
+  RAW --> OBJECTS[immutable JSONL + Delta objects]
+  OBJECTS --> SPARK[Spark 3.5 batch]
   FEATURES[shared feature contract] -. parity vectors .-> SPARK
   SPARK --> DELTA[Delta Silver]
   DELTA --> TRINO[Trino]
