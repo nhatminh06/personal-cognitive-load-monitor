@@ -53,21 +53,20 @@ services:
     mem_limit: 128m
 
   minio:
-    image: cogniflow-minio:RELEASE.2025-04-22T22-12-26Z
+    image: cogniflow-seaweedfs:4.50
     build:
-      context: ./minio
+      context: ./seaweedfs
     profiles: [lake]
-    command: server /data --console-address :9001
+    command: server -dir=/data -s3 -s3.port=9000 -master.port=9333 -volume.port=8080 -filer.port=8888 -ip=minio
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-cogniflow-local}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-local-development-only}
     ports:
       - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
     volumes:
-      - minio-data:/data
+      - seaweedfs-data:/data
     healthcheck:
-      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:9000/minio/health/live]
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:9333/cluster/status]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -98,10 +97,12 @@ services:
     build:
       context: ./spark
     profiles: [batch]
-    user: root
     working_dir: /opt/cogniflow
-    entrypoint: [sh, -c, "sleep infinity"]
+    entrypoint: [python3, /opt/cogniflow/jobs/internal_job_runner.py]
     environment:
+      JOB_KIND: spark
+      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-local-development-only}
+      JOB_TIMEOUT_SECONDS: "1800"
       PYTHONPATH: /opt/cogniflow/src
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
@@ -110,7 +111,6 @@ services:
       MINIO_LAKEHOUSE_BUCKET: ${MINIO_LAKEHOUSE_BUCKET:-cogniflow-lakehouse}
     volumes:
       - ../..:/opt/cogniflow:ro
-      - spark-ivy:/root/.ivy2
     mem_limit: 1792m
     cpus: 1.5
     depends_on:
@@ -139,7 +139,7 @@ services:
       retries: 30
 
   dbt:
-    image: cogniflow-dbt-trino:1.10.3
+    image: cogniflow-dbt-trino:1.11.14
     build:
       context: ./dbt
     profiles: [analytics]
@@ -156,33 +156,36 @@ services:
     mem_limit: 512m
 
   dbt-runner:
-    image: cogniflow-dbt-trino:1.10.3
+    image: cogniflow-dbt-trino:1.11.14
     profiles: [orchestration]
-    entrypoint: [sh, -c, "sleep infinity"]
+    entrypoint: [python, /opt/cogniflow/jobs/internal_job_runner.py]
     working_dir: /analytics
     volumes:
       - ../../analytics:/analytics:ro
+      - ../../jobs:/opt/cogniflow/jobs:ro
     environment:
+      JOB_KIND: dbt
+      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-local-development-only}
+      JOB_TIMEOUT_SECONDS: "900"
       DBT_PROFILES_DIR: /analytics
       DBT_TARGET_PATH: /tmp/dbt-target
       DBT_LOG_PATH: /tmp/dbt-logs
     mem_limit: 384m
 
   airflow:
-    image: cogniflow-airflow:2.10.5
+    image: cogniflow-airflow:3.3.2
     build:
       context: ./airflow
     profiles: [orchestration-dev]
-    user: root
     command: bash -c 'airflow db migrate && sleep infinity'
     environment:
       AIRFLOW_HOME: /opt/airflow
-      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-local-development-only}
     volumes:
       - ../../dags:/opt/airflow/dags:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - airflow-data:/opt/airflow
+      - airflow3-data:/opt/airflow
     mem_limit: 640m
 
   redis:
@@ -263,6 +266,8 @@ services:
 volumes:
   kafka-data:
   minio-data:
+  seaweedfs-data:
   spark-ivy:
   redis-data:
   airflow-data:
+  airflow3-data:

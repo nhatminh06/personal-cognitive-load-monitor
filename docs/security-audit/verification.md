@@ -1,23 +1,23 @@
 # Security verification evidence
 
-Verified locally on 2026-10-24:
+Verified locally through 2026-10-25:
 
 | Check | Result |
 |---|---|
-| Pytest + coverage | 69 passed; 88.61% across both application packages; threshold 81% |
+| Pytest + coverage | 73 passed; 88.67% across both application packages; threshold 81% |
 | Focused security tests | 48 passed |
 | Ruff 0.15.17 | passed for `src scripts` |
-| MyPy 2.4.0 | 14 application modules passed with explicit package bases; missing third-party stubs ignored |
+| MyPy 2.4.0 | 22 application/job/script modules passed with explicit package bases; missing third-party stubs ignored |
 | Bandit 1.8.6 / Python 3.11 | 0 High, 3 Medium false positives, 7 Low contextual alerts; 1,563 LOC |
 | pip-audit 2.9.0 | fixed advisories remediated; one no-fix, development-only diskcache advisory remains |
 | Targeted secrets/history scan | no high-confidence matches |
 | Compose config | Module II all profiles and observability passed |
 | Helm | base, local and GKE lint passed; GKE template rendered |
 | Terraform | `fmt -check` and provider-backed `validate` passed outside the restricted plugin sandbox; no plan/apply |
-| Graphify | 542-node graph queried; boundary hubs and paths reported |
+| Graphify | code-only update: 598 nodes, 1,055 edges, 37 communities; no import cycle; semantic mode unavailable without an LLM key |
 | DVC | all three stages unchanged/cached with isolated writable site cache |
 | Notebooks | all four executed; Notebook 3 was rerun successfully after an explicit skops tree-type allowlist |
-| Flink Docker/Maven | build-stage image produced; Maven/JUnit exit 0 |
+| Flink Docker/Maven | four JUnit tests passed through pinned Maven container |
 | API Docker smoke | image built; health 200, unauthenticated production prediction 401, authorized prediction 200, production docs 404 |
 | GitHub branch-head CI | run 40138099121 passed the coverage gate and model-package/Docker-build/GHCR-push jobs |
 | GitGuardian | draft PR #6 check passed after the final branch update |
@@ -25,16 +25,16 @@ Verified locally on 2026-10-24:
 | actionlint 1.7.12 | passed after CI fixes |
 | zizmor 1.31.1 | offline run passed after CI fixes; online audits unavailable |
 | Trivy 0.76.1 tracked filesystem | 0 High/Critical dependencies and 0 secrets; only accepted local MinIO-root High remains after GKE/container fixes |
-| Trivy API image | exact rebuilt image: 0 Critical, 44 High across 8 unfixed Debian advisories, 0 fixable findings |
+| Trivy API image | exact image `sha256:4775c3…`: 0 fixable High/Critical findings |
 | Trivy Flink image | after Jackson 2.18.11 update: 0 Critical, 0 High |
-| Trivy Airflow image | 34 Critical, 386 High, 297 fixable occurrences; blocks merge pending major-version migration |
-| Trivy dbt image | 0 Critical, 47 High, 3 fixable `sqlparse` occurrences blocked by current dbt constraint |
-| Trivy MinIO image | 6 Critical, 66 High; blocks merge pending compatible server upgrade |
-| Trivy MinIO-init image | 0 Critical, 44 unfixed OS High, 0 fixable findings after packaging-tool removal |
+| Trivy Airflow image | Airflow 3.3.2 exact image `sha256:6be8cf…`: 0 fixable High/Critical findings |
+| Trivy dbt image | exact image `sha256:989463…`: 0 fixable High/Critical findings |
+| Trivy SeaweedFS image | 4.50 exact image `sha256:89fa46…`: 0 fixable High/Critical findings |
+| Trivy Spark image | 122 fixable High/Critical occurrences, 103 distinct IDs; SEC-022 blocks merge |
 | UI/UX Pro Max dependency review | package-lock-only npm audit for pinned 2.15.0: 0 advisories; package not installed/executed |
-| GitHub governance | `main` unprotected; `production` has no protection rules/deployment branch policy; no reviews requested on PR #6 |
+| GitHub governance | strict required checks, PR gate, admin enforcement, stale-review dismissal, conversation resolution and protected-only production deployment read back; sole collaborator prevents independent approval |
 
-Not yet verified in this audit: live Kubernetes/KServe/GCP controls, external IAM/environment protection, ingress rate limiting, TLS, complete Java advisory resolution, and production secret rotation. Host Maven was missing; Flink Java tests ran through the Docker build path. Trivy's direct Maven resolution was blocked by Maven Central HTTP 429.
+Not yet verified in this audit: live Kubernetes/KServe/GCP controls, external IAM, ingress rate limiting, TLS, and production secret rotation. Host Maven was missing; Flink Java tests ran through a pinned Maven container. Spark's direct packaged-dependency scan is a known failing result, not an unavailable result.
 
 No destructive/flood/fuzz test was run. Services were not started concurrently.
 

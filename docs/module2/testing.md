@@ -1,6 +1,6 @@
 # Module II verification evidence
 
-Runtime evidence captured 2026-10-24:
+Runtime evidence captured 2026-10-24 and revalidated where stated on 2026-10-25:
 
 - Kafka: authenticated API accepted and broker acknowledged real events.
 - Bronze: one Kafka event stored/read with topic, partition, offset and checksum.
@@ -28,3 +28,11 @@ Final-hardening evidence on 2026-10-24:
 - Graphify 0.9.92 code-only update: 542 nodes, 944 edges, 31 communities. Semantic extraction was unavailable without an approved LLM key; SQL/HCL parsers were not installed, and `serviceaccount.yaml` was conservatively skipped as potentially sensitive.
 
 Batch/Airflow Prometheus exporters and a fresh rerun of every heavyweight batch service remain explicit gaps; earlier real batch evidence above is retained and not relabeled as a new run.
+
+Security-gate rerun on 2026-10-25:
+
+- Airflow 3.3.2 completed all six tasks in 163.24 seconds with LocalExecutor, UID 50000, no Docker socket, and authenticated fixed-command Spark/dbt runners.
+- The preserved MinIO volume contained 91 objects / 105,683 bytes. Every object SHA-256 matched after copying to a new SeaweedFS 4.50 volume; the source volume was not altered. boto3 read/write, S3A, Delta MERGE/reopen, Trino, dbt, and replay tests passed.
+- dbt-core 1.11.14, dbt-trino 1.10.6, and sqlparse 0.6.0 passed `pip check`, parse, compile, two builds (`PASS=15` each), and eight explicit tests.
+- Python: 73 passed with 88.67% coverage; Ruff and MyPy passed. Flink: four JUnit tests passed. DVC and all four notebooks executed.
+- Exact Airflow, SeaweedFS, dbt, API, and Flink images have zero fixable High/Critical findings. Spark remains blocked by SEC-022: 122 fixable High/Critical occurrences (103 distinct IDs), so this evidence does not authorize merge.

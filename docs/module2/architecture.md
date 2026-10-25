@@ -7,14 +7,16 @@ flowchart TB
   CLIENT[Demo or generator] --> EVENTS[POST /events]
   EVENTS --> KAFKA[Kafka session-events.v1]
   KAFKA --> BRONZE[Bronze writer]
-  BRONZE --> MINIO[MinIO immutable JSONL]
-  MINIO --> SPARK[Spark 3.5 batch]
+  BRONZE --> S3[SeaweedFS S3 immutable JSONL]
+  S3 --> SPARK[Spark 3.5 batch]
   FEATURES[shared feature contract] -. parity vectors .-> SPARK
   SPARK --> DELTA[Delta Silver]
   DELTA --> TRINO[Trino]
   TRINO --> DBT[dbt Gold models]
-  AIRFLOW[Airflow DAG] --> SPARK
-  AIRFLOW --> DBT
+  AIRFLOW[Airflow 3 DAG] --> SRUN[authenticated Spark runner]
+  AIRFLOW --> DRUN[authenticated dbt runner]
+  SRUN --> SPARK
+  DRUN --> DBT
   KAFKA --> FLINK[Flink watermarks + dedup]
   FLINK --> ROLLING[Sliding windows]
   FLINK --> TUMBLING[Tumbling windows]

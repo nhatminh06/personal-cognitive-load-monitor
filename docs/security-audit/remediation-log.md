@@ -11,8 +11,12 @@
 - Added API, model-integrity and DLQ privacy regression tests.
 - Expanded the enforced coverage denominator to both application packages.
 - Disabled persisted checkout credentials and publishing-job dependency caching; removed direct workflow-expression interpolation from deploy shell.
-- Added explicit non-root users to Airflow, dbt, Flink and MinIO-init images; retained local MinIO root only for persistent-volume compatibility.
+- Added explicit non-root users to Airflow, dbt, Flink, Spark runner and SeaweedFS images.
 - Removed curl and unused packaging tools from runtime images, upgraded Flink's shaded Jackson dependencies, and required GKE control-plane CIDRs plus protected workload metadata.
-- Rejected incompatible dbt `sqlparse` and MinIO UID changes after real build/runtime failures instead of weakening compatibility.
+- Migrated Airflow to 3.3.2 and removed Docker-socket/root execution in favor of authenticated fixed-command runners.
+- Replaced archived MinIO with pinned SeaweedFS 4.50 after hash-verifying 91 copied objects while preserving the original volume.
+- Upgraded dbt-core/dbt-trino normally so sqlparse 0.6.0 resolves, then passed two full builds and explicit tests.
+- Configured and read back GitHub branch and production-environment protections without merging or deploying.
+- Recorded Spark image vulnerability SEC-022 as a release blocker instead of treating isolation as remediation.
 
 During the security-audit task itself, no commit, push, PR, merge, history rewrite, cloud provisioning or remote deployment occurred. A later, separately authorized publication task committed these remediations, merged the updated `main` into the feature branch without rewriting history, pushed normally, and opened draft PR #6. No PR merge, cloud provisioning or remote deployment was performed by that task.

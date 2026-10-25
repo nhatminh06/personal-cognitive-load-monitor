@@ -248,12 +248,22 @@ def test_metrics_endpoint(client: TestClient):
     assert "cognitive_load" in response.text or "prometheus_client" in response.text
 
 
+def test_api_docs_csp_allows_fastapi_assets(client: TestClient):
+    response = client.get("/docs")
+    assert response.status_code == 200
+    assert "SwaggerUIBundle" in response.text
+    docs_csp = response.headers["content-security-policy"]
+    assert "https://cdn.jsdelivr.net" in docs_csp
+    assert "script-src 'self' 'unsafe-inline'" in docs_csp
+
+
 def test_security_headers_and_request_size_limit(client: TestClient):
     response = client.get("/health")
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert "cdn.jsdelivr.net" not in response.headers["content-security-policy"]
 
     response = client.post(
         "/predict",

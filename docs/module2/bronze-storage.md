@@ -1,6 +1,6 @@
 # Bronze storage
 
-MinIO runs only under the `lake` profile. Credentials come from `.env.module2` or the environment; `.env.module2` is ignored and only a placeholder example is committed. An initializer idempotently creates `cogniflow-bronze` and `cogniflow-lakehouse`.
+SeaweedFS provides the S3-compatible endpoint under the `lake` profile. Credentials come from `.env.module2` or the environment; `.env.module2` is ignored and only a placeholder example is committed. An initializer idempotently creates `cogniflow-bronze` and `cogniflow-lakehouse`. The Compose service name remains `minio` solely to preserve existing internal endpoint contracts.
 
 Bronze objects are immutable newline-delimited JSON batches:
 

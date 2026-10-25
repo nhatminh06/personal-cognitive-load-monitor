@@ -17,6 +17,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from cogniflow_data.events import SESSION_TOPIC, EventProvenance, SessionEvent  # noqa: E402
 from cogniflow_data.kafka import KafkaPublisher  # noqa: E402
+from preprocessing_api.schemas import PredictionRequest  # noqa: E402
 
 PROFILES = {"tiny": 10, "small": 1_000, "medium": 100_000, "large": 1_000_000}
 
@@ -33,8 +34,13 @@ def event(
     return SessionEvent(
         event_id=UUID(int=id_offset + index + 1), session_id=f"synthetic-{index % session_count:03d}",
         event_time=start + timedelta(seconds=index), ingested_at=start + timedelta(seconds=index), source="synthetic-generator",
-        payload={"focus_minutes": focus, "distraction_minutes": distraction,
-                 "tasks_due": randomizer.randint(0, 20), "hours_to_deadline": randomizer.uniform(1, 168)},
+        payload=PredictionRequest(
+            focus_minutes=focus,
+            distraction_minutes=distraction,
+            tasks_due=randomizer.randint(0, 20),
+            hours_to_deadline=randomizer.uniform(1, 168),
+            feature_as_of=None,
+        ),
         provenance=EventProvenance(producer="generate_session_events", producer_version="1.0"),
     )
 

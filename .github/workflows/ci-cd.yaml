@@ -68,10 +68,10 @@ jobs:
     name: Build and push Docker image
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
       contents: read
-      packages: write
+      packages: write # Publishes the verified image to this repository's GHCR namespace.
     outputs:
       image_tag: ${{ steps.meta.outputs.version }}
     steps:
@@ -144,10 +144,11 @@ jobs:
       - name: Docker metadata
         id: meta
         env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
           REQUESTED_TAG: ${{ inputs.image_tag }}
         run: |
           TAG="${GITHUB_SHA::12}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$REQUESTED_TAG" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ -n "$REQUESTED_TAG" ]; then
             [[ "$REQUESTED_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || { echo "Invalid image tag" >&2; exit 1; }
             TAG="$REQUESTED_TAG"
           fi
@@ -170,7 +171,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
-      id-token: write
+      id-token: write # Exchanges GitHub's short-lived OIDC token for deployment credentials.
     environment:
       name: production
     steps:

@@ -1,13 +1,14 @@
 schema: '2.0'
 stages:
   generate_data:
-    cmd: uv run --extra dev python src/data_generator.py --n-samples 500 --seed 42
-      --start-date 2025-01-01T00:00:00+00:00 --output data/raw/sample_data.csv
+    cmd: uv run --extra dev python src/data_generator.py --n-samples 500 --seed
+      42 --start-date 2025-01-01T00:00:00+00:00 --output
+      data/raw/sample_data.csv
     deps:
     - path: src/data_generator.py
       hash: md5
-      md5: c587cc7b0345c473a9be23a797ebd4f4
-      size: 3818
+      md5: 85ba66184277b063773185671c97ef9f
+      size: 3854
     - path: src/preprocessing_api/service.py
       hash: md5
       md5: ba070b0acbb70045a287cfcae115fea5
@@ -24,8 +25,8 @@ stages:
       md5: b8408136bd0208331d2533c17248972f
       size: 25104
   train_model:
-    cmd: uv run --extra dev python scripts/train_model.py --input data/raw/sample_data.csv
-      --output models/cognitive_load_model.joblib
+    cmd: uv run --extra dev python scripts/train_model.py --input
+      data/raw/sample_data.csv --output models/cognitive_load_model.joblib
     deps:
     - path: data/raw/sample_data.csv
       hash: md5
@@ -37,8 +38,8 @@ stages:
       size: 6415
     - path: src/data_generator.py
       hash: md5
-      md5: c587cc7b0345c473a9be23a797ebd4f4
-      size: 3818
+      md5: 85ba66184277b063773185671c97ef9f
+      size: 3854
     - path: src/preprocessing_api/features.py
       hash: md5
       md5: 95e43ee56e121e8162b6a72f21b9616a
@@ -51,31 +52,32 @@ stages:
     outs:
     - path: data/processed/test.csv
       hash: md5
-      md5: da6c7e3c020fca6de31dad960fae8098
+      md5: e9ce1efb124f98711b9919885e7e4de2
       size: 6235
     - path: data/processed/train.csv
       hash: md5
-      md5: e18ca99249555dd11df15a12b1090169
+      md5: d491f12f19682da82268756dc516d42e
       size: 24788
     - path: models/cognitive_load_model.joblib
       hash: md5
-      md5: ece821c84078910d9936af8280dee369
-      size: 1874218
+      md5: 7a600eaae6fa82f1bed7965ee285d2dc
+      size: 1866298
     - path: reports/metrics.json
       hash: md5
       md5: 1f4b950075932d3522290800d04b5a26
       size: 1974
   drift_report:
     cmd: uv run --extra dev python scripts/generate_drift_report.py --reference
-      data/processed/train.csv --current data/processed/test.csv --output reports/evidently/data_drift.html
+      data/processed/train.csv --current data/processed/test.csv --output
+      reports/evidently/data_drift.html
     deps:
     - path: data/processed/test.csv
       hash: md5
-      md5: da6c7e3c020fca6de31dad960fae8098
+      md5: e9ce1efb124f98711b9919885e7e4de2
       size: 6235
     - path: data/processed/train.csv
       hash: md5
-      md5: e18ca99249555dd11df15a12b1090169
+      md5: d491f12f19682da82268756dc516d42e
       size: 24788
     - path: scripts/generate_drift_report.py
       hash: md5
@@ -87,5 +89,5 @@ stages:
     outs:
     - path: reports/evidently/data_drift.html
       hash: md5
-      md5: b6a21824a11ea300502feddd7092cc33
-      size: 3984353
+      md5: edb356aaae3017b3620ceb45fe5c05a1
+      size: 3986357

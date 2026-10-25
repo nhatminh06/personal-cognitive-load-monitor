@@ -65,6 +65,7 @@ def generate_sample_data(
                 distraction_minutes=distraction_minutes,
                 tasks_due=tasks_due,
                 hours_to_deadline=round(hours_to_deadline, 4),
+                feature_as_of=None,
             )
         ).value
 

@@ -4,7 +4,7 @@ An end-to-end **Full Stack Data Science / MLOps** project for predicting persona
 
 > This is a behavioral monitoring demo for learning MLOps. It is **not** a medical, psychological, or productivity diagnosis system.
 
-> **Verification status (2026-10-24):** Module I's MLOps path and Module II's local batch/streaming path have runtime evidence. The combined Python gate covers both application packages (69 tests, 88.61%). Kubernetes manifests are statically checked only; GKE, live KServe, HPA/scale-to-zero and cloud deployment remain deferred. See the [Module I rubric](docs/module1/rubric-matrix.md), [Module II evidence](docs/module2/testing.md), and [security gate](docs/security-audit/publication-readiness.md).
+> **Verification status (2026-10-25):** Module I's MLOps path and Module II's local batch/streaming path have runtime evidence. The combined Python gate has 73 tests and 88.67% coverage. Release remains blocked by SEC-022 in the Spark 3.5.5 image. Kubernetes manifests are statically checked only; GKE, live KServe, HPA/scale-to-zero and cloud deployment remain deferred. See the [Module I rubric](docs/module1/rubric-matrix.md), [Module II evidence](docs/module2/testing.md), and [security gate](docs/security-audit/publication-readiness.md).
 
 ---
 
@@ -40,7 +40,7 @@ Jupyter experiments
 → MLflow model tracking and registry
 → Docker image build
 → FastAPI pre/post-processing API
-→ Kafka event ingestion → MinIO Bronze
+→ Kafka event ingestion → SeaweedFS S3 Bronze
 → Spark/Delta Silver → Trino/dbt Gold
 → Airflow development orchestration
 → Flink event-time windows → Redis online features
@@ -157,7 +157,7 @@ flowchart LR
     Browser[Demo/client] --> API[FastAPI]
     API --> Predict[Module I prediction]
     API --> Kafka[Kafka events]
-    Kafka --> Bronze[MinIO Bronze]
+    Kafka --> Bronze[SeaweedFS S3 Bronze]
     Bronze --> Spark[Spark + Delta Silver]
     Spark --> Trino[Trino + dbt Gold]
     Airflow[Airflow dev profile] --> Spark
@@ -477,7 +477,7 @@ For the PR submission, the test/build code is already complete. The deploy job r
 
 ## Module II: local data engineering
 
-Module II adds isolated Compose profiles for Kafka, MinIO, Spark/Delta, Trino/dbt, Airflow, Flink, and Redis while preserving the synchronous Module I prediction contract. The batch and streaming paths have been exercised sequentially on tiny data; they are not intended to run together on the constrained development host.
+Module II adds isolated Compose profiles for Kafka, SeaweedFS S3, Spark/Delta, Trino/dbt, Airflow, Flink, and Redis while preserving the synchronous Module I prediction contract. The batch and streaming paths have been exercised sequentially on tiny data; they are not intended to run together on the constrained development host.
 
 Common commands:
 

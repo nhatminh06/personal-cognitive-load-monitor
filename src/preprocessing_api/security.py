@@ -9,6 +9,8 @@ from collections.abc import Awaitable, Callable
 from fastapi import Header, HTTPException, status
 
 MAX_REQUEST_BYTES = int(os.getenv("MAX_REQUEST_BYTES", "1048576"))
+DEFAULT_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+API_DOCS_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; connect-src 'self'; frame-ancestors 'none'"
 
 
 def is_production() -> bool:
@@ -64,12 +66,15 @@ class SecurityMiddleware:
         async def secure_send(message):
             if message["type"] == "http.response.start":
                 headers = message.setdefault("headers", [])
-                headers.extend([
-                    (b"x-content-type-options", b"nosniff"),
-                    (b"x-frame-options", b"DENY"),
-                    (b"referrer-policy", b"no-referrer"),
-                    (b"content-security-policy", b"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"),
-                ])
+                csp = API_DOCS_CSP if scope["path"] in {"/docs", "/redoc"} else DEFAULT_CSP
+                headers.extend(
+                    [
+                        (b"x-content-type-options", b"nosniff"),
+                        (b"x-frame-options", b"DENY"),
+                        (b"referrer-policy", b"no-referrer"),
+                        (b"content-security-policy", csp.encode()),
+                    ]
+                )
             await send(message)
 
         try:
