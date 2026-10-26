@@ -16,3 +16,7 @@ historical:
   fixture: tests/fixtures/historical_features.json
   output: data/processed/historical_features.jsonl
   metadata: data/processed/historical_features.manifest.json
+module3_phase2:
+  samples: 180
+  git_revision: 5237d674edf295addeafb7528920d9f41ade05ba
+  training_cutoff: "2026-01-15T00:00:00+00:00"

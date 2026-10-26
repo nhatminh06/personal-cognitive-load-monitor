@@ -16,6 +16,7 @@ from preprocessing_api.features import FEATURE_NAMES, feature_vector
 
 FEATURE_SCHEMA_VERSION = "1.0"
 SILVER_DATASET = "s3a://cogniflow-lakehouse/silver/session_features"
+SYNTHETIC_DATASET = "synthetic://cogniflow/module3-training-v1"
 
 
 class StrictContract(BaseModel):
@@ -86,18 +87,39 @@ class HistoricalFeatureRow(StrictContract):
     ingested_at: datetime
     decision_time: datetime
     available_at: datetime
-    source_dataset: Literal["s3a://cogniflow-lakehouse/silver/session_features"]
-    source_delta_version: int = Field(ge=0)
+    source_dataset: Literal[
+        "s3a://cogniflow-lakehouse/silver/session_features",
+        "synthetic://cogniflow/module3-training-v1",
+    ]
+    source_delta_version: int | None = Field(default=None, ge=0)
     source: str
     kafka_topic: str
     kafka_partition: int
     kafka_offset: int
-    focus_minutes: int
-    distraction_minutes: int
-    tasks_due: int
-    hours_to_deadline: float
-    focus_ratio: float
-    distraction_ratio: float
+    focus_minutes: int = Field(ge=0, le=1440)
+    distraction_minutes: int = Field(ge=0, le=1440)
+    tasks_due: int = Field(ge=0, le=1000)
+    hours_to_deadline: float = Field(ge=0, le=87600, allow_inf_nan=False)
+    focus_ratio: float = Field(ge=0, le=1, allow_inf_nan=False)
+    distraction_ratio: float = Field(ge=0, le=1, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def lineage_matches_source(self) -> HistoricalFeatureRow:
+        if self.feature_names != FEATURE_NAMES:
+            raise ValueError("feature names must use the canonical order")
+        if self.source_dataset == SILVER_DATASET and self.source_delta_version is None:
+            raise ValueError("Delta-backed features require a source version")
+        if self.source_dataset == SYNTHETIC_DATASET and self.source_delta_version is not None:
+            raise ValueError("synthetic features must not claim Delta provenance")
+        if not self.event_time <= self.ingested_at <= self.available_at <= self.decision_time:
+            raise ValueError("feature timestamps violate point-in-time ordering")
+        expected = feature_vector(self.model_dump())[-2:]
+        if any(
+            not math.isclose(actual, wanted, abs_tol=1e-12)
+            for actual, wanted in zip((self.focus_ratio, self.distraction_ratio), expected)
+        ):
+            raise ValueError("ratios do not match feature contract")
+        return self
 
     def ordered_features(self) -> list[float]:
         return feature_vector(self.model_dump())
@@ -109,6 +131,12 @@ class SyntheticLabel(StrictContract):
     event_time: datetime
     available_at: datetime
     provenance: Literal["synthetic_proxy"] = "synthetic_proxy"
+
+    @model_validator(mode="after")
+    def availability_follows_event(self) -> SyntheticLabel:
+        if self.available_at < self.event_time:
+            raise ValueError("label availability precedes its event")
+        return self
 
 
 def _deduplicate(events: list[SilverFeatureEvent]) -> list[SilverFeatureEvent]:
@@ -185,7 +213,9 @@ def write_dataset(
         "feature_schema_version": FEATURE_SCHEMA_VERSION,
         "feature_names": list(FEATURE_NAMES),
         "source_dataset": SILVER_DATASET,
-        "source_delta_versions": sorted({row.source_delta_version for row in rows}),
+        "source_delta_versions": sorted(
+            {row.source_delta_version for row in rows if row.source_delta_version is not None}
+        ),
         "code_revision": code_revision,
         "selection": "event_time<=decision_time AND ingested_at<=decision_time",
         "row_count": len(rows),

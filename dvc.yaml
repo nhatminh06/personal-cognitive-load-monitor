@@ -55,3 +55,40 @@ stages:
     outs:
       - data/processed/historical_features.jsonl
       - data/processed/historical_features.manifest.json
+  phase2_fixture:
+    cmd: env PYTHONPATH=src uv run python scripts/generate_training_fixture.py --features data/processed/module3/training_features.jsonl --labels data/processed/module3/training_labels.jsonl --manifest data/processed/module3/feature_manifest.json --samples ${module3_phase2.samples}
+    deps:
+      - scripts/generate_training_fixture.py
+      - src/cogniflow_data/historical.py
+      - src/preprocessing_api/features.py
+    params:
+      - module3_phase2.samples
+    outs:
+      - data/processed/module3/training_features.jsonl
+      - data/processed/module3/training_labels.jsonl
+      - data/processed/module3/feature_manifest.json
+  phase2_dataset:
+    cmd: env PYTHONPATH=src uv run python scripts/prepare_training_dataset.py --features data/processed/module3/training_features.jsonl --feature-manifest data/processed/module3/feature_manifest.json --labels data/processed/module3/training_labels.jsonl --output data/processed/module3/training_dataset.jsonl --output-manifest data/processed/module3/training_manifest.json --training-cutoff ${module3_phase2.training_cutoff} --git-revision ${module3_phase2.git_revision}
+    deps:
+      - scripts/prepare_training_dataset.py
+      - src/cogniflow_data/training.py
+      - data/processed/module3/training_features.jsonl
+      - data/processed/module3/training_labels.jsonl
+      - data/processed/module3/feature_manifest.json
+    params:
+      - module3_phase2.git_revision
+      - module3_phase2.training_cutoff
+    outs:
+      - data/processed/module3/training_dataset.jsonl
+      - data/processed/module3/training_manifest.json
+  phase2_train:
+    cmd: env PYTHONPATH=src uv run python scripts/train_historical_model.py --dataset data/processed/module3/training_dataset.jsonl --manifest data/processed/module3/training_manifest.json --output models/cognitive_load_phase2.joblib --report reports/module3/phase2-metrics.json --tracking-uri sqlite:///mlflow-phase2.db
+    deps:
+      - scripts/train_historical_model.py
+      - src/preprocessing_api/features.py
+      - data/processed/module3/training_dataset.jsonl
+      - data/processed/module3/training_manifest.json
+    outs:
+      - models/cognitive_load_phase2.joblib
+      - reports/module3/phase2-metrics.json:
+          cache: false

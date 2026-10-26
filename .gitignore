@@ -168,6 +168,8 @@ service-account*.json
 # Local architecture analysis
 graphify-out/
 reports/security/
+reports/module3/
+mlflow-phase2.db
 
 # Editor and operating-system metadata
 .fleet/

@@ -20,7 +20,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ## Project Status
 
-**Last verified: October 25, 2026**
+**Last verified: October 26, 2026**
 
 | Component | Status |
 |---|---|
@@ -28,7 +28,8 @@ It is designed to demonstrate how independently developed data and machine learn
 | Module II: Data Engineering & Streaming | Implemented and locally validated |
 | Security hardening, PR #6 | Merged |
 | Module III Phase 1: Historical feature contracts | Implemented and locally validated |
-| Later Module III platform integration | Planned |
+| Module III Phase 2: Reproducible training and registry | Implemented and locally validated |
+| Later Module III serving/orchestration | Planned |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
 | GKE Terraform | Statically validated only |
@@ -37,7 +38,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ### Verification highlights
 
-- **89 Python tests passed**, with **88.13% combined coverage** against an 81% enforcement threshold.
+- **119 Python tests passed**, with **88.95% combined coverage** against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -49,6 +50,8 @@ It is designed to demonstrate how independently developed data and machine learn
 See [Module II test evidence](docs/module2/testing.md) and [security verification](docs/security-audit/verification.md) for the detailed scope and results.
 
 Module III Phase 1 adds a version-pinned, point-in-time historical feature contract over Delta Silver without deploying new ML infrastructure. See the [historical features guide](docs/module3/phase1-historical-features.md).
+
+Phase 2 adds chronological synthetic-proxy model comparison, lineage manifests, explicit MLflow candidate registration, and a separate approval boundary. See the [Phase 2 training guide](docs/module3/phase2-ml-training.md).
 
 ---
 
@@ -634,8 +637,8 @@ The most recent local release validation reported:
 
 | Verification | Result |
 |---|---|
-| Python regression suite | 76 passed |
-| Combined test coverage | 88.67% |
+| Python regression suite | 119 passed |
+| Combined test coverage | 88.95% |
 | Ruff / MyPy | Passed |
 | DVC pipeline | Up to date |
 | Four Jupyter notebooks | Executed in prior validated runs |
@@ -703,13 +706,13 @@ Experimentation, DVC, MLflow, model training, FastAPI inference, container packa
 
 Kafka ingestion, SeaweedFS Bronze storage, Spark/Delta Silver processing, Trino/dbt Gold transformations, Flink event-time processing, Redis online features, Airflow orchestration, cross-language parity and security hardening.
 
-### Planned: Module III — ML Platform Integration
+### In progress: Module III — ML Platform Integration
 
-The next phase will connect the established data platform to a more complete model-training and serving lifecycle.
+Phases 1 and 2 now provide historical feature contracts and reproducible local training with candidate-only MLflow registration. Serving and orchestration remain planned.
 
 Planned work includes:
 
-- Point-in-time-correct training datasets from versioned Delta Silver tables.
+- A sufficiently labeled, retained, version-pinned real Delta training snapshot.
 - Offline/online feature consistency and freshness validation.
 - Automated ML pipelines with reproducible dataset, code and image lineage.
 - MLflow model promotion and artifact verification.
