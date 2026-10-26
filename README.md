@@ -29,13 +29,14 @@ It is designed to demonstrate how independently developed data and machine learn
 | Security hardening, PR #6 | Merged |
 | Module III: ML Platform Integration | Planned |
 | Local Docker and data pipelines | Runtime tested |
-| Helm and Terraform | Statically validated |
+| Helm and local Terraform/kind | Runtime validated |
+| GKE Terraform | Statically validated only |
 | GKE / production KServe | Not deployed |
 | 100 GB performance benchmark | Not performed |
 
 ### Verification highlights
 
-- **76 Python tests passed**, with **88.67% combined coverage** against an 81% enforcement threshold.
+- **78 Python tests passed**, with **88.67% combined coverage** against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -142,6 +143,29 @@ The diagram represents the verified local architecture and configured integratio
 | Observability | Prometheus, Grafana, Loki, Tempo, Evidently | Metrics, dashboards, logs, tracing, drift |
 | Infrastructure | Docker Compose, Helm, Terraform | Local environments and cloud deployment definitions |
 | CI/CD | GitHub Actions, GHCR | Automated tests and immutable image publication |
+
+---
+
+## Local Kubernetes Deployment (No Cloud Required)
+
+CogniFlow can run in a one-node kind cluster managed by Terraform and Helm. The local path uses only Docker resources on the current machine; it does not use the GKE Terraform configuration, cloud credentials, KServe, ingress, or Spark.
+
+`Terraform → kind (one local node) → Helm → ClusterIP → FastAPI`; access is through a loopback-only kubectl port-forward. Allow roughly 1 GiB RAM for the verified cluster, plus temporary headroom for image builds.
+
+```fish
+mkdir -p infra/terraform/local/.kube
+terraform -chdir=infra/terraform/local/cluster init
+terraform -chdir=infra/terraform/local/cluster apply
+docker build -t cognitive-load-api:local .
+kind load docker-image cognitive-load-api:local --name cogniflow-local
+terraform -chdir=infra/terraform/local/app init
+terraform -chdir=infra/terraform/local/app apply
+kubectl --kubeconfig infra/terraform/local/.kube/cogniflow-local.yaml \
+  --context kind-cogniflow-local -n cognitive-load \
+  port-forward service/cognitive-load-monitor 8000:80 --address 127.0.0.1
+```
+
+Then open http://127.0.0.1:8000. See the [local Kubernetes guide](docs/deployment/local-kubernetes.md) for prerequisites, verification, upgrades, and safe teardown.
 
 ---
 

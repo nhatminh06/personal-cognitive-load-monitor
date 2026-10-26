@@ -2,6 +2,12 @@ replicaCount: 1
 image:
   repository: cognitive-load-api
   tag: local
+  pullPolicy: Never
+  digest: ""
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
 config:
   appEnv: development
   inferenceMode: demo_rule
@@ -14,3 +20,13 @@ ingress:
   enabled: false
 serviceMonitor:
   enabled: false
+networkPolicy:
+  # kindnet does not enforce NetworkPolicy; do not claim isolation locally.
+  enabled: false
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi

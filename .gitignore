@@ -138,6 +138,8 @@ appendonly.aof
 
 # Terraform
 **/.terraform/*
+infra/terraform/local/.kube/
+*.tfplan
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
