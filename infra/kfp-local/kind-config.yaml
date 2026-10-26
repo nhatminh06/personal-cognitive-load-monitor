@@ -1,0 +1,18 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cogniflow-kfp
+networking:
+  apiServerAddress: 127.0.0.1
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
+      endpoint = ["http://cogniflow-kfp-registry:5000"]
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |-
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            system-reserved: memory=512Mi,cpu=250m
+            kube-reserved: memory=512Mi,cpu=250m

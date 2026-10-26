@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cogniflow-kfp-mlflow
+  namespace: kubeflow
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cogniflow-kfp-mlflow
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cogniflow-kfp-mlflow
+  template:
+    metadata:
+      labels:
+        app: cogniflow-kfp-mlflow
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mlflow
+          image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+          imagePullPolicy: IfNotPresent
+          command: [mlflow]
+          args:
+            - server
+            - --host
+            - 0.0.0.0
+            - --port
+            - "5000"
+            - --backend-store-uri
+            - sqlite:////mlflow/mlflow.db
+            - --artifacts-destination
+            - /mlflow/artifacts
+            - --serve-artifacts
+            - --workers
+            - "1"
+            - --allowed-hosts
+            - cogniflow-kfp-mlflow.kubeflow.svc.cluster.local:5000,cogniflow-kfp-mlflow.kubeflow.svc:5000,cogniflow-kfp-mlflow:5000,localhost:5000,127.0.0.1:5000
+          ports:
+            - name: http
+              containerPort: 5000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: mlflow
+              mountPath: /mlflow
+      volumes:
+        - name: mlflow
+          persistentVolumeClaim:
+            claimName: cogniflow-kfp-mlflow
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cogniflow-kfp-mlflow
+  namespace: kubeflow
+spec:
+  selector:
+    app: cogniflow-kfp-mlflow
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http

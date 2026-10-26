@@ -11,54 +11,28 @@ import joblib
 import mlflow
 import mlflow.sklearn
 import pandas as pd
-from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-
 from cogniflow_data.training import (
+    candidate_models,
+    evaluate_predictions,
     sha256_tree,
-    validate_training_frame,
+    split_training_frame,
     validate_training_manifest,
 )
 from preprocessing_api.features import FEATURE_NAMES
-
-LABELS = ("LOW", "MEDIUM", "HIGH")
-
-
-def evaluate(expected, predicted) -> dict:
-    precision, recall, _, _ = precision_recall_fscore_support(expected, predicted, labels=LABELS, zero_division=0)
-    return {"accuracy": accuracy_score(expected, predicted), "macro_f1": f1_score(expected, predicted, labels=LABELS, average="macro"), "per_class_precision": dict(zip(LABELS, precision.tolist())), "per_class_recall": dict(zip(LABELS, recall.tolist())), "confusion_matrix": confusion_matrix(expected, predicted, labels=LABELS).tolist()}
-
 
 def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *, tracking_uri: str, experiment: str, model_name: str) -> dict:
     manifest = json.loads(manifest_path.read_text())
     validate_training_manifest(manifest, dataset)
     frame = pd.read_json(dataset, lines=True)
-    if len(frame) < 90:
-        raise ValueError("at least 90 chronological samples are required")
-    validate_training_frame(frame, manifest)
-    splits = manifest["splits"]
-    train_frame = frame.iloc[slice(*splits["train"])]
-    validation_frame = frame.iloc[slice(*splits["validation"])]
-    test_frame = frame.iloc[slice(*splits["test"])]
-    for name, part in (("train", train_frame), ("validation", validation_frame), ("test", test_frame)):
-        if set(part["label"]) != set(LABELS):
-            raise ValueError(f"{name} split lacks class coverage")
-    models = {
-        "dummy_majority": DummyClassifier(strategy="most_frequent"),
-        "logistic_regression": Pipeline([("scaler", StandardScaler()), ("classifier", LogisticRegression(max_iter=1000, random_state=42))]),
-        "random_forest": RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced"),
-    }
+    train_frame, validation_frame, test_frame = split_training_frame(frame, manifest)
+    models = candidate_models()
     validation = {}
     for name, candidate in models.items():
         candidate.fit(train_frame[list(FEATURE_NAMES)], train_frame["label"])
-        validation[name] = evaluate(validation_frame["label"], candidate.predict(validation_frame[list(FEATURE_NAMES)]))
+        validation[name] = evaluate_predictions(validation_frame["label"], candidate.predict(validation_frame[list(FEATURE_NAMES)]))
     selected_name = max(models, key=lambda name: (validation[name]["macro_f1"], name))
     selected = models[selected_name]
-    test_metrics = evaluate(test_frame["label"], selected.predict(test_frame[list(FEATURE_NAMES)]))
+    test_metrics = evaluate_predictions(test_frame["label"], selected.predict(test_frame[list(FEATURE_NAMES)]))
     output.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(selected, output)
     export_digest = hashlib.sha256(output.read_bytes()).hexdigest()
