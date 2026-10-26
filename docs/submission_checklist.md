@@ -1,64 +1,66 @@
-# FSDS Submission Checklist
+# Course submission checklist
 
-> Evidence audit updated 2026-10-23. Checked artifacts below do not by themselves prove runtime behavior. Local evidence is in `docs/module1/verification.md`; cloud Kubernetes, live KServe/HPA/scale-to-zero, hosted observability, commit/push and PR remain pending.
+**Evidence audit updated 2026-10-26.** Checked items are supported by dated local or CI evidence. A source file or rendered manifest alone does not prove runtime behavior. The authoritative weights are in [`course-rubric-2026.md`](course-rubric-2026.md).
 
-Use this checklist before sending the GitHub Pull Request link.
+## Weighted technical implementation — 60%
 
-## Required code artifacts
+- [x] FastAPI API layer implemented and locally/CI verified — 10% implementation evidence; final KServe path still needs the cloud demo.
+- [ ] Real KServe, ModelMesh or KubeRay runtime — 10%.
+- [ ] Real Kubeflow Pipelines, Hera or equivalent training run — 15%.
+- [ ] Real Knative Broker/Trigger logging flow — 15%.
+- [ ] Real-time anomaly detector subscribed through Knative — 10%.
 
-- [x] Python FastAPI pre/post-processing API
-- [x] Pytest tests
-- [x] Coverage gate above 80%
-- [x] Dockerfile
-- [x] GitHub Actions CI/CD with test, build, and manual deploy
-- [x] Helm chart
-- [x] Kubernetes Deployment, Service, HPA, Ingress
-- [x] NGINX basic authentication annotations
-- [x] KServe InferenceService with min scale 0
-- [x] Prometheus metrics endpoint
-- [x] Grafana dashboard configuration
-- [x] Loki logging configuration
-- [x] Tempo tracing configuration
-- [x] Evidently drift report script
-- [x] MLflow training/registration script
-- [x] DVC pipeline
-- [x] Terraform GKE infrastructure
-- [x] Four required notebooks
+## Selected practical deployment — 40%
 
-## Things you must customize after pushing to GitHub
+- [ ] One authorized GKE cluster running grading-relevant components — 35% selected alternative.
+- [ ] MLflow registry artifacts backed by verified GCS object storage — 5%.
 
-- [ ] Replace `OWNER/REPO` image placeholders in Helm values or pass values from CI.
-- [ ] Replace `cognitive-load.example.com` with your real domain or demo host.
-- [ ] Replace `gs://CHANGE_ME_BUCKET/...` with your actual model bucket path.
-- [ ] Replace `.dvc/config` remote with your real DVC remote.
-- [ ] Add GitHub secrets for GKE, KServe storage URI, host, and MLflow.
-- [ ] Replace demo basic-auth password with a new generated `htpasswd` value.
-- [ ] Create a feature branch and PR into `main`.
-- [ ] Paste the real PR link into the README.
+The unselected GCE-only 20% alternative is not additive. GKE Terraform and GCS resources are currently static definitions only; no cloud apply has occurred.
 
-## Minimal demo commands
+## Required deliverables
 
-```bash
-make install
-make test
-make run
-```
+- [x] GitHub repository with current local installation/testing documentation.
+- [ ] README proven from a clean environment through the final cloud flow.
+- [ ] Real full-system demonstration video.
+- [ ] Evidence index with immutable commit, image, model, dataset, run and artifact identifiers.
+- [ ] Safe teardown and final cost evidence.
 
-In another terminal:
+## Existing supporting engineering evidence
 
-```bash
-bash scripts/local_smoke_test.sh
-```
+- [x] 152 Pytest tests and 89.41% combined coverage on 2026-10-26.
+- [x] Four notebooks executed in prior Module I/II verification.
+- [x] DVC reproducibility and MLflow candidate registration.
+- [x] Kafka, Bronze, Delta Silver, Trino/dbt Gold, Airflow and Flink/Redis local integration evidence.
+- [x] Prometheus, Grafana, Loki and Tempo local runtime evidence.
+- [x] Local Terraform/kind/Helm demo release.
+- [x] Candidate/approved separation, artifact SHA-256 and packaged provenance checks.
+- [x] SEC-022 constrained to accepted-risk local development through 2027-01-23.
+- [ ] Image signature and attestation enforcement for cloud deployment.
+- [ ] Runtime HPA and KServe scale-to-zero evidence; these are additional engineering targets, not separate supplied rubric points.
+- [ ] Optional bounded 100 GB benchmark; not required for the weighted rubric and not yet run.
 
-Docker:
+## Release gates before the final submission
 
-```bash
-docker build -t cognitive-load-api:local .
-docker run --rm -p 8000:8000 cognitive-load-api:local
-```
+- [ ] PR #13 Kubeflow acceptance tests and evidence pass.
+- [ ] Exact synthetic-demo model version and registered artifact digest receive explicit owner approval.
+- [ ] PR #14 KServe acceptance tests and fail-closed cases pass.
+- [ ] PR #15 Knative logging delivery/retry/dedup/DLQ tests pass.
+- [ ] PR #16 normal/anomaly fixtures and detection-latency SLO pass.
+- [ ] Owner approves a dated GCP calculator estimate, budget alerts and Terraform plan.
+- [ ] PR #17 GKE/GCS end-to-end, security, cost and teardown evidence pass.
+- [ ] PR #18 clean-run documentation and [`demo/full-rubric-demo.md`](demo/full-rubric-demo.md) recording checklist pass.
+- [ ] No credentials, raw sensitive inputs, mutable image tags or unapproved model artifacts appear in Git/evidence/video.
 
-Helm render check:
+## Current local quick checks
 
 ```bash
-helm template cognitive-load-monitor ./helm/cognitive-load-monitor --namespace cognitive-load
+uv sync --frozen --all-extras
+uv run ruff check src scripts
+uv run mypy src/preprocessing_api src/cogniflow_data
+uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov-fail-under=81
+uv run dvc status
+helm lint helm/cognitive-load-monitor
+terraform -chdir=infra/terraform/gke validate
 ```
+
+Do not run `terraform apply`, approve a model or deploy a workload merely to check this list. Follow [`module3/implementation-roadmap.md`](module3/implementation-roadmap.md) and obtain the required owner approvals.
