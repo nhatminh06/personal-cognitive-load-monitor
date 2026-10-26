@@ -1,0 +1,41 @@
+replicaCount: 1
+fullnameOverride: cognitive-load-phase3
+image:
+  repository: cognitive-load-api-phase3
+  tag: ""
+  digest: ""
+  pullPolicy: Never
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+config:
+  appEnv: production
+  inferenceMode: local_model
+  enableTracing: "false"
+  modelVersion: ""
+  modelName: cognitive-load-classifier-phase2
+  modelPath: /app/models/cognitive_load_model.skops
+  modelSha256: ""
+  modelArtifactSha256: ""
+  modelDatasetSha256: ""
+  modelFeatureSchemaVersion: "1.0"
+existingSecret: cognitive-load-phase3-api-key
+autoscaling:
+  enabled: false
+kserve:
+  enabled: false
+ingress:
+  enabled: false
+serviceMonitor:
+  enabled: false
+networkPolicy:
+  # kindnet does not enforce NetworkPolicy; access remains ClusterIP plus loopback port-forward.
+  enabled: false
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: 300m
+    memory: 384Mi

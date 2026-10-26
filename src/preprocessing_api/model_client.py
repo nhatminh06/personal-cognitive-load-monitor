@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import logging
 import os
+from numbers import Integral
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from preprocessing_api.security import is_production
 
 LOGGER = logging.getLogger(__name__)
 
+# Phase I models use encoded integers; Phase II models emit canonical string labels.
 _CLASS_MAP = {
     0: CognitiveLoadLevel.LOW,
     1: CognitiveLoadLevel.MEDIUM,
@@ -27,8 +29,7 @@ _CLASS_MAP = {
     "HIGH": CognitiveLoadLevel.HIGH,
 }
 
-# Mirrors LABEL_MAP in scripts/train_model.py, which encodes classes as 0/1/2 in that order.
-_INVERSE_LABEL_MAP = {0: CognitiveLoadLevel.LOW, 1: CognitiveLoadLevel.MEDIUM, 2: CognitiveLoadLevel.HIGH}
+_SKOPS_TRUSTED_TYPES = ["sklearn.tree._tree.Tree"]
 
 _local_model: Any = None
 _local_model_load_attempted = False
@@ -62,6 +63,15 @@ def reset_local_model_cache() -> None:
     _local_model_load_attempted = False
 
 
+def _validated_class(value: Any) -> CognitiveLoadLevel:
+    if isinstance(value, bool) or not isinstance(value, (Integral, str)):
+        raise ValueError("model returned an unsupported prediction class")
+    result = _CLASS_MAP.get(int(value) if isinstance(value, Integral) else value)
+    if result is None:
+        raise ValueError("model returned an unknown prediction class")
+    return result
+
+
 def _load_local_model() -> Any:
     """Lazily load the joblib model trained by scripts/train_model.py, if present."""
 
@@ -85,9 +95,16 @@ def _load_local_model() -> Any:
             return None
 
     try:
-        import joblib
+        if model_path.suffix == ".skops":
+            import skops.io
 
-        _local_model = joblib.load(model_path)
+            _local_model = skops.io.load(model_path, trusted=_SKOPS_TRUSTED_TYPES)
+        elif model_path.suffix in {".joblib", ".pkl"}:
+            import joblib
+
+            _local_model = joblib.load(model_path)
+        else:
+            raise ValueError("unsupported local model format")
     except Exception:  # pragma: no cover - corrupt/incompatible artifact
         LOGGER.warning("Trusted local model could not be loaded")
         _local_model = None
@@ -108,7 +125,7 @@ def predict_with_local_model(request: PredictionRequest) -> CognitiveLoadLevel |
 
     try:
         prediction = model.predict([feature_vector(request.model_dump())])[0]
-        return _INVERSE_LABEL_MAP.get(int(prediction))
+        return _validated_class(prediction)
     except Exception:
         LOGGER.warning("Local model prediction failed; backend unavailable")
         return None

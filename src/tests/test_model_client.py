@@ -113,17 +113,59 @@ def test_predict_with_local_model_missing_file_returns_none(monkeypatch, tmp_pat
     assert predict_with_local_model(_request()) is None
 
 
-def test_predict_with_local_model_success(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    "prediction,expected",
+    [
+        (0, CognitiveLoadLevel.LOW),
+        (1, CognitiveLoadLevel.MEDIUM),
+        (2, CognitiveLoadLevel.HIGH),
+        ("LOW", CognitiveLoadLevel.LOW),
+        ("MEDIUM", CognitiveLoadLevel.MEDIUM),
+        ("HIGH", CognitiveLoadLevel.HIGH),
+    ],
+)
+def test_predict_with_local_model_supported_classes(monkeypatch, tmp_path, prediction, expected):
     class _FakeModel:
         def predict(self, features):
-            return [1]
+            return [prediction]
 
     model_path = tmp_path / "model.joblib"
     model_path.write_bytes(b"placeholder")
     monkeypatch.setenv("MODEL_PATH", str(model_path))
     monkeypatch.setattr("joblib.load", lambda path: _FakeModel())
 
-    assert predict_with_local_model(_request()) == CognitiveLoadLevel.MEDIUM
+    assert predict_with_local_model(_request()) == expected
+
+
+@pytest.mark.parametrize("prediction", ["UNKNOWN", 3, 1.5, True])
+def test_predict_with_local_model_rejects_unknown_classes(monkeypatch, tmp_path, prediction):
+    class _FakeModel:
+        def predict(self, features):
+            return [prediction]
+
+    model_path = tmp_path / "model.joblib"
+    model_path.write_bytes(b"placeholder")
+    monkeypatch.setenv("MODEL_PATH", str(model_path))
+    monkeypatch.setattr("joblib.load", lambda path: _FakeModel())
+
+    assert predict_with_local_model(_request()) is None
+
+
+def test_local_skops_model_uses_explicit_trusted_types(monkeypatch, tmp_path):
+    model_path = tmp_path / "model.skops"
+    model_path.write_bytes(b"trusted-skops")
+    monkeypatch.setenv("MODEL_PATH", str(model_path))
+    monkeypatch.setenv("MODEL_SHA256", hashlib.sha256(model_path.read_bytes()).hexdigest())
+    calls = []
+    fake_model = type("Model", (), {"predict": lambda self, _: ["LOW"]})()
+
+    def load(path, *, trusted):
+        calls.append((path, trusted))
+        return fake_model
+
+    monkeypatch.setattr("skops.io.load", load)
+    assert predict_with_local_model(_request()) == CognitiveLoadLevel.LOW
+    assert calls == [(model_path, ["sklearn.tree._tree.Tree"])]
 
 
 def test_production_model_requires_matching_digest(monkeypatch, tmp_path):

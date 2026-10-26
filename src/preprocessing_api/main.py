@@ -77,11 +77,22 @@ def inference_mode() -> str:
 @app.get("/model-info", dependencies=[Depends(require_api_key)])
 async def model_info():
     mode = inference_mode()
-    return {
+    result = {
         "inference_mode": mode,
         "model_version": os.getenv("MODEL_VERSION") if mode != "demo_rule" else None,
         "label_provenance": "synthetic_proxy",
     }
+    if mode == "local_model":
+        result.update(
+            {
+                "model_name": os.getenv("MODEL_NAME"),
+                "dataset_sha256": os.getenv("MODEL_DATASET_SHA256"),
+                "feature_schema_version": os.getenv("MODEL_FEATURE_SCHEMA_VERSION"),
+                "registered_artifact_sha256": os.getenv("MODEL_ARTIFACT_SHA256"),
+                "packaged_model_sha256": os.getenv("MODEL_SHA256"),
+            }
+        )
+    return result
 
 
 @app.get("/metrics")

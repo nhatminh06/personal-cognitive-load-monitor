@@ -1,3 +1,6 @@
+{{ if and (eq .Values.config.inferenceMode "local_model") (not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest)) }}
+{{ fail "image.digest must be a sha256 digest in local_model mode" }}
+{{ end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
