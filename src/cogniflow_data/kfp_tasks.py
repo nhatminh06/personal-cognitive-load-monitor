@@ -59,7 +59,9 @@ def validate_inputs(
         raise ValueError("feature and label row counts disagree")
     if not re.fullmatch(r"[0-9a-f]{40}", expected_git_revision):
         raise ValueError("git revision must be a full commit SHA")
-    built_revision = os.getenv("COGNIFLOW_CODE_REVISION", expected_git_revision)
+    built_revision = os.getenv("COGNIFLOW_CODE_REVISION")
+    if not built_revision or not re.fullmatch(r"[0-9a-f]{40}", built_revision):
+        raise ValueError("component image code revision is missing or malformed")
     if built_revision != expected_git_revision:
         raise ValueError("component image code revision mismatch")
     result = {

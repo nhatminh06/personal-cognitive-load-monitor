@@ -21,6 +21,11 @@ IMAGE = "localhost/cogniflow-kfp@sha256:" + "b" * 64
 CUTOFF = datetime(2026, 2, 1, tzinfo=UTC)
 
 
+@pytest.fixture(autouse=True)
+def embedded_revision(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COGNIFLOW_CODE_REVISION", GIT_REVISION)
+
+
 def fixture(tmp_path: Path):
     features = tmp_path / "features.jsonl"
     labels = tmp_path / "labels.jsonl"
@@ -109,10 +114,38 @@ def test_validation_checksum_schema_and_image_revision_fail_closed(
     with pytest.raises(ValueError, match="unsupported feature manifest"):
         validate_inputs(features, labels, feature_manifest, tmp_path / "out", expected_git_revision=GIT_REVISION)
 
-    monkeypatch.setenv("COGNIFLOW_CODE_REVISION", "b" * 40)
+
+
+def test_validation_requires_matching_embedded_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     features, labels, feature_manifest = fixture(tmp_path)
-    with pytest.raises(ValueError, match="code revision mismatch"):
-        validate_inputs(features, labels, feature_manifest, tmp_path / "out", expected_git_revision=GIT_REVISION)
+    result = validate_inputs(
+        features,
+        labels,
+        feature_manifest,
+        tmp_path / "out",
+        expected_git_revision=GIT_REVISION,
+    )
+    assert result["git_revision"] == GIT_REVISION
+
+    for embedded, message in (
+        (None, "missing or malformed"),
+        ("not-a-commit", "missing or malformed"),
+        ("b" * 40, "code revision mismatch"),
+    ):
+        if embedded is None:
+            monkeypatch.delenv("COGNIFLOW_CODE_REVISION")
+        else:
+            monkeypatch.setenv("COGNIFLOW_CODE_REVISION", embedded)
+        with pytest.raises(ValueError, match=message):
+            validate_inputs(
+                features,
+                labels,
+                feature_manifest,
+                tmp_path / "out",
+                expected_git_revision=GIT_REVISION,
+            )
 
 
 def test_tampered_model_and_missing_provenance_fail_closed(tmp_path: Path) -> None:

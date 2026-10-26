@@ -99,7 +99,7 @@ Negative KFP run `5143c5ae-9c98-4c4d-9f21-f5647ec63cf9` finished `Failed` with `
 
 Initial disposable attempts exposed three installation/runtime issues before the accepted run: the development overlay's `master` driver mismatch, missing S3 provider region, and an under-sized 1 GiB MLflow service. The final configuration pins driver/launcher `2.17.2`, uses the official provider schema in `infra/kfp-local/kfp-launcher.yaml`, explicitly allowlists MLflow service hosts, and bounds MLflow at 2 GiB with one worker.
 
-Release verification passed with 161 Pytest tests and 89.60% combined coverage against the 81% gate, Ruff, MyPy, Helm lint/render, and DVC reproduction. DVC regenerated the same 180-row dataset digest while refreshing dependency hashes for the shared refactor. Gitleaks found no secret in the intended diff. Trivy `0.67.2` found zero fixable High/Critical OS or Python findings in the exact component image archive. Graphify's post-change code graph contains 949 nodes and 1,989 edges; it traces KFP task code to the existing `training.py`, `historical.py`, and shared `preprocessing_api/features.py` contracts rather than a duplicate feature implementation. Graphify documentation semantics were not refreshed because no supported LLM backend was configured; the deterministic code graph was refreshed locally.
+Release verification passed with 162 Pytest tests and 89.62% combined coverage against the 81% gate, Ruff, MyPy, Helm lint/render, and DVC reproduction. DVC regenerated the same 180-row dataset digest while refreshing dependency hashes for the shared refactor. Gitleaks found no secret in the intended diff. Trivy `0.67.2` found zero fixable High/Critical OS or Python findings in the exact component image archive. Graphify's post-change code graph contains 950 nodes and 1,997 edges; it traces KFP task code to the existing `training.py`, `historical.py`, and shared `preprocessing_api/features.py` contracts rather than a duplicate feature implementation. Graphify documentation semantics were not refreshed because no supported LLM backend was configured; the deterministic code graph was refreshed locally.
 
 ## Inspection, retention and cleanup
 
@@ -111,7 +111,7 @@ kubectl --kubeconfig /tmp/cogniflow-kfp-kubeconfig -n kubeflow get workflows,pod
 kubectl --kubeconfig /tmp/cogniflow-kfp-kubeconfig -n kubeflow logs <task-pod> -c main
 ```
 
-Artifacts live only in the disposable cluster's KFP SeaweedFS store and are deleted with that explicitly owned cluster. Export evidence before cleanup. The existing Module II SeaweedFS volumes, Terraform state, `cogniflow-local` cluster, PersonalOS and ports 8000/18000 are not touched.
+Artifacts live only in the disposable cluster's KFP SeaweedFS and MLflow stores and are deleted with that explicitly owned cluster. Export model artifacts and registry metadata before cleanup if they must be retained. Because the verified disposable cluster was deleted, its MLflow candidate and artifacts cannot be reused unless they were separately exported and their recorded digests are reverified. The existing Module II SeaweedFS volumes, Terraform state, `cogniflow-local` cluster, PersonalOS and ports 8000/18000 are not touched.
 
 ```bash
 kind delete cluster --name cogniflow-kfp
