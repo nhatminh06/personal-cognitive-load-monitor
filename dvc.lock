@@ -104,8 +104,8 @@ stages:
       size: 1131
     - path: src/cogniflow_data/historical.py
       hash: md5
-      md5: 1974278ee5446ab975063be961cf214f
-      size: 8368
+      md5: 18e0f65e94e7412de29c7cbc5b1843bc
+      size: 9404
     - path: src/preprocessing_api/features.py
       hash: md5
       md5: 95e43ee56e121e8162b6a72f21b9616a
@@ -141,8 +141,8 @@ stages:
       size: 2884
     - path: src/cogniflow_data/historical.py
       hash: md5
-      md5: 1974278ee5446ab975063be961cf214f
-      size: 8368
+      md5: 18e0f65e94e7412de29c7cbc5b1843bc
+      size: 9404
     - path: src/preprocessing_api/features.py
       hash: md5
       md5: 95e43ee56e121e8162b6a72f21b9616a
@@ -171,7 +171,7 @@ stages:
       data/processed/module3/training_dataset.jsonl --output-manifest
       data/processed/module3/training_manifest.json --training-cutoff
       2026-01-15T00:00:00+00:00 --git-revision
-      19993b42ca8bbc11e20d2b17a622118523aef63d
+      5237d674edf295addeafb7528920d9f41ade05ba
     deps:
     - path: data/processed/module3/feature_manifest.json
       hash: md5
@@ -191,21 +191,21 @@ stages:
       size: 811
     - path: src/cogniflow_data/training.py
       hash: md5
-      md5: 6f58eeeeeda3e466070a9989d9bb017b
-      size: 4149
+      md5: bfb2565c92a78a9a0d2883541c669fc7
+      size: 11388
     params:
       params.yaml:
-        module3_phase2.git_revision: 19993b42ca8bbc11e20d2b17a622118523aef63d
+        module3_phase2.git_revision: 5237d674edf295addeafb7528920d9f41ade05ba
         module3_phase2.training_cutoff: '2026-01-15T00:00:00+00:00'
     outs:
     - path: data/processed/module3/training_dataset.jsonl
       hash: md5
-      md5: 0918dc3becb63934999a7e0f41a8ddd2
-      size: 69072
+      md5: e9702a742b4e73cac63319406d3600cc
+      size: 77532
     - path: data/processed/module3/training_manifest.json
       hash: md5
-      md5: b8f73798843bc32e74ad811af328340e
-      size: 1006
+      md5: edf219e403011eea8d218d53a70de1b1
+      size: 1066
   phase2_train:
     cmd: env PYTHONPATH=src uv run python scripts/train_historical_model.py
       --dataset data/processed/module3/training_dataset.jsonl --manifest
@@ -216,16 +216,16 @@ stages:
     deps:
     - path: data/processed/module3/training_dataset.jsonl
       hash: md5
-      md5: 0918dc3becb63934999a7e0f41a8ddd2
-      size: 69072
+      md5: e9702a742b4e73cac63319406d3600cc
+      size: 77532
     - path: data/processed/module3/training_manifest.json
       hash: md5
-      md5: b8f73798843bc32e74ad811af328340e
-      size: 1006
+      md5: edf219e403011eea8d218d53a70de1b1
+      size: 1066
     - path: scripts/train_historical_model.py
       hash: md5
-      md5: 41058e7acab8b0c7c61c975f28174a1c
-      size: 6567
+      md5: 0eb80f52b73e3653a0dc17763039e15c
+      size: 6975
     - path: src/preprocessing_api/features.py
       hash: md5
       md5: 95e43ee56e121e8162b6a72f21b9616a
@@ -237,5 +237,5 @@ stages:
       size: 172497
     - path: reports/module3/phase2-metrics.json
       hash: md5
-      md5: 752c4c6ae0cc56c44479a4f8af78a174
-      size: 3776
+      md5: 22237579c3873fb641f4726efd3b77f1
+      size: 3948

@@ -38,7 +38,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ### Verification highlights
 
-- **101 Python tests passed**, with **89.85% combined coverage** against an 81% enforcement threshold.
+- **119 Python tests passed**, with **88.95% combined coverage** against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -637,8 +637,8 @@ The most recent local release validation reported:
 
 | Verification | Result |
 |---|---|
-| Python regression suite | 101 passed |
-| Combined test coverage | 89.85% |
+| Python regression suite | 119 passed |
+| Combined test coverage | 88.95% |
 | Ruff / MyPy | Passed |
 | DVC pipeline | Up to date |
 | Four Jupyter notebooks | Executed in prior validated runs |

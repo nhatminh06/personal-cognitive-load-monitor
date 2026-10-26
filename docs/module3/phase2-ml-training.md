@@ -46,7 +46,7 @@ env PYTHONPATH=src uv run python scripts/train_historical_model.py \
 uv run mlflow ui --host 127.0.0.1 --port 5000 --backend-store-uri $tracking_uri
 ```
 
-Dummy majority, logistic regression, and random forest each receive an MLflow run with model type, supported hyperparameters, dataset checksum, Git revision, feature schema, label provenance, cutoff, and validation metrics. Selection uses validation macro F1 only. Only the selected model is evaluated on the held-out test set and registered with `approval_status=candidate` plus its SHA-256.
+Dummy majority, logistic regression, and random forest each receive an MLflow run with model type, supported hyperparameters, dataset checksum, Git revision, feature schema, label provenance, cutoff, and validation metrics. Selection uses validation macro F1 only. Only the selected model is evaluated on the held-out test set and registered with `approval_status=candidate`. The report distinguishes the standalone export's `exported_joblib_sha256` from `registered_artifact_sha256`, a deterministic digest over every relative filename and byte in the artifact tree referenced by the registered model version.
 
 ## Explicit approval boundary
 
@@ -59,11 +59,11 @@ uv run python scripts/approve_model_candidate.py \
   --version VERSION --expected-digest SHA256 --actor nhatminh06 --approve
 ```
 
-This records approval tags only; it does not assign a production alias or deploy anything.
+Before recording approval tags, the command downloads the artifact referenced by that exact model version and requires its computed tree digest to match both the candidate tag and `--expected-digest`. This does not assign a production alias or deploy anything.
 
 ## Security
 
-- Trino exposes only version-pinned snapshot operations; pagination must remain `http://127.0.0.1:8081`.
+- Trino exposes only version-pinned snapshot operations; requests and pagination must remain `http://127.0.0.1:8081`, and redirects are rejected.
 - Local joblib loading retains the production SHA-256 gate. Only locally generated artifacts are trusted.
 - No secrets are stored in manifests, MLflow metadata, reports, or DVC.
 - SEC-022 is unchanged. Spark, Kubernetes serving, Kubeflow, KServe, Knative, Argo CD, Terraform cloud apply, and remote deployment are outside this phase.
@@ -72,13 +72,14 @@ This records approval tags only; it does not assign a production alias or deploy
 
 Verified on October 26, 2026:
 
-- Full regression: 101 passed; combined coverage 89.85% (81% gate).
+- Full regression: 119 passed; combined coverage 88.95% (81% gate).
 - Ruff: passed. MyPy: passed for 17 source files.
 - DVC: all stages reproduced or skipped as unchanged; a second status check reported the pipeline up to date.
-- Dataset: `cogniflow-module3-training-synthetic-v1`, 180 rows (60 per proxy class), SHA-256 `44745685d680320537de7bca8169d4151598e7202888946d53cb52f8a546e67a`.
+- Dataset: `cogniflow-module3-training-synthetic-v1`, 180 rows (60 per proxy class), SHA-256 `6679e9edb87451ee968e21c0aef5280226b2cf609554e048ec365378c3aca80f`.
 - Split: 108 train, 36 validation, 36 held-out test, in chronological order.
-- MLflow runs: dummy `ad6323f27016427c9ffa0c0a0e0a2846`, logistic `fc4ff0fdb1a040278990fb34183baf73`, random forest `c980faa63ec648f091508e02a2577896`.
-- Registered candidate: model version 1, artifact SHA-256 `e3a3449a1e6b2a4ac301d3111c6d21ab5f78e626edd63b70113332de080bbafb`.
+- MLflow runs: dummy `22a7265361184beda2ba9887c8bf4c77`, logistic `e12a3178ebd146e6b64dd44ca1addeb6`, random forest `94253b877a8c4d45a36abba85a25d4bc`.
+- Registered candidate: model version 2, registered artifact-tree SHA-256 `13137be7ce4c885877d7968afa0177be31cff60a4b2e33707893a7698c3b62ae`; independently downloaded and verified against the model version's `models:/m-c1dfec4cea3e4e1b8f71df1365fcfdec` source.
+- Standalone exported joblib SHA-256: `e3a3449a1e6b2a4ac301d3111c6d21ab5f78e626edd63b70113332de080bbafb`. It is not used as the registered-artifact approval digest.
 - Validation accuracy/macro F1: dummy 0.3333/0.1667; logistic 1.0/1.0; random forest 1.0/1.0. Selected random-forest held-out accuracy/macro F1: 1.0/1.0.
 
 The perfect selected-model result reflects a deliberately separable synthetic integration fixture. It is pipeline evidence only and is not evidence of real-world or medical cognitive-load accuracy.
