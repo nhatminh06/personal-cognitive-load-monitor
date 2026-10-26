@@ -43,8 +43,8 @@ app = FastAPI(
 )
 configure_tracing(app)
 app.add_middleware(MetricsMiddleware)
-app.add_middleware(InferenceActivityMiddleware)
 app.add_middleware(SecurityMiddleware)
+app.add_middleware(InferenceActivityMiddleware)
 app.include_router(event_router)
 
 

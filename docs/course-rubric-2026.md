@@ -40,7 +40,7 @@ The cognitive-load use case remains valid, but all current labels are synthetic 
 
 ## Evidence freshness
 
-- The current PR #15 regression baseline (2026-10-26) is 180 tests at 88.75% combined coverage, with Ruff and scoped MyPy passing.
+- The current PR #15 regression baseline (2026-10-26) is 198 tests at 89.05% combined coverage, with Ruff and scoped MyPy passing.
 - Module I runtime evidence is dated 2026-10-23 in [`module1/verification.md`](module1/verification.md).
 - Module II runtime evidence is dated 2026-10-24 through 2026-10-25 in [`module2/testing.md`](module2/testing.md).
 - Module III Phase 3 local hardening evidence is dated 2026-10-26 in [`module3/phase3-model-serving.md`](module3/phase3-model-serving.md).

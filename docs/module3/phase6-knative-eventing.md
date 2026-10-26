@@ -12,7 +12,7 @@ flowchart LR
     Trigger -->|3 retries exhausted| DLQ[SQLite dead-letter consumer]
 ```
 
-The API middleware emits at most one activity event after each `/predict` result. Publication is synchronous, bounded to five seconds or less, and best-effort: a telemetry failure is counted and logged but cannot alter the prediction response or select another inference backend. It is disabled by default. Once the consumer returns `204`, the sanitized event has committed to SQLite with `synchronous=FULL`; `(source, id)` is the durable uniqueness key. This is not end-to-end exactly-once delivery.
+The outer API activity middleware emits at most one activity event after each `/predict` result, including request-size rejections produced by the existing inner security middleware. Publication is synchronously awaited from the request lifecycle, best-effort, and admitted to a fixed four-worker pool without waiting for a slot. Each network operation is bounded to five seconds or less; timeout or request cancellation cannot release its slot until the worker actually finishes. Saturated publication is dropped and counted instead of creating an unbounded queue. A telemetry failure cannot alter the prediction response or select another inference backend. Publication is disabled by default. Once the consumer returns `204`, the sanitized event has committed to SQLite with `synchronous=FULL`; `(source, id)` is the durable uniqueness key. This is not end-to-end exactly-once delivery.
 
 The local MTChannelBasedBroker uses InMemoryChannel. Consumer records survive consumer Pod restarts through a 256 MiB PVC, but events waiting inside the in-memory channel can be lost with the dispatcher/node. Production needs a persistent supported channel.
 
@@ -31,7 +31,7 @@ Type `org.cogniflow.inference.activity.v1`, data schema `1.0`, CloudEvents `1.0`
 | `failure_category` | bounded classification; `none` only for success |
 | model identity/version | optional restricted identifier strings |
 
-The serialized event is limited to 4096 bytes. Request bodies, raw features, headers, API keys, IP addresses, private identifiers, stack traces, and medical conclusions are never copied. Invalid payloads receive a generic response and are not logged.
+The serialized event is limited to 4096 bytes. The consumer reads request chunks incrementally and stops as soon as the cumulative limit is exceeded, regardless of missing or misleading `Content-Length`. Event and correlation IDs must be strings before UUID parsing. Request bodies, raw features, headers, API keys, IP addresses, private identifiers, stack traces, and medical conclusions are never copied. Invalid payloads receive a generic response and are not logged.
 
 ## Pinned local installation
 

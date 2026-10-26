@@ -57,6 +57,8 @@ def validate_event(event: Any) -> dict[str, Any]:
         raise ValueError("unsupported CloudEvent version or type")
     if event["datacontenttype"] != "application/json" or event["source"] != EVENT_SOURCE:
         raise ValueError("invalid CloudEvent metadata")
+    if not isinstance(event["id"], str):
+        raise ValueError("invalid CloudEvent id")
     uuid.UUID(event["id"])
     timestamp = datetime.fromisoformat(str(event["time"]).replace("Z", "+00:00"))
     if timestamp.tzinfo is None or timestamp.utcoffset() != UTC.utcoffset(timestamp):
@@ -69,6 +71,8 @@ def validate_event(event: Any) -> dict[str, Any]:
     optional = {"model_name", "model_version"}
     if not isinstance(data, dict) or not required <= set(data) or not set(data) - required <= optional:
         raise ValueError("invalid activity data schema")
+    if not isinstance(data["correlation_id"], str):
+        raise ValueError("invalid correlation id")
     uuid.UUID(data["correlation_id"])
     if data["schema_version"] != EVENT_SCHEMA_VERSION:
         raise ValueError("unsupported activity schema")
@@ -159,12 +163,14 @@ async def consume(request: Request) -> Response:
         if too_large:
             DELIVERIES.labels("rejected").inc()
             raise HTTPException(status_code=413, detail="event too large")
-    body = await request.body()
-    if len(body) > MAX_EVENT_BYTES:
-        DELIVERIES.labels("rejected").inc()
-        raise HTTPException(status_code=413, detail="event too large")
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_EVENT_BYTES:
+            DELIVERIES.labels("rejected").inc()
+            raise HTTPException(status_code=413, detail="event too large")
+        body.extend(chunk)
     try:
-        event = parse_delivery(body, request.headers)
+        event = parse_delivery(bytes(body), request.headers)
     except (ValueError, TypeError, json.JSONDecodeError):
         DELIVERIES.labels("rejected").inc()
         raise HTTPException(status_code=400, detail="invalid activity event") from None

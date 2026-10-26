@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import logging
 import math
 import os
 import re
 import time
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -30,6 +32,11 @@ PUBLISH_EVENTS = Counter(
     ["result"],
 )
 LOGGER = logging.getLogger(__name__)
+_PUBLISH_WORKERS = 4
+_PUBLISH_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=_PUBLISH_WORKERS, thread_name_prefix="activity-publisher"
+)
+_PUBLISH_SLOTS = threading.BoundedSemaphore(_PUBLISH_WORKERS)
 
 
 def _utc_now() -> str:
@@ -129,6 +136,16 @@ def _post(payload: bytes, destination: str, timeout: float) -> None:
             raise OSError(f"event receiver returned HTTP {response.status}")
 
 
+def _post_bounded(payload: bytes, destination: str, timeout: float) -> Exception | None:
+    try:
+        _post(payload, destination, timeout)
+    except Exception as exc:  # returned to the event loop for sanitized handling
+        return exc
+    finally:
+        _PUBLISH_SLOTS.release()
+    return None
+
+
 async def publish_activity_event(event: dict[str, Any]) -> bool:
     if os.getenv("INFERENCE_ACTIVITY_ENABLED", "false").lower() not in {"1", "true", "yes"}:
         PUBLISH_EVENTS.labels("disabled").inc()
@@ -139,8 +156,20 @@ async def publish_activity_event(event: dict[str, Any]) -> bool:
         payload = json.dumps(event, separators=(",", ":")).encode()
         if len(payload) > MAX_EVENT_BYTES:
             raise ValueError("activity event exceeds size limit")
-        await asyncio.wait_for(asyncio.to_thread(_post, payload, destination, timeout), timeout + 0.25)
-    except (KeyError, ValueError, OSError, TimeoutError, urllib.error.URLError) as exc:
+        if not _PUBLISH_SLOTS.acquire(blocking=False):
+            PUBLISH_EVENTS.labels("dropped").inc()
+            return False
+        try:
+            future = asyncio.get_running_loop().run_in_executor(
+                _PUBLISH_EXECUTOR, _post_bounded, payload, destination, timeout
+            )
+        except RuntimeError:
+            _PUBLISH_SLOTS.release()
+            raise
+        error = await asyncio.wait_for(asyncio.shield(future), timeout + 0.25)
+        if error is not None:
+            raise error
+    except (KeyError, ValueError, OSError, RuntimeError, TimeoutError, urllib.error.URLError) as exc:
         PUBLISH_EVENTS.labels("failed").inc()
         LOGGER.warning("inference_activity_publish_failed reason=%s", type(exc).__name__)
         return False
