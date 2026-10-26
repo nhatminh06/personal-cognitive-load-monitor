@@ -37,23 +37,40 @@ env PYTHONPATH=src uv run python scripts/package_approved_model.py \
 
 The command fails unless registry identity, approval tags, run provenance, expected digest, downloaded artifact-tree digest, MLflow flavor, and model layout all match. `build/model-package/model-package.json` records the registered artifact digest separately from the packaged model digest. Generated packages remain ignored by Git.
 
+At runtime the API validates that manifest before deserialization. The model file digest must match both the manifest and deployment configuration; model name, exact version, registered artifact digest, dataset digest, feature schema, and canonical six-feature order must also agree. `/ready` fails closed and `/model-info` returns HTTP 503 until this succeeds. Once verified, `/model-info` reports the manifest-backed provenance rather than raw environment values.
+
 ## Image and Helm validation
 
 Build only after packaging succeeds:
 
 ```fish
 set image_tag (git rev-parse HEAD)
-docker build --file Dockerfile.model-serving \
-  --tag cognitive-load-api-phase3:$image_tag .
-docker image inspect cognitive-load-api-phase3:$image_tag
+set image_repository localhost/cognitive-load-api-phase3
+set image_archive /tmp/cognitive-load-api-phase3.oci
+docker buildx build --file Dockerfile.model-serving \
+  --tag $image_repository:$image_tag \
+  --output type=oci,dest=$image_archive .
+set image_digest (tar -xOf $image_archive index.json | jq --raw-output '.manifests[0].digest')
+string match --regex --quiet '^sha256:[a-f0-9]{64}$' $image_digest
+kind load image-archive --name cogniflow-local $image_archive
+docker exec cogniflow-local-control-plane crictl inspecti $image_repository@$image_digest
 ```
 
-The serving Dockerfile copies only `cognitive_load_model.skops` and its package manifest. Do not deploy using a mutable tag or substitute a Docker image ID for a distribution digest. Obtain the image's `repository@sha256:...` reference, load that exact image into `cogniflow-local`, and pass the digest to Helm.
+The serving Dockerfile copies only `cognitive_load_model.skops` and its package manifest. The OCI index supplies the repository manifest digest; the final `crictl inspecti` proves that exact `repository@sha256:...` reference resolves in kind's containerd before Helm is allowed to use it with `imagePullPolicy: Never`. Stop if that check fails. Never use `docker image inspect .Id`, a config digest, or any other Docker image ID as the repository digest.
+
+Set the cluster identity once and pass it to every Kubernetes client command:
+
+```fish
+set kubeconfig infra/terraform/local/.kube/cogniflow-local.yaml
+set kube_context kind-cogniflow-local
+kubectl --kubeconfig $kubeconfig --context $kube_context config current-context
+```
 
 Validate the chart before installation:
 
 ```fish
 helm lint helm/cognitive-load-monitor \
+  --kubeconfig $kubeconfig --kube-context $kube_context \
   --values helm/cognitive-load-monitor/values.phase3-local.yaml \
   --set-string image.digest=sha256:IMAGE_DIGEST \
   --set-string config.modelVersion=$model_version \
@@ -62,6 +79,7 @@ helm lint helm/cognitive-load-monitor \
   --set-string config.modelDatasetSha256=DATASET_SHA256
 
 helm template cognitive-load-phase3 helm/cognitive-load-monitor \
+  --kubeconfig $kubeconfig --kube-context $kube_context \
   --namespace cognitive-load-phase3 \
   --values helm/cognitive-load-monitor/values.phase3-local.yaml \
   --set-string image.digest=sha256:IMAGE_DIGEST \
@@ -74,22 +92,27 @@ helm template cognitive-load-phase3 helm/cognitive-load-monitor \
 Create the API-key Secret from a protected local file, then install only after reviewing the rendered manifest. Never place the key in values or shell history.
 
 ```fish
-kubectl create namespace cognitive-load-phase3
-kubectl create secret generic cognitive-load-phase3-api-key \
+kubectl --kubeconfig $kubeconfig --context $kube_context \
+  create namespace cognitive-load-phase3
+kubectl --kubeconfig $kubeconfig --context $kube_context \
+  create secret generic cognitive-load-phase3-api-key \
   --namespace cognitive-load-phase3 \
   --from-file=COGNIFLOW_API_KEY=/secure/path/cogniflow-api-key
 
 helm upgrade --install cognitive-load-phase3 helm/cognitive-load-monitor \
+  --kubeconfig $kubeconfig --kube-context $kube_context \
   --namespace cognitive-load-phase3 \
   --values helm/cognitive-load-monitor/values.phase3-local.yaml \
-  --set-string image.digest=sha256:IMAGE_DIGEST \
+  --set-string image.repository=$image_repository \
+  --set-string image.digest=$image_digest \
   --set-string config.modelVersion=$model_version \
   --set-string config.modelSha256=PACKAGED_MODEL_SHA256 \
   --set-string config.modelArtifactSha256=$artifact_sha256 \
   --set-string config.modelDatasetSha256=DATASET_SHA256 \
   --atomic --wait --timeout 180s
 
-kubectl port-forward --address 127.0.0.1 \
+kubectl --kubeconfig $kubeconfig --context $kube_context \
+  port-forward --address 127.0.0.1 \
   --namespace cognitive-load-phase3 service/cognitive-load-phase3 18001:80
 ```
 
@@ -110,21 +133,50 @@ curl --fail --request POST --header "X-API-Key: $api_key" \
   http://127.0.0.1:18001/predict
 ```
 
-Verify restart recovery with `kubectl rollout restart deployment/cognitive-load-phase3 -n cognitive-load-phase3` followed by `kubectl rollout status`. Corrupted, absent, or digest-mismatched models must keep `/ready` at HTTP 503 and `/predict` must never fall back to `demo_rule`.
+Verify restart recovery with the explicitly targeted commands below. Corrupted, absent, or digest-mismatched models must keep `/ready` at HTTP 503 and `/predict` must never fall back to `demo_rule`.
+
+```fish
+kubectl --kubeconfig $kubeconfig --context $kube_context \
+  rollout restart deployment/cognitive-load-phase3 --namespace cognitive-load-phase3
+kubectl --kubeconfig $kubeconfig --context $kube_context \
+  rollout status deployment/cognitive-load-phase3 \
+  --namespace cognitive-load-phase3 --timeout 180s
+```
 
 For K9s, start with the exact context and namespace:
 
 ```fish
-k9s --context kind-cogniflow-local --namespace cognitive-load-phase3
+k9s --kubeconfig $kubeconfig --context $kube_context --namespace cognitive-load-phase3
 ```
 
 Inspect `:pods`, `:deployments`, `:services`, `:events`, and pod logs with `l`. Confirm the image contains `@sha256:`, probes are healthy, restarts stabilize, and no Ingress, NodePort, KServe, Spark, or unexpected Secret values appear.
 
 ## Rollback and cleanup
 
-List history before rollback: `helm history cognitive-load-phase3 -n cognitive-load-phase3`. Roll back only this release with `helm rollback cognitive-load-phase3 PREVIOUS_REVISION -n cognitive-load-phase3 --wait`. The original demo remains available through its independent port-forward on 127.0.0.1:18000.
+List and roll back only the isolated release:
 
-To remove the experiment, stop only its 18001 port-forward, run `helm uninstall cognitive-load-phase3 -n cognitive-load-phase3`, verify the namespace contains no unrelated resources, then delete `cognitive-load-phase3`. Never destroy the kind cluster, Terraform state, `cognitive-load`, PersonalOS, or Docker volumes.
+```fish
+helm history cognitive-load-phase3 --namespace cognitive-load-phase3 \
+  --kubeconfig $kubeconfig --kube-context $kube_context
+helm rollback cognitive-load-phase3 PREVIOUS_REVISION \
+  --namespace cognitive-load-phase3 --wait \
+  --kubeconfig $kubeconfig --kube-context $kube_context
+```
+
+The original demo remains available through its independent loopback port-forward on 127.0.0.1:18000.
+
+To remove the experiment, stop only its 18001 port-forward, then use only the explicitly targeted commands below. Verify the namespace contains no unrelated resources before deletion.
+
+```fish
+helm uninstall cognitive-load-phase3 --namespace cognitive-load-phase3 \
+  --kubeconfig $kubeconfig --kube-context $kube_context
+kubectl --kubeconfig $kubeconfig --context $kube_context \
+  get all --namespace cognitive-load-phase3
+kubectl --kubeconfig $kubeconfig --context $kube_context \
+  delete namespace cognitive-load-phase3
+```
+
+Never destroy the kind cluster, Terraform state, `cognitive-load`, PersonalOS, or Docker volumes.
 
 ## Current verification status
 
@@ -132,7 +184,7 @@ The packaging, loader, provenance endpoint, negative security paths, and Helm re
 
 Verified locally on October 26, 2026:
 
-- Full regression: 138 passed with 89.56% combined coverage (81% gate); Ruff and MyPy passed.
+- Full regression: 152 passed with 89.41% combined coverage (81% gate); Ruff and MyPy passed.
 - DVC reported all pipelines up to date.
 - The actual Phase 2 joblib export loaded through the production client and returned LOW, MEDIUM, and HIGH for deterministic samples.
 - The packaging command rejected model version 2 because it remains `candidate`, exited non-zero, and created no package.
@@ -142,5 +194,7 @@ Verified locally on October 26, 2026:
 - Trivy 0.76.1 reported zero HIGH/CRITICAL Dockerfile misconfigurations.
 - The existing Terraform-owned demo deployment remained 1/1 Ready and passed `/health`, `/ready`, and `/model-info` through a temporary 127.0.0.1:18000 port-forward, which was then stopped.
 - K9s 0.51.0 is installed. Phase 3 pod/log/event inspection was not performed because no experimental release was installed.
+- MLflow version 2 metadata was inspected without deserialization: it is a `skops` model (`model.skops`) declaring only `sklearn.tree._tree.Tree` as trusted; it remains a candidate.
+- The locked environment resolves `skops.io` 0.16.0, and a disposable random-forest skops round trip passed the same manifest, digest, feature-contract, and trusted-type loader used by the API.
 
 No packaged-model digest or serving-image digest exists yet because producing them requires an explicitly approved model. The verified candidate registered-artifact digest remains `13137be7ce4c885877d7968afa0177be31cff60a4b2e33707893a7698c3b62ae`; it is not deployment authorization.

@@ -57,6 +57,7 @@ def test_phase3_helm_release_is_isolated_and_digest_pinned() -> None:
         text=True,
     ).stdout
     assert f'image: "cognitive-load-api-phase3@{digest}"' in rendered
+    assert "imagePullPolicy: Never" in rendered
     assert "type: ClusterIP" in rendered
     assert 'INFERENCE_MODE: "local_model"' in rendered
     assert "kind: Ingress" not in rendered
