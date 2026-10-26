@@ -1,0 +1,18 @@
+{
+  "snapshot": {
+    "dataset": "s3a://cogniflow-lakehouse/silver/session_features",
+    "delta_version": 1,
+    "committed_at": "2026-01-01T10:05:00Z"
+  },
+  "decisions": [
+    {"decision_id": "decision-1", "session_id": "session-1", "decision_time": "2026-01-01T10:03:00Z"},
+    {"decision_id": "decision-2", "session_id": "session-2", "decision_time": "2026-01-01T10:03:00Z"}
+  ],
+  "events": [
+    {"event_id":"00000000-0000-0000-0000-000000000001","session_id":"session-1","schema_version":"1.0","event_time":"2026-01-01T10:00:00Z","ingested_at":"2026-01-01T10:01:00Z","source":"fixture","focus_minutes":120,"distraction_minutes":30,"tasks_due":3,"hours_to_deadline":24.0,"focus_ratio":0.8,"distraction_ratio":0.2,"kafka_topic":"cogniflow.session-events.v1","kafka_partition":0,"kafka_offset":1},
+    {"event_id":"00000000-0000-0000-0000-000000000002","session_id":"session-1","schema_version":"1.0","event_time":"2026-01-01T10:00:00Z","ingested_at":"2026-01-01T10:02:00Z","source":"fixture","focus_minutes":90,"distraction_minutes":30,"tasks_due":2,"hours_to_deadline":20.0,"focus_ratio":0.75,"distraction_ratio":0.25,"kafka_topic":"cogniflow.session-events.v1","kafka_partition":0,"kafka_offset":2},
+    {"event_id":"00000000-0000-0000-0000-000000000003","session_id":"session-1","schema_version":"1.0","event_time":"2026-01-01T10:04:00Z","ingested_at":"2026-01-01T10:04:30Z","source":"fixture","focus_minutes":180,"distraction_minutes":20,"tasks_due":1,"hours_to_deadline":12.0,"focus_ratio":0.9,"distraction_ratio":0.1,"kafka_topic":"cogniflow.session-events.v1","kafka_partition":0,"kafka_offset":3},
+    {"event_id":"00000000-0000-0000-0000-000000000004","session_id":"session-1","schema_version":"1.0","event_time":"2026-01-01T09:00:00Z","ingested_at":"2026-01-01T11:00:00Z","source":"fixture","focus_minutes":30,"distraction_minutes":30,"tasks_due":9,"hours_to_deadline":4.0,"focus_ratio":0.5,"distraction_ratio":0.5,"kafka_topic":"cogniflow.session-events.v1","kafka_partition":0,"kafka_offset":4},
+    {"event_id":"00000000-0000-0000-0000-000000000005","session_id":"session-2","schema_version":"1.0","event_time":"2026-01-01T10:00:00+02:00","ingested_at":"2026-01-01T08:01:00Z","source":"fixture","focus_minutes":0,"distraction_minutes":0,"tasks_due":0,"hours_to_deadline":168.0,"focus_ratio":0.0,"distraction_ratio":0.0,"kafka_topic":"cogniflow.session-events.v1","kafka_partition":1,"kafka_offset":1}
+  ]
+}

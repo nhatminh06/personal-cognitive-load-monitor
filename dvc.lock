@@ -91,3 +91,41 @@ stages:
       hash: md5
       md5: edb356aaae3017b3620ceb45fe5c05a1
       size: 3986357
+  historical_features:
+    cmd: env PYTHONPATH=src uv run python scripts/build_historical_features.py
+      --input tests/fixtures/historical_features.json --output
+      data/processed/historical_features.jsonl --metadata
+      data/processed/historical_features.manifest.json --code-revision
+      module3-phase1-contract-v1
+    deps:
+    - path: scripts/build_historical_features.py
+      hash: md5
+      md5: 003677be1bcc510e2b3f8bf090de7b17
+      size: 1131
+    - path: src/cogniflow_data/historical.py
+      hash: md5
+      md5: 6590cd2569c605be36960b04355440ca
+      size: 7690
+    - path: src/preprocessing_api/features.py
+      hash: md5
+      md5: 95e43ee56e121e8162b6a72f21b9616a
+      size: 765
+    - path: tests/fixtures/historical_features.json
+      hash: md5
+      md5: b9b088987073bb1ada378fae054e8c99
+      size: 2426
+    params:
+      params.yaml:
+        historical.code_revision: module3-phase1-contract-v1
+        historical.fixture: tests/fixtures/historical_features.json
+        historical.metadata: data/processed/historical_features.manifest.json
+        historical.output: data/processed/historical_features.jsonl
+    outs:
+    - path: data/processed/historical_features.jsonl
+      hash: md5
+      md5: d80640a080dd6ed25d8a99fe42ec8325
+      size: 1453
+    - path: data/processed/historical_features.manifest.json
+      hash: md5
+      md5: 6f177a88565b876ce88206704d17fa6c
+      size: 706
