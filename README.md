@@ -1,244 +1,329 @@
-# Personal Cognitive Load & Focus Monitoring System
+# CogniFlow
 
-An end-to-end **Full Stack Data Science / MLOps** project for predicting personal cognitive load from focus time, distraction time, task count, and deadline pressure.
+### An end-to-end ML systems platform for cognitive load and focus analytics
 
-> This is a behavioral monitoring demo for learning MLOps. It is **not** a medical, psychological, or productivity diagnosis system.
+[![CI/CD](https://github.com/nhatminh06/personal-cognitive-load-monitor/actions/workflows/ci-cd.yaml/badge.svg)](https://github.com/nhatminh06/personal-cognitive-load-monitor/actions/workflows/ci-cd.yaml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
+![MLOps](https://img.shields.io/badge/MLOps-Local%20Validated-success)
+![Cloud](https://img.shields.io/badge/Cloud-Not%20Deployed-lightgrey)
 
-> **Verification status (2026-10-25):** Module I's MLOps path and Module II's local batch/streaming path have runtime evidence. The combined Python gate has 73 tests and 88.67% coverage. Release remains blocked by SEC-022: complete scans rejected both official Spark 3.5.9 and 4.1.3 images. CI renders immutable image digests and SeaweedFS raw APIs are isolated from application workloads. Kubernetes manifests are statically checked only; GKE, live KServe, HPA/scale-to-zero and cloud deployment remain deferred. See the [Module I rubric](docs/module1/rubric-matrix.md), [Module II evidence](docs/module2/testing.md), and [security gate](docs/security-audit/publication-readiness.md).
+**CogniFlow** is a local-first data engineering and MLOps platform that explores cognitive load using focus time, distraction patterns, task pressure, and deadlines.
 
----
+The project combines model development, real-time event processing, lakehouse analytics, reproducible experiments, containerized services, observability, and infrastructure-as-code.
 
-## Table of Contents
+It is designed to demonstrate how independently developed data and machine learning components can operate as one integrated system, with explicit security boundaries and verifiable behavior.
 
-1. [Overview](#overview)
-2. [FSDS Requirement Mapping](#fsds-requirement-mapping)
-3. [Repository Structure](#repository-structure)
-4. [High-Level System Architecture](#high-level-system-architecture)
-5. [Local Installation and Run Guide](#local-installation-and-run-guide)
-6. [Experiment Workflow: Notebooks, MLflow, and DVC](#experiment-workflow-notebooks-mlflow-and-dvc)
-7. [Docker Build](#docker-build)
-8. [Cloud Kubernetes Deployment](#cloud-kubernetes-deployment)
-9. [Monitoring, Logging, Tracing, and Drift](#monitoring-logging-tracing-and-drift)
-10. [CI/CD Pipeline](#cicd-pipeline)
-11. [Submission Notes](#submission-notes)
+> **Disclaimer:** CogniFlow is an educational ML systems project, not a medical or psychological diagnostic tool. Its current labels are `synthetic_proxy` labels, not clinically validated measurements of cognitive load.
 
 ---
 
-## Overview
+## Project Status
 
-The system predicts one of three cognitive-load levels:
+**Last verified: October 25, 2026**
 
-- `LOW`
-- `MEDIUM`
-- `HIGH`
-
-The repository implements two compatible layers. Module I owns synchronous prediction and model lifecycle; Module II adds asynchronous ingestion, lakehouse processing and online features without placing Kafka on the `/predict` request path:
-
-```text
-Jupyter experiments
-→ DVC data/version pipeline
-→ MLflow model tracking and registry
-→ Docker image build
-→ FastAPI pre/post-processing API
-→ Kafka event ingestion → SeaweedFS S3 Bronze
-→ Spark/Delta Silver → Trino/dbt Gold
-→ Airflow development orchestration
-→ Flink event-time windows → Redis online features
-→ KServe model serving with scale-to-zero
-→ NGINX API gateway with basic authentication
-→ Kubernetes HPA autoscaling
-→ Prometheus/Grafana metrics
-→ Loki logging
-→ Tempo tracing
-→ Evidently data drift dashboard
-→ GitHub Actions test/build/manual deploy pipeline
-```
-
-The FastAPI API runs in one explicit mode selected with `INFERENCE_MODE`:
-
-1. `demo_rule`: deterministic local demonstration.
-2. `local_model`: exact packaged model or a 503 response.
-3. `kserve`: KServe request or a sanitized 502/503/504 response; no silent fallback.
-
----
-
-## FSDS Requirement Mapping
-
-| FSDS requirement | Implementation in this repository |
+| Component | Status |
 |---|---|
-| Python project | Python FastAPI app under `src/preprocessing_api` |
-| Pytest testing | `src/tests/` |
-| Coverage > 80% | GitHub Actions measures both application packages with `--cov-fail-under=81`; latest local result 88.61% |
-| CI/CD test → build → deploy | `.github/workflows/ci-cd.yaml` |
-| Automatic build only after tests pass | `build` job depends on `test` job |
-| Manual deploy trigger | `workflow_dispatch` deploy job with GitHub environment approval |
-| FastAPI pre/post-processing API | `/predict`, `/health`, `/ready`, `/metrics` endpoints |
-| HPA autoscaling | `helm/cognitive-load-monitor/templates/hpa.yaml` |
-| KServe model serving | `helm/.../inferenceservice.yaml` and `kserve/inferenceservice.yaml` |
-| Scale down to 0 | Manifest intent only; runtime and cloud proof pending |
-| NGINX API Gateway with auth | Helm Ingress with NGINX basic-auth annotations |
-| Metrics monitoring | Prometheus metrics endpoint and Grafana dashboard config |
-| Drift monitoring | `scripts/generate_drift_report.py` using Evidently with fail-closed report generation |
-| Tracing | OpenTelemetry OTLP config for Tempo |
-| Logging | Structured app logs + Loki/Promtail local config |
-| IaC to provision Kubernetes | `infra/terraform/gke/` |
-| Kubernetes on cloud | GKE Terraform + GitHub Actions GKE deployment |
-| Helm deployment | `helm/cognitive-load-monitor/` |
-| MLflow model versioning | `scripts/train_model.py` logs/registers model |
-| DVC data versioning | `dvc.yaml`, `.dvc/config`, `params.yaml` |
-| Four required notebooks | `notebooks/01_eda.ipynb` through `04_prepare_for_deployment.ipynb` |
+| Module I: MLOps Foundation | Implemented and locally validated |
+| Module II: Data Engineering & Streaming | Implemented and locally validated |
+| Security hardening, PR #6 | Merged |
+| Module III: ML Platform Integration | Planned |
+| Local Docker and data pipelines | Runtime tested |
+| Helm and Terraform | Statically validated |
+| GKE / production KServe | Not deployed |
+| 100 GB performance benchmark | Not performed |
+
+### Verification highlights
+
+- **76 Python tests passed**, with **88.67% combined coverage** against an 81% enforcement threshold.
+- Four Jupyter notebooks executed successfully.
+- DVC pipeline stages reproduced or validated as up to date.
+- Spark/Delta/S3A, Trino and dbt integration tested using real local services.
+- Airflow 3 completed its six-task orchestration DAG.
+- Kafka/Flink/Redis streaming and cross-language feature parity were verified.
+- GitHub Actions runs tests before trusted-branch image publication.
+- No GCP resources or paid cloud deployment were required for the reported local results.
+
+See [Module II test evidence](docs/module2/testing.md) and [security verification](docs/security-audit/verification.md) for the detailed scope and results.
 
 ---
 
-## Repository Structure
+## Why CogniFlow?
 
-```text
-personal-cognitive-load-monitor/
-├── .github/workflows/ci-cd.yaml          # Test, Docker build, manual Helm deploy
-├── Dockerfile                            # Production FastAPI image
-├── Makefile                              # Common local commands
-├── README.md
-├── dvc.yaml                              # DVC data/model/drift pipeline
-├── params.yaml                           # Experiment parameters
-├── pyproject.toml                        # uv project metadata and dependency groups
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── features/
-├── docs/
-│   └── submission_checklist.md
-├── helm/cognitive-load-monitor/          # Helm chart for Kubernetes deployment
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
-│       ├── deployment.yaml
-│       ├── hpa.yaml
-│       ├── ingress.yaml
-│       ├── inferenceservice.yaml
-│       ├── servicemonitor.yaml
-│       └── ...
-├── infra/
-│   ├── observability/                    # Local Prometheus/Grafana/Loki/Tempo stack
-│   ├── module2/                          # Profile-based Kafka/lake/batch/streaming stack
-│   └── terraform/gke/                    # GKE cloud Kubernetes IaC
-├── analytics/                            # Trino catalog and dbt transformations
-├── kserve/inferenceservice.yaml          # Standalone KServe example
-├── notebooks/
-│   ├── 01_eda.ipynb
-│   ├── 02_data_processing.ipynb
-│   ├── 03_model_training.ipynb
-│   └── 04_prepare_for_deployment.ipynb
-├── scripts/
-│   ├── deploy.sh
-│   ├── download_model_from_mlflow.py
-│   ├── generate_drift_report.py
-│   ├── local_smoke_test.sh
-│   └── train_model.py
-└── src/
-    ├── data_generator.py
-    ├── cogniflow_data/                   # Event, Kafka, Bronze and Redis boundaries
-    ├── preprocessing_api/
-    │   ├── main.py
-    │   ├── model_client.py
-    │   ├── observability.py
-    │   ├── schemas.py
-    │   └── service.py
-    └── tests/
-        ├── conftest.py
-        └── test_api.py
-```
+Building a machine learning model is only one part of an ML system. A usable platform also needs reliable data ingestion, consistent features, reproducible experiments, model packaging, deployment controls, and monitoring.
 
----
+CogniFlow explores these engineering concerns through a behavioral analytics use case.
 
-## High-Level System Architecture
+The project is organized around four goals:
+
+1. **Reproducibility:** Track data transformations, experiments, model versions, and build artifacts.
+2. **Data consistency:** Apply versioned contracts and verify equivalent feature calculations across Python, Spark, and Flink.
+3. **Reliability:** Support durable ingestion, idempotent processing, bounded retries, explicit failure propagation, and freshness-aware online features.
+4. **Security:** Use authenticated interfaces, least-privilege services, immutable deployment artifacts, and documented release gates.
+
+## System Architecture
 
 ```mermaid
-flowchart LR
-    Browser[Demo/client] --> API[FastAPI]
-    API --> Predict[Module I prediction]
-    API --> Kafka[Kafka events]
-    Kafka --> Bronze[SeaweedFS S3 Bronze]
-    Bronze --> Spark[Spark + Delta Silver]
-    Spark --> Trino[Trino + dbt Gold]
-    Airflow[Airflow dev profile] --> Spark
-    Airflow --> Trino
-    Kafka --> Flink[Flink event-time windows]
-    Flink --> Redis[Redis online features]
-    Redis --> API
+flowchart TB
+    Client["Web Demo / API Client"]
 
-    DVC[DVC data lineage] --> Train[Training]
-    Train --> MLflow[MLflow registry]
-    MLflow --> Image[Immutable API image]
-    Image --> API
-
-    subgraph GKE[Cloud Kubernetes / GKE]
-        NGINX[NGINX Ingress + Basic Auth]
-        API[FastAPI Pre/Post API + HPA]
-        KServe[KServe InferenceService\nscale-to-zero]
-        Prom[Prometheus]
-        Grafana[Grafana]
-        Loki[Loki Logging]
-        Tempo[Tempo Tracing]
-        NGINX --> CloudAPI[FastAPI]
-        CloudAPI --> KServe
-        CloudAPI --> Prom
-        CloudAPI --> Loki
-        CloudAPI --> Tempo
-        Prom --> Grafana
-        Loki --> Grafana
-        Tempo --> Grafana
+    subgraph M1["Module I · ML and Serving"]
+        API["FastAPI"]
+        Predict["Demo Rules / Local Model"]
+        DVC["DVC Pipeline"]
+        Train["Model Training"]
+        MLflow["MLflow Registry"]
     end
 
-    Train --> Evidently[Evidently drift report]
+    subgraph M2["Module II · Data Platform"]
+        Kafka["Apache Kafka"]
+        Bronze["SeaweedFS S3 · Bronze"]
+        Spark["Apache Spark + Delta Lake · Silver"]
+        Trino["Trino"]
+        DBT["dbt · Gold"]
+        Flink["Apache Flink"]
+        Redis["Redis · Online Features"]
+        Airflow["Apache Airflow"]
+    end
+
+    subgraph OBS["Observability"]
+        Prom["Prometheus"]
+        Grafana["Grafana"]
+        Logs["Loki / Tempo"]
+        Drift["Evidently"]
+    end
+
+    Client --> API
+    API --> Predict
+
+    DVC --> Train
+    Train --> MLflow
+    MLflow -. "Model packaging" .-> Predict
+
+    API -->|"POST /events"| Kafka
+    Kafka --> Bronze
+    Bronze --> Spark
+    Spark --> Trino
+    Trino --> DBT
+
+    Kafka --> Flink
+    Flink --> Redis
+    Redis -->|"GET /features"| API
+
+    Airflow -. "Fixed-command orchestration" .-> Spark
+    Airflow -. "Fixed-command orchestration" .-> DBT
+
+    API --> Prom
+    Prom --> Grafana
+    API --> Logs
+    Train --> Drift
 ```
+
+Module I's synchronous prediction endpoint does not depend on Kafka. Module II extends the platform with asynchronous data processing while preserving the existing inference contract.
+
+The diagram represents the verified local architecture and configured integrations. Cloud deployment remains a separate, unverified runtime target.
 
 ---
 
-## Local Installation and Run Guide
+## Technology Stack
 
-### 1. Create the uv environment
+| Layer | Technologies | Responsibility |
+|---|---|---|
+| Application | Python, FastAPI, Pydantic | HTTP APIs, validation, inference |
+| Machine learning | scikit-learn, MLflow | Training, evaluation, model registry |
+| Reproducibility | DVC, Jupyter, uv | Data and dependency reproducibility |
+| Messaging | Apache Kafka 3.9.2 | Versioned asynchronous events |
+| Object storage | SeaweedFS 4.50 | S3-compatible Bronze and lakehouse storage |
+| Batch processing | Spark 3.5.5, Delta Lake 3.3.2 | Feature processing and ACID tables |
+| SQL analytics | Trino 478, dbt Core 1.11.14 | Querying and incremental Gold models |
+| Streaming | Flink 1.20.5 | Event-time windows and stateful aggregation |
+| Online features | Redis 7.4 | Freshness-aware feature retrieval |
+| Orchestration | Airflow 3.3.2 | Local fixed-command batch workflows |
+| Observability | Prometheus, Grafana, Loki, Tempo, Evidently | Metrics, dashboards, logs, tracing, drift |
+| Infrastructure | Docker Compose, Helm, Terraform | Local environments and cloud deployment definitions |
+| CI/CD | GitHub Actions, GHCR | Automated tests and immutable image publication |
 
-This repository is **uv-first**. Use `uv sync` and `uv run` for dependency management and commands.
+---
 
-Install uv if it is not already installed:
+## Module I: Reproducible MLOps Foundation
 
-```bash
-# macOS option 1
-brew install uv
+Module I establishes the application, experiment, and model lifecycle.
 
-# macOS/Linux option 2
-curl -LsSf https://astral.sh/uv/install.sh | sh
+### Model development
+
+The model workflow includes exploratory analysis, data preparation, training, evaluation, and deployment preparation.
+
+Four notebooks document these stages:
+
+| Notebook | Purpose |
+|---|---|
+| `01_eda.ipynb` | Data exploration and visualization |
+| `02_data_processing.ipynb` | Data cleaning, feature engineering, splitting |
+| `03_model_training.ipynb` | Model training and evaluation |
+| `04_prepare_for_deployment.ipynb` | Export and deployment preparation |
+
+DVC tracks reproducible pipeline stages. MLflow records experiments and provides model registration and retrieval.
+
+The implementation uses synthetic proxy labels. Reported model predictions should not be interpreted as validated psychological assessments.
+
+### Inference API
+
+FastAPI exposes a stable prediction contract with three explicit modes:
+
+| Mode | Behavior |
+|---|---|
+| `demo_rule` | Deterministic rule-based demonstration |
+| `local_model` | Runs the configured packaged model |
+| `kserve` | Calls a configured external model-serving endpoint |
+
+A missing or invalid model does not silently fall back to another backend.
+
+The main endpoints are:
+
+| Endpoint | Description |
+|---|---|
+| `GET /` | Lightweight local web demonstration |
+| `GET /health` | Liveness check |
+| `GET /ready` | Inference readiness check |
+| `POST /predict` | Cognitive-load prediction |
+| `GET /model-info` | Model mode, version and label provenance |
+| `POST /events` | Validated session-event ingestion |
+| `GET /features/{session_id}` | Current online features |
+| `GET /metrics` | Prometheus metrics |
+
+Production-sensitive API endpoints require an API key; a missing or invalid configuration fails closed.
+
+---
+
+## Module II: Data Engineering and Real-Time Processing
+
+Module II extends CogniFlow with a local lakehouse and streaming pipeline.
+
+### Batch processing: Bronze → Silver → Gold
+
+```text
+Validated Events
+      |
+      v
+    Kafka
+      |
+      v
+SeaweedFS S3
+   BRONZE
+      |
+      v
+Spark + Delta Lake
+   SILVER
+      |
+      v
+Trino + dbt
+    GOLD
 ```
 
-Create/sync the local environment from `pyproject.toml`:
+**Bronze:** Stores event payloads and ingestion metadata, including offsets and checksums, in S3-compatible object storage.
+
+**Silver:** Uses Spark and Delta Lake for validated transformations, table history, transactional writes, and idempotent replays.
+
+**Gold:** Uses Trino and dbt for analytical tables, including incremental models.
+
+The local implementation has been tested through real Delta writes, MERGE operations, table reopen, SQL queries, and repeated dbt builds.
+
+### Real-time streaming
+
+```text
+Kafka Session Events
+        |
+        v
+ Apache Flink
+        |
+        +--> Event-time aggregation
+        +--> Watermarks and lateness
+        +--> Duplicate suppression
+        +--> Stateful feature computation
+        |
+        v
+      Redis
+        |
+        v
+GET /features/{session_id}
+```
+
+Flink computes focus and distraction aggregates using event-time semantics. Redis provides a freshness-protected online projection, not the system of record.
+
+The streaming implementation includes versioned event validation, bounded processing behavior, checkpoint/recovery support, late-event handling, and protections against stale Redis writes.
+
+### Cross-language feature consistency
+
+A shared test fixture verifies that feature calculations agree across Python, Spark and Flink.
+
+This helps prevent training/serving inconsistency caused by differing schemas, feature orders, units, or timestamp semantics.
+
+See [`tests/fixtures/feature_vectors.json`](tests/fixtures/feature_vectors.json) and [Module II verification](docs/module2/testing.md).
+
+### Local orchestration
+
+Airflow uses a six-task development DAG with authenticated, fixed-command Spark and dbt runners.
+
+The design deliberately excludes Docker socket access and arbitrary caller-supplied shell commands.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+For the Python API:
+
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/)
+- Git
+
+For the data platform:
+
+- Docker with the Compose plugin
+- Enough local CPU, RAM and disk space for the selected profiles
+
+For optional infrastructure validation:
+
+- Helm
+- Terraform
+
+Local workflows do not require a Google Cloud account.
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/nhatminh06/personal-cognitive-load-monitor.git
+cd personal-cognitive-load-monitor
+```
+
+### 2. Install Python dependencies
 
 ```bash
 uv sync --frozen --all-extras
 ```
 
-### 2. Run tests with coverage gate
+The project uses `uv.lock` to reproduce its Python environment.
+
+### 3. Start the API
 
 ```bash
-uv run pytest src/tests \
-  --cov=src/preprocessing_api \
-  --cov=src/cogniflow_data \
-  --cov-report=term-missing \
-  --cov-fail-under=81
+uv run uvicorn \
+  --app-dir src \
+  preprocessing_api.main:app \
+  --host 127.0.0.1 \
+  --port 8000
 ```
 
-Or use:
+Open:
 
-```bash
-make test
-```
+- Local UI: http://127.0.0.1:8000/
+- API documentation: http://127.0.0.1:8000/docs
+- Health: http://127.0.0.1:8000/health
 
-### 3. Run the FastAPI service locally
+These are local development endpoints. API documentation is disabled in production mode.
 
-```bash
-uv run uvicorn --app-dir src preprocessing_api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### 4. Test the prediction endpoint
+### 4. Send a prediction request
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict \
@@ -251,34 +336,36 @@ curl -X POST http://127.0.0.1:8000/predict \
   }'
 ```
 
-Expected response:
+Example response in `demo_rule` mode:
 
 ```json
-{"cognitive_load_level":"MEDIUM"}
+{
+  "cognitive_load_level": "MEDIUM",
+  "inference_source": "demo_rule",
+  "model_version": null,
+  "feature_as_of": null,
+  "is_fallback": false
+}
 ```
 
-Development mode is intentionally unauthenticated. In production, set a nonblank `COGNIFLOW_API_KEY` and send it as `X-API-Key`; `/predict`, `/model-info`, `/events`, and `/features/{session_id}` fail closed when authentication is absent or misconfigured.
+The response explicitly identifies its inference source rather than representing a rule-based result as a trained-model prediction.
 
-### 5. Check service health and metrics
+### 5. Run the test suite
 
 ```bash
-curl http://127.0.0.1:8000/health
-curl http://127.0.0.1:8000/ready
-curl http://127.0.0.1:8000/metrics
+uv run ruff check src scripts jobs dags
+make test
 ```
 
----
+The CI coverage threshold is enforced with `--cov-fail-under=81`.
 
-## Experiment Workflow: Notebooks, MLflow, and DVC
+### 6. Reproduce the ML pipeline
 
-The required notebooks are in `notebooks/`:
+```bash
+uv run --extra dev dvc repro
+```
 
-1. `01_eda.ipynb` — exploratory data analysis.
-2. `02_data_processing.ipynb` — cleaning, feature engineering, train/test split.
-3. `03_model_training.ipynb` — training and evaluation.
-4. `04_prepare_for_deployment.ipynb` — model export/deployment preparation.
-
-Train and register a model with MLflow:
+Train and register a model:
 
 ```bash
 uv run --extra dev python scripts/train_model.py \
@@ -286,137 +373,127 @@ uv run --extra dev python scripts/train_model.py \
   --output models/cognitive_load_model.joblib
 ```
 
-Run the DVC pipeline:
-
-```bash
-uv run --extra dev dvc repro
-```
-
-Configure a real DVC remote before production use:
-
-```bash
-uv run --extra dev dvc remote modify storage url s3://YOUR_BUCKET/personal-cognitive-load-monitor
-```
+The model lifecycle and four notebooks are documented in the Module I materials under [`docs/module1/`](docs/module1/).
 
 ---
 
-## Docker Build
+## Running Module II Locally
 
-Build the local image. The Dockerfile installs dependencies with `uv sync --no-dev` from `pyproject.toml`:
+The local data platform is divided into Compose profiles so that heavyweight services do not all need to run simultaneously.
+
+### Configure local credentials
+
+```bash
+cp .env.module2.example .env.module2
+```
+
+Edit `.env.module2` and replace the example storage and Redis passwords before starting the corresponding services.
+
+This ignored file is for local development. Never commit secrets or reuse its example credentials for shared or remote systems.
+
+### Start the ingestion layer
+
+```bash
+docker compose \
+  --env-file .env.module2 \
+  -f infra/module2/docker-compose.yml \
+  --profile ingestion up -d
+```
+
+### Start local object storage
+
+```bash
+docker compose \
+  --env-file .env.module2 \
+  -f infra/module2/docker-compose.yml \
+  --profile lake up -d
+```
+
+The S3 gateway is available on `127.0.0.1:9000`. Internally, SeaweedFS master, filer, and volume APIs are isolated from ordinary application workloads.
+
+### Start the streaming pipeline
+
+```bash
+docker compose \
+  --env-file .env.module2 \
+  -f infra/module2/docker-compose.yml \
+  --profile ingestion \
+  --profile streaming up -d
+```
+
+### Stop the services
+
+```bash
+docker compose \
+  --env-file .env.module2 \
+  -f infra/module2/docker-compose.yml \
+  --profile ingestion \
+  --profile streaming stop
+```
+
+Stopping services preserves named Docker volumes.
+
+**Spark batch profile restrictions:** Spark is subject to an approved, time-limited local-development security exception. Before activating the `batch` profile, follow the mandatory Ivy artifact verification, runner-token and isolation procedures in the [SEC-022 exception document](docs/security-audit/sec-022-development-exception-proposal.md). Do not run arbitrary Spark jobs or process untrusted datasets with this runtime.
+
+For the complete sequential batch/streaming walkthrough, see [Module II demo script](docs/module2/demo-script.md).
+
+---
+
+## Docker and Infrastructure
+
+### Build the FastAPI container
 
 ```bash
 docker build -t cognitive-load-api:local .
 ```
 
-Run it:
+Run it locally:
 
 ```bash
-docker run --rm -p 8000:8000 cognitive-load-api:local
+docker run --rm -p 127.0.0.1:8000:8000 cognitive-load-api:local
 ```
 
-For model-backed production images, retrieve the exact approved MLflow model before building and record its SHA-256 digest in deployment secrets:
+The API image runs under a non-root application user.
+
+### Validate Kubernetes manifests
 
 ```bash
-uv run python scripts/download_model_from_mlflow.py \
-  --model-uri models:/cognitive-load-classifier/APPROVED_VERSION \
-  --output models/cognitive_load_model.joblib
-docker build -t cognitive-load-api:$(git rev-parse --short=12 HEAD) .
+helm lint ./helm/cognitive-load-monitor
 ```
 
-The Docker build accepts no registry credentials or model download arguments.
-
----
-
-## Cloud Kubernetes Deployment
-
-This repository uses **GKE** as the cloud Kubernetes example.
-
-### 1. Provision Kubernetes with Terraform
+Render a local configuration without deploying it:
 
 ```bash
-cd infra/terraform/gke
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your GCP project ID
-terraform init
-terraform plan
-terraform apply
-```
-
-### 2. Install platform dependencies
-
-Install NGINX Ingress:
-
-```bash
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
-  --create-namespace
-```
-
-Install KServe and its dependencies according to your cluster setup. The submitted app chart already contains the `InferenceService`; the cluster must have KServe CRDs installed before applying it.
-
-Install metrics server for HPA:
-
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/<PINNED_VERSION>/components.yaml
-```
-
-### 3. Deploy the application with Helm
-
-```bash
-helm upgrade --install cognitive-load-monitor ./helm/cognitive-load-monitor \
+helm template cognitive-load-monitor \
+  ./helm/cognitive-load-monitor \
   --namespace cognitive-load \
-  --create-namespace \
-  --set image.repository=ghcr.io/YOUR_GITHUB_USER/YOUR_REPO/cognitive-load-api \
-  --set image.tag=IMMUTABLE_COMMIT_SHA \
-  --set ingress.hosts[0].host=cognitive-load.example.com \
-  --set kserve.storageUri=gs://YOUR_MODEL_BUCKET/models/cognitive-load-classifier
+  -f helm/cognitive-load-monitor/values.local.yaml
 ```
 
-Replace the demo basic-auth password before a real deployment:
+The repository also includes Helm templates for KServe, ingress, HPA, monitoring and network policies, plus Terraform configuration for GKE.
 
-```bash
-htpasswd -nb admin 'YOUR_STRONG_PASSWORD'
-```
+**These files are deployment definitions, not evidence of a functioning production Kubernetes platform.** Live GKE/KServe integration, workload identity, network policy enforcement, TLS, managed secrets and cloud operational behavior remain deployment-time requirements.
 
-Then set the generated value:
-
-```bash
---set-string basicAuth.auth='admin:GENERATED_HASH_HERE'
-```
+Provisioning GKE may incur cloud charges. No cloud deployment is required to reproduce the documented local results.
 
 ---
 
-## Monitoring, Logging, Tracing, and Drift
+## Observability
 
-### Local observability stack
+CogniFlow includes application and data-platform observability components:
 
-Start local Prometheus, Grafana, Loki, Promtail, and Tempo:
+| Component | Purpose |
+|---|---|
+| Prometheus | Metrics collection |
+| Grafana | Dashboards and visualization |
+| Loki | Centralized logs |
+| Tempo | Distributed tracing |
+| OpenTelemetry | Application instrumentation |
+| Evidently | Data drift analysis |
 
-```bash
-cd infra/observability
-docker compose -f docker-compose.observability.yml up -d
-```
+The FastAPI application exposes `/metrics`, and the repository contains local observability configuration under [`infra/observability/`](infra/observability/).
 
-Then open:
-
-```text
-Grafana:    http://localhost:3000    admin/admin
-Prometheus: http://localhost:9090
-Loki:       http://localhost:3100
-Tempo:      http://localhost:3200
-```
-
-The API exposes Prometheus metrics at:
-
-```text
-/metrics
-```
-
-### Drift dashboard
-
-After generating processed train/test data, create a drift report:
+Generate an Evidently drift report after preparing the relevant data:
 
 ```bash
 uv run --extra dev python scripts/generate_drift_report.py \
@@ -425,88 +502,214 @@ uv run --extra dev python scripts/generate_drift_report.py \
   --output reports/evidently/data_drift.html
 ```
 
-Open:
+Observability runtime verification is documented separately from production monitoring availability.
+
+---
+
+## CI/CD and Release Integrity
+
+The workflow is defined in [`.github/workflows/ci-cd.yaml`](.github/workflows/ci-cd.yaml).
+
+```mermaid
+flowchart LR
+    Commit["Push / Pull Request"]
+    Tests["Ruff + Pytest + Coverage"]
+    Gate{"Trusted main?"}
+    Package["MLflow Model Packaging"]
+    Image["Build & Publish to GHCR"]
+    Manual["Explicit Manual Deploy"]
+    Cloud["GKE / Helm"]
+
+    Commit --> Tests
+    Tests --> Gate
+    Gate -->|"Yes"| Package
+    Package --> Image
+    Image -. "Only with approved dispatch" .-> Manual
+    Manual --> Cloud
+```
+
+The workflow:
+
+- Runs tests for pull requests and configured pushes.
+- Enforces the 81% minimum coverage threshold.
+- Restricts image publication to trusted `main` events.
+- Trains, registers, and retrieves a model through an ephemeral CI MLflow server before packaging.
+- Tags release images using the full commit SHA.
+- Captures the published registry digest for immutable Helm deployment.
+- Limits cloud deployment to an explicit manual workflow on `main`, subject to environment controls.
+- Does not run a GKE deployment merely because a pull request was merged.
+
+See the [workflow history](https://github.com/nhatminh06/personal-cognitive-load-monitor/actions).
+
+---
+
+## Security Model
+
+Security is treated as part of the implementation and release process rather than a separate checklist.
+
+Implemented controls include:
+
+- Fail-closed production API-key authentication.
+- Constant-time credential comparison.
+- Request-size limits and security response headers.
+- SHA-256 verification before local model deserialization.
+- Protected CI credentials and restricted publication permissions.
+- Digest-addressed deployment images.
+- Non-root containers and resource limits where applicable.
+- Authenticated, fixed-command batch orchestration.
+- Segregated SeaweedFS storage control-plane access.
+- No Docker socket access in Airflow.
+- Offline, checksum-verified Spark runtime dependencies.
+
+### SEC-022: Development-only accepted risk
+
+The local Spark 3.5.5 runtime contains known, unresolved vulnerabilities.
+
+Its recorded exact-image scan found:
+
+| Finding | Count |
+|---|---:|
+| High | 121 |
+| Critical | 5 |
+| Total High/Critical occurrences | 126 |
+| Distinct advisory IDs | 107 |
+| Occurrences with scanner-reported fixes | 122 |
+| Occurrences without scanner-reported fixes | 4 |
+
+The Ubuntu 20.04 base is end-of-support. Compensating controls reduce exposure but do not patch these vulnerabilities.
+
+The repository owner approved a limited exception on October 25, 2026, expiring **January 23, 2027**, with required periodic reviews.
+
+The exception allows only the audited local Spark workflow with trusted synthetic data, authenticated fixed commands, isolated networks, non-root execution, read-only filesystems and checksum-verified offline dependencies.
+
+It does **not** authorize the vulnerable Spark runtime for production, staging, Kubernetes, GKE, public exposure, cloud credentials, untrusted data or arbitrary workloads.
+
+The exception is automatically revoked if mandatory controls fail or its review/expiry conditions are not satisfied.
+
+See:
+
+- [SEC-022 exception and mandatory controls](docs/security-audit/sec-022-development-exception-proposal.md)
+- [Recorded owner decision](docs/security-audit/sec-022-owner-decision-packet.md)
+- [Security findings](docs/security-audit/findings.md)
+- [Release readiness](docs/security-audit/publication-readiness.md)
+
+### Outstanding cloud security requirements
+
+Before a production deployment, the project still requires real-cluster validation of Kubernetes NetworkPolicy, KServe model artifact verification, cloud IAM, managed secrets, TLS, ingress rate limiting, and workload-level security.
+
+The development-only exception cannot be transferred to production.
+
+---
+
+## Validation and Reproducibility
+
+The most recent local release validation reported:
+
+| Verification | Result |
+|---|---|
+| Python regression suite | 76 passed |
+| Combined test coverage | 88.67% |
+| Ruff / MyPy | Passed |
+| DVC pipeline | Up to date |
+| Four Jupyter notebooks | Executed in prior validated runs |
+| Spark + Delta + S3A | Passed |
+| Delta reopen and replay | Passed |
+| Trino query | Passed |
+| dbt Gold build | 15/15 |
+| Airflow orchestration | Six-task DAG passed |
+| Spark isolation negative tests | Passed |
+| Flink Java tests | Passed in prior validated runs |
+| Docker Compose / Helm | Validated |
+| Focused secrets verification | Passed |
+
+These results describe specific local runs and checks. They are not claims about sustained production load, large-scale capacity, or cloud deployment reliability.
+
+The 100 GB benchmark remains deferred.
+
+---
+
+## Repository Structure
 
 ```text
-reports/evidently/data_drift.html
+personal-cognitive-load-monitor/
+├── .github/workflows/       # CI/CD automation
+├── analytics/               # dbt models and Trino configurations
+├── dags/                    # Airflow DAGs
+├── data/                    # Example and processed data
+├── docs/
+│   ├── module1/             # MLOps documentation
+│   ├── module2/             # Data platform documentation
+│   └── security-audit/      # Findings, evidence and exceptions
+├── helm/                    # Kubernetes Helm chart
+├── infra/
+│   ├── module2/             # Local data platform services
+│   ├── observability/       # Monitoring configurations
+│   └── terraform/           # GKE infrastructure definitions
+├── jobs/                    # Spark jobs and fixed-command runners
+├── kserve/                  # KServe configuration examples
+├── models/                  # Model artifacts
+├── notebooks/               # Four experiment notebooks
+├── scripts/                 # Training and utility scripts
+├── src/
+│   ├── cogniflow_data/      # Data ingestion and online features
+│   ├── preprocessing_api/   # FastAPI and inference
+│   └── tests/               # Python tests
+├── tests/fixtures/          # Cross-language reference fixtures
+├── Dockerfile
+├── Makefile
+├── dvc.yaml
+├── pyproject.toml
+└── uv.lock
 ```
 
 ---
 
-## CI/CD Pipeline
+## Roadmap
 
-The GitHub Actions workflow is in:
+### Completed
 
-```text
-.github/workflows/ci-cd.yaml
-```
+**Module I — MLOps Foundation**
 
-Pipeline behavior:
+Experimentation, DVC, MLflow, model training, FastAPI inference, container packaging, CI/CD and observability foundations.
 
-The GitHub Actions workflow installs and caches dependencies with `uv` using `pyproject.toml`.
+**Module II — Data Engineering**
 
-1. Pull request or push starts the `test` job.
-2. `test` runs Pytest and fails if coverage is below 80%.
-3. `build` runs only after tests pass. It starts a self-contained MLflow tracking
-   server for the duration of the job, trains the model against it (registering a
-   new version of `cognitive-load-classifier`), then downloads that exact
-   registered version back down via `scripts/download_model_from_mlflow.py` before
-   baking it into the Docker image — so "pull the model from MLflow" is a real,
-   CI-enforced step (`REQUIRE_MODEL=true`, no silent fallback) on every build, not
-   just something the code supports if you happen to run a persistent MLflow
-   server. The model is packaged before Docker build so registry credentials never
-   enter the build context or image history.
-4. `deploy` runs only from manual `workflow_dispatch`.
-5. `deploy` uses Helm to deploy to GKE.
+Kafka ingestion, SeaweedFS Bronze storage, Spark/Delta Silver processing, Trino/dbt Gold transformations, Flink event-time processing, Redis online features, Airflow orchestration, cross-language parity and security hardening.
 
-Required GitHub secrets for full cloud deployment:
+### Planned: Module III — ML Platform Integration
 
-```text
-GCP_WORKLOAD_IDENTITY_PROVIDER
-GCP_SERVICE_ACCOUNT
-GCP_PROJECT_ID
-GKE_CLUSTER
-GKE_LOCATION
-KSERVE_STORAGE_URI
-APP_HOST
-```
+The next phase will connect the established data platform to a more complete model-training and serving lifecycle.
 
-For the PR submission, the test/build code is already complete. The deploy job requires your real cloud credentials and host name.
+Planned work includes:
+
+- Point-in-time-correct training datasets from versioned Delta Silver tables.
+- Offline/online feature consistency and freshness validation.
+- Automated ML pipelines with reproducible dataset, code and image lineage.
+- MLflow model promotion and artifact verification.
+- KServe serving integration and runtime validation.
+- Event-driven workflows with Knative Eventing.
+- Operational SLOs for feature freshness, processing latency and inference availability.
+
+The Module III plan is a design target, not an already implemented feature set.
+
+See [Module III handoff](docs/module3-handoff.md).
 
 ---
 
-## Module II: local data engineering
+## Project History
 
-Module II adds isolated Compose profiles for Kafka, SeaweedFS S3, Spark/Delta, Trino/dbt, Airflow, Flink, and Redis while preserving the synchronous Module I prediction contract. The batch and streaming paths have been exercised sequentially on tiny data; they are not intended to run together on the constrained development host.
+| Pull Request | Milestone |
+|---|---|
+| [PR #4](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/4) | Module I foundation |
+| [PR #5](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/5) | Module II data platform |
+| [PR #6](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/6) | Security hardening and development-only exception controls |
 
-Common commands:
+All three have been merged into `main`.
 
-```bash
-make module2-ingestion
-make module2-lake
-make module2-batch
-make module2-analytics
-make module2-streaming
-make module2-ps
-make module2-stop
-```
+## License
 
-Start profiles with their dependencies (for example, `lake` plus `analytics`). Development credentials come from an ignored environment file based on `.env.module2.example`. The complete architecture, evidence, limitations, troubleshooting, and sequential demo are in [`docs/module2/`](docs/module2/README.md). No GCP resources are provisioned; the 100GB benchmark and production HA/security controls remain explicitly deferred.
+Released under the [MIT License](LICENSE).
 
-`make module2-orchestration-dev` is a deliberate exception: it starts root Airflow with Docker-socket authority and must never be used in cloud or shared environments. Stop active profiles with `make module2-stop`; named volumes are preserved.
+---
 
-## Submission Notes
-
-Published evidence: Module I is PR #4, Module II is PR #5, and subsequent security hardening is draft PR #6. Cloud deployment is not part of that evidence.
-
-Optional demo video checklist:
-
-```text
-1. Show README and architecture.
-2. Run Pytest with coverage.
-3. Run FastAPI locally and call /predict.
-4. Show Docker build.
-5. Show Helm template or Kubernetes deployment.
-6. Show Grafana dashboard and Evidently drift report.
-7. Show GitHub Actions test/build/manual deploy pipeline.
-```
+**CogniFlow is a systems-engineering project built to explore reproducible machine learning, secure data infrastructure, batch and stream processing, and the practical boundaries between working local prototypes and production-ready ML platforms.**
