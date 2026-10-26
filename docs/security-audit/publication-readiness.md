@@ -1,6 +1,6 @@
 # Publication readiness gate
 
-Current decision: **BLOCKED BY SECURITY FINDINGS**.
+Current decision: **LOCALLY READY FOR RELEASE CHECKS**. SEC-022 is accepted risk for isolated local development only through 2027-01-23; it is not remediated or authorized for production.
 
 Satisfied locally:
 
@@ -17,10 +17,10 @@ Publication follow-up:
 
 1. The hardened feature branch was published as draft PR #6 under a later explicit authorization. GitHub tests, image build/push, and GitGuardian passed.
 2. Checksum-verified Gitleaks, Trivy and actionlint plus digest-verified zizmor were executed from a temporary directory. Tracked content has no Gitleaks finding; tracked dependency manifests have no High/Critical result; remaining image/IaC risks are documented.
-3. SEC-018 through SEC-021 are remediated. Keep PR #6 in draft because SEC-022 remains open: the refreshed Spark 3.5.5 scan has 126 fixable High/Critical occurrences (107 distinct IDs) across its base OS, Java and Python dependencies.
+3. SEC-018 through SEC-021 are remediated. SEC-022 is explicitly accepted for local development only: Spark 3.5.5 has 126 High/Critical occurrences (122 with reported fixes, 4 without, 107 distinct IDs and 5 Critical).
 
-Required before merge: close SEC-022 by selecting and regression-testing a maintained Spark/Delta/base-image combination. Required before cloud deployment: also close cloud-deferred SEC-011, provision managed secrets/digests, enforce TLS/rate limits/RBAC/image verification, and runtime-test KServe, NetworkPolicy and observability without development credentials. The repository currently has one collaborator, so an independent approval rule cannot be enabled until another qualified reviewer is added.
+The named repository owner approved the time-limited exception on 2026-10-25 after the offline Ivy, isolation, Spark/Delta/S3A, Trino/dbt and Airflow checks passed. This permits merging completed security improvements only because Spark remains excluded from every production/Kubernetes path; it does not remediate SEC-022. Required before cloud deployment: remediate SEC-022, close cloud-deferred SEC-011, provision managed secrets/digests, enforce TLS/rate limits/RBAC/image verification, and runtime-test KServe, NetworkPolicy and observability without development credentials. The repository currently has one collaborator, so an independent approval rule cannot be enabled until another qualified reviewer is added.
 
-Latest gate: official Spark 3.5.9 and 4.1.3 images were both rejected after complete exact-digest Trivy scans; neither reduces the fixable High/Critical count to an acceptable level. NV-02 immutable CI publication/deployment and NV-03 SeaweedFS raw-API isolation are implemented, locally validated, and safe to publish independently. SEC-022 still keeps PR #6 in draft.
+Latest gate: official Spark 3.5.9 has 719 High/Critical occurrences (181 with reported fixes, 538 without); Spark 4.1.3 has 720 (184 with fixes, 536 without). The hardened 3.5.9 experiment has 178 (99 with fixes, 79 without). The non-deployable patched proof has 21 (19 with fixes, 2 without) and failed strict convergence. NV-02 and NV-03 are implemented; SEC-022 is accepted only within the documented local-development boundary.
 
 Git safety: this audit itself performed no Git publication action. A later authorized task created commits, normally pushed the feature branch, merged updated `main` into that branch, and opened draft PR #6. It did not merge the PR, rewrite history, run Terraform apply, provision cloud resources or deploy remotely.

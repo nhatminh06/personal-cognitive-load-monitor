@@ -65,7 +65,7 @@ with DAG(
 
     @task
     def check_source() -> None:
-        request("http://minio:9333/cluster/status")
+        request("http://seaweedfs:9333/cluster/status")
 
     @task
     def validate_input() -> None:

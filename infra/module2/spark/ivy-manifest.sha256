@@ -1,0 +1,6 @@
+873fe7cf495126619997bec21c44de5d992544aea7e632fdc77adb1a0915bae5  jars/com.amazonaws_aws-java-sdk-bundle-1.12.262.jar
+4e92085d5d794cf949c50bb665b91384857cad58680c2d0bfc9c7ad353e98e85  jars/io.delta_delta-spark_2.12-3.3.2.jar
+c096975a2ca97ccc9b4005aa5cce16c9ac3903139d340da6665b66ace67d7c36  jars/io.delta_delta-storage-3.3.2.jar
+131a6594969bc4f321d652ea2a33bc0e378ca312685ef87791b2c60b29d01ea5  jars/org.antlr_antlr4-runtime-4.9.3.jar
+53f9ae03c681a30a50aa17524bd9790ab596b28481858e54efd989a826ed3a4a  jars/org.apache.hadoop_hadoop-aws-3.3.4.jar
+9f7058778978ec2ad90c7224401a4b0013d93e0dd3fa0f72b25244ffa3507ca8  jars/org.wildfly.openssl_wildfly-openssl-1.0.7.Final.jar

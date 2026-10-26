@@ -5,6 +5,10 @@ networks:
     name: cogniflow-module2
   seaweedfs-control:
     internal: true
+  spark-storage:
+    internal: true
+  spark-control:
+    internal: true
 
 services:
   kafka:
@@ -59,7 +63,7 @@ services:
     build:
       context: ./seaweedfs
     profiles: [lake]
-    command: server -dir=/data -filer=true -master.port=9333 -volume.port=8080 -filer.port=8888 -ip=seaweedfs -master.telemetry=false
+    command: server -dir=/data -filer=true -master.port=9333 -volume.port=8080 -volume.max=16 -filer.port=8888 -ip=seaweedfs -master.telemetry=false
     volumes:
       - seaweedfs-data:/data
     healthcheck:
@@ -94,7 +98,7 @@ services:
       retries: 20
     mem_limit: 128m
     cpus: 0.25
-    networks: [default, seaweedfs-control]
+    networks: [default, seaweedfs-control, spark-storage]
     logging:
       options:
         max-size: 10m
@@ -120,11 +124,12 @@ services:
     build:
       context: ./spark
     profiles: [batch]
+    user: "185:185"
     working_dir: /opt/cogniflow
     entrypoint: [python3, /opt/cogniflow/jobs/internal_job_runner.py]
     environment:
       JOB_KIND: spark
-      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-local-development-only}
+      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-}
       JOB_TIMEOUT_SECONDS: "1800"
       PYTHONPATH: /opt/cogniflow/src
       MINIO_ENDPOINT: http://minio:9000
@@ -134,8 +139,14 @@ services:
       MINIO_LAKEHOUSE_BUCKET: ${MINIO_LAKEHOUSE_BUCKET:-cogniflow-lakehouse}
     volumes:
       - ../..:/opt/cogniflow:ro
+      - spark-ivy:/home/spark/.ivy2:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+      - /opt/spark/work-dir:size=256m,uid=185,gid=185,mode=0700
     mem_limit: 1792m
     cpus: 1.5
+    networks: [spark-storage, spark-control]
     depends_on:
       minio:
         condition: service_healthy
@@ -188,7 +199,7 @@ services:
       - ../../jobs:/opt/cogniflow/jobs:ro
     environment:
       JOB_KIND: dbt
-      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-local-development-only}
+      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-}
       JOB_TIMEOUT_SECONDS: "900"
       DBT_PROFILES_DIR: /analytics
       DBT_TARGET_PATH: /tmp/dbt-target
@@ -205,11 +216,12 @@ services:
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-local-development-only}
+      JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-}
     volumes:
       - ../../dags:/opt/airflow/dags:ro
       - airflow3-data:/opt/airflow
     mem_limit: 640m
+    networks: [default, seaweedfs-control, spark-control]
 
   redis:
     image: redis:7.4.2-alpine

@@ -15,7 +15,7 @@ The initial pip-audit run found advisories in the lockfile, including aiohttp, S
 
 Final gate update: pip-audit 2.9.0 inspected 297 locked dependencies and again found only `diskcache 5.6.3` / PYSEC-2026-2447 with no fixed release. Trivy 0.76.1 found no High/Critical vulnerability in tracked Python dependency manifests.
 
-Java Maven dependencies were compiled/tested through the pinned Maven container because the host has no Maven executable. Four Flink JUnit tests passed. Trivy directly scanned the packaged Java dependencies: Flink has no High/Critical result, but the current Spark 3.5.5 image scan has 126 fixable High/Critical occurrences (107 distinct IDs), including five Critical occurrences. This is SEC-022 and blocks release; non-root execution and the authenticated fixed-command runner reduce exposure but are not remediation.
+Java Maven dependencies were compiled/tested through the pinned Maven container because the host has no Maven executable. Four Flink JUnit tests passed. Trivy directly scanned the packaged Java dependencies: Flink has no High/Critical result, but Spark 3.5.5 has 126 High/Critical occurrences (122 with fixes, 4 without, 107 distinct IDs), including five Critical occurrences. SEC-022 is accepted risk for local development only through 2027-01-23; isolation and the authenticated fixed-command runner reduce exposure but are not remediation.
 
 Complete Trivy 0.76.1 candidate scans used the current vulnerability database and exact image digests. Spark 3.5.9 contained 78 Java High/Critical occurrences and Spark 4.1.3 contained 79, in addition to 641 Ubuntu occurrences each. Both candidates were rejected rather than changing Maven coordinates or deleting runtime jars without compatibility evidence.
 

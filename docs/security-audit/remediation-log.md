@@ -18,8 +18,9 @@
 - Upgraded dbt-core/dbt-trino normally so sqlparse 0.6.0 resolves, then passed two full builds and explicit tests.
 - Configured and read back GitHub branch and production-environment protections without merging or deploying.
 - Recorded Spark image vulnerability SEC-022 as a release blocker instead of treating isolation as remediation.
-- Rejected official Spark 3.5.9 and 4.1.3 candidates after complete scans showed hundreds of fixable High/Critical findings.
+- Rejected official Spark 3.5.9 and 4.1.3 candidates after complete scans showed hundreds of High/Critical findings, including both findings with reported fixes and findings without them.
 - Removed caller-selected publication tags, captured the pushed registry digest, and rendered Helm deployment by immutable digest.
 - Split SeaweedFS into an internal raw backend and a stateless S3 gateway so application workloads cannot reach master/filer/volume APIs.
+- Recorded the repository owner's 2026-10-25 acceptance of SEC-022 for isolated local development only, expiring 2027-01-23; the finding remains unremediated and prohibited from production.
 
 During the security-audit task itself, no commit, push, PR, merge, history rewrite, cloud provisioning or remote deployment occurred. A later, separately authorized publication task committed these remediations, merged the updated `main` into the feature branch without rewriting history, pushed normally, and opened draft PR #6. No PR merge, cloud provisioning or remote deployment was performed by that task.

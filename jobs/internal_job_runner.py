@@ -3,24 +3,44 @@
 from __future__ import annotations
 
 import hmac
+import hashlib
 import json
 import os
 import subprocess
 import threading
+from pathlib import Path
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 COMMANDS = {
     "spark": (
         "/opt/spark/bin/spark-submit",
-        "--packages",
-        "io.delta:delta-spark_2.12:3.3.2,org.apache.hadoop:hadoop-aws:3.3.4",
+        "--jars",
+        "/home/spark/.ivy2/jars/io.delta_delta-spark_2.12-3.3.2.jar,"
+        "/home/spark/.ivy2/jars/io.delta_delta-storage-3.3.2.jar,"
+        "/home/spark/.ivy2/jars/org.antlr_antlr4-runtime-4.9.3.jar,"
+        "/home/spark/.ivy2/jars/org.apache.hadoop_hadoop-aws-3.3.4.jar,"
+        "/home/spark/.ivy2/jars/com.amazonaws_aws-java-sdk-bundle-1.12.262.jar,"
+        "/home/spark/.ivy2/jars/org.wildfly.openssl_wildfly-openssl-1.0.7.Final.jar",
         "jobs/bronze_to_silver.py",
     ),
     "dbt": ("dbt", "build"),
 }
 WORKING_DIRS = {"spark": "/opt/cogniflow", "dbt": "/analytics"}
 _job_lock = threading.Lock()
+
+
+def verify_spark_ivy(
+    manifest: Path = Path("/opt/cogniflow/infra/module2/spark/ivy-manifest.sha256"),
+    cache: Path = Path("/home/spark/.ivy2"),
+) -> None:
+    """Fail before accepting jobs unless every approved Spark artifact is intact."""
+
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        expected, relative = line.split(maxsplit=1)
+        artifact = cache / relative
+        if not artifact.is_file() or hashlib.sha256(artifact.read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f"Unverified Spark dependency: {relative}")
 
 
 def command_for(kind: str) -> tuple[str, ...]:
@@ -96,9 +116,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    command_for(os.environ.get("JOB_KIND", ""))
+    kind = os.environ.get("JOB_KIND", "")
+    command_for(kind)
     if not os.environ.get("JOB_RUNNER_TOKEN", "").strip():
         raise RuntimeError("JOB_RUNNER_TOKEN must be configured")
+    if kind == "spark":
+        verify_spark_ivy()
     ThreadingHTTPServer(("0.0.0.0", 8090), Handler).serve_forever()
 
 
