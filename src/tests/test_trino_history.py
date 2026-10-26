@@ -28,3 +28,22 @@ def test_reader_restricts_endpoint_and_version():
         TrinoHistoryReader().snapshot(-1)
     with pytest.raises(ValueError, match="non-negative"):
         TrinoHistoryReader().snapshot(1.5)  # type: ignore[arg-type]
+
+
+def test_query_rejects_cross_origin_pagination(monkeypatch):
+    response = MockResponse({"nextUri": "https://evil.example/query/1"})
+    reader = TrinoHistoryReader()
+    monkeypatch.setattr(reader.session, "post", lambda *args, **kwargs: response)
+    with pytest.raises(RuntimeError, match="unsafe pagination"):
+        reader.query("SELECT 1")
+
+
+class MockResponse:
+    def __init__(self, body):
+        self.body = body
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.body

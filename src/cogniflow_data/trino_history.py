@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -42,6 +43,9 @@ class TrinoHistoryReader:
             next_uri = body.get("nextUri")
             if not next_uri:
                 break
+            parsed = urlparse(next_uri)
+            if (parsed.scheme, parsed.hostname, parsed.port) != ("http", "127.0.0.1", 8081):
+                raise RuntimeError("Trino returned an unsafe pagination URL")
             response = self.session.get(next_uri, timeout=10)
         return [dict(zip(columns, row)) for row in rows]
 

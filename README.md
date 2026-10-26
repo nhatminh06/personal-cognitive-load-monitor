@@ -28,7 +28,8 @@ It is designed to demonstrate how independently developed data and machine learn
 | Module II: Data Engineering & Streaming | Implemented and locally validated |
 | Security hardening, PR #6 | Merged |
 | Module III Phase 1: Historical feature contracts | Implemented and locally validated |
-| Later Module III platform integration | Planned |
+| Module III Phase 2: Reproducible training and registry | Implemented and locally validated |
+| Later Module III serving/orchestration | Planned |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
 | GKE Terraform | Statically validated only |
@@ -49,6 +50,8 @@ It is designed to demonstrate how independently developed data and machine learn
 See [Module II test evidence](docs/module2/testing.md) and [security verification](docs/security-audit/verification.md) for the detailed scope and results.
 
 Module III Phase 1 adds a version-pinned, point-in-time historical feature contract over Delta Silver without deploying new ML infrastructure. See the [historical features guide](docs/module3/phase1-historical-features.md).
+
+Phase 2 adds chronological synthetic-proxy model comparison, lineage manifests, explicit MLflow candidate registration, and a separate approval boundary. See the [Phase 2 training guide](docs/module3/phase2-ml-training.md).
 
 ---
 
