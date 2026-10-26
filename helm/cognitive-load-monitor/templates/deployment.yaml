@@ -1,5 +1,5 @@
-{{ if and (eq .Values.config.inferenceMode "local_model") (not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest)) }}
-{{ fail "image.digest must be a sha256 digest in local_model mode" }}
+{{ if and (or (eq .Values.config.inferenceMode "local_model") (eq .Values.config.inferenceMode "kserve")) (or (not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest)) (eq .Values.image.digest "sha256:0000000000000000000000000000000000000000000000000000000000000000")) }}
+{{ fail "image.digest must be a non-placeholder sha256 digest in model-serving modes" }}
 {{ end }}
 apiVersion: apps/v1
 kind: Deployment

@@ -10,8 +10,8 @@ spec:
     serviceAccountName: {{ include "cognitive-load-monitor.serviceAccountName" . }}
     containers:
       - name: kserve-container
-        {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.kserve.image.digest) }}
-        {{- fail "kserve.image.digest must be an immutable sha256 digest" }}
+        {{- if or (not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.kserve.image.digest)) (eq .Values.kserve.image.digest "sha256:0000000000000000000000000000000000000000000000000000000000000000") }}
+        {{- fail "kserve.image.digest must be a non-placeholder immutable sha256 digest" }}
         {{- end }}
         image: {{ printf "%s@%s" .Values.kserve.image.repository .Values.kserve.image.digest | quote }}
         imagePullPolicy: {{ .Values.kserve.image.pullPolicy }}

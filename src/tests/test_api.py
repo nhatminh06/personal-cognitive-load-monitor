@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import pytest
+
 from preprocessing_api.schemas import CognitiveLoadLevel
 
 TestClient = Any
@@ -272,7 +274,10 @@ def test_invalid_inference_mode_fails_closed(client: TestClient, monkeypatch):
 def test_kserve_failure_does_not_fallback(client: TestClient, monkeypatch):
     monkeypatch.setenv("INFERENCE_MODE", "kserve")
     monkeypatch.setenv("KSERVE_PREDICT_URL", "http://model.invalid")
-    monkeypatch.setattr("preprocessing_api.main.predict_with_kserve", lambda request: (_ for _ in ()).throw(ConnectionError()))
+    async def unavailable(request):
+        raise ConnectionError()
+
+    monkeypatch.setattr("preprocessing_api.main.predict_with_kserve", unavailable)
     response = client.post("/predict", json={
         "focus_minutes": 1, "distraction_minutes": 1, "tasks_due": 1,
         "hours_to_deadline": 1,
@@ -297,18 +302,51 @@ def test_kserve_readiness_and_model_info_require_verified_provenance(
         "run_id": "run-1",
         "git_revision": "4" * 40,
     }
-    monkeypatch.setattr(
-        "preprocessing_api.main.verified_kserve_provenance", lambda: provenance
-    )
+    async def verified():
+        return provenance
+
+    monkeypatch.setattr("preprocessing_api.main.verified_kserve_provenance", verified)
     assert client.get("/ready").json() == {"status": "ready", "inference_mode": "kserve"}
     assert client.get("/model-info").json()["registered_artifact_sha256"] == "2" * 64
 
-    monkeypatch.setattr(
-        "preprocessing_api.main.verified_kserve_provenance",
-        lambda: (_ for _ in ()).throw(ConnectionError()),
-    )
+    async def unavailable():
+        raise ConnectionError()
+
+    monkeypatch.setattr("preprocessing_api.main.verified_kserve_provenance", unavailable)
     assert client.get("/ready").status_code == 503
     assert client.get("/model-info").status_code == 503
+
+
+@pytest.mark.parametrize(
+    "error,status",
+    [(TimeoutError(), 504), (ConnectionError(), 503), (ValueError(), 502)],
+)
+def test_kserve_prediction_error_mapping(client: TestClient, monkeypatch, error, status):
+    monkeypatch.setenv("INFERENCE_MODE", "kserve")
+
+    async def fail(request):
+        raise error
+
+    monkeypatch.setattr("preprocessing_api.main.predict_with_kserve", fail)
+    response = client.post("/predict", json={
+        "focus_minutes": 1, "distraction_minutes": 1, "tasks_due": 1,
+        "hours_to_deadline": 1,
+    })
+    assert response.status_code == status
+
+
+@pytest.mark.parametrize(
+    "error,status",
+    [(TimeoutError(), 504), (ConnectionError(), 503), (ValueError(), 502)],
+)
+def test_kserve_readiness_error_mapping(client: TestClient, monkeypatch, error, status):
+    monkeypatch.setenv("INFERENCE_MODE", "kserve")
+
+    async def fail():
+        raise error
+
+    monkeypatch.setattr("preprocessing_api.main.verified_kserve_provenance", fail)
+    assert client.get("/ready").status_code == status
 
 
 def test_local_model_failure_does_not_fallback(client: TestClient, monkeypatch):

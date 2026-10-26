@@ -3,10 +3,18 @@
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 
 ROOT = Path(__file__).parents[2]
+VALID_VALUES = [
+    "--set", "image.digest=sha256:" + "1" * 64,
+    "--set", "kserve.image.digest=sha256:" + "2" * 64,
+    "--set", "config.modelSha256=" + "3" * 64,
+    "--set", "config.modelArtifactSha256=" + "4" * 64,
+    "--set", "config.modelDatasetSha256=" + "5" * 64,
+]
 
 
 def test_standalone_inferenceservice_is_internal_and_restricted():
@@ -34,6 +42,7 @@ def test_helm_kserve_render_is_custom_digest_pinned_and_internal():
             "helm", "template", "kserve", str(ROOT / "helm/cognitive-load-monitor"),
             "--namespace", "cognitive-load-kserve", "-f",
             str(ROOT / "helm/cognitive-load-monitor/values.phase5-kserve-local.yaml"),
+            *VALID_VALUES,
         ],
         check=True,
         capture_output=True,
@@ -47,3 +56,47 @@ def test_helm_kserve_render_is_custom_digest_pinned_and_internal():
     assert "KSERVE_ALLOWED_ORIGIN" in rendered
     assert "type: NodePort" not in rendered
     assert "kind: Ingress" not in rendered
+
+
+def test_helm_rejects_all_documentation_sentinels():
+    result = subprocess.run(
+        [
+            "helm", "template", "kserve", str(ROOT / "helm/cognitive-load-monitor"),
+            "--namespace", "cognitive-load-kserve", "-f",
+            str(ROOT / "helm/cognitive-load-monitor/values.phase5-kserve-local.yaml"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "non-placeholder" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        ["--set", "image.digest=sha256:" + "0" * 64],
+        ["--set", "kserve.image.digest=sha256:" + "0" * 64],
+        ["--set", "config.modelSha256=" + "0" * 64],
+        ["--set", "config.modelArtifactSha256=" + "0" * 64],
+        ["--set", "config.modelDatasetSha256=" + "0" * 64],
+        ["--set", "config.modelVersion=REPLACE"],
+        ["--set", "config.modelName=CHANGE_ME"],
+        ["--set", "config.kserveTimeoutSeconds=0"],
+        ["--set", "config.kserveTimeoutSeconds=31"],
+        ["--set", "config.kserveTimeoutSeconds=NaN"],
+    ],
+)
+def test_helm_rejects_each_placeholder_value(overrides):
+    values = VALID_VALUES + overrides
+    result = subprocess.run(
+        [
+            "helm", "template", "kserve", str(ROOT / "helm/cognitive-load-monitor"),
+            "--namespace", "cognitive-load-kserve", "-f",
+            str(ROOT / "helm/cognitive-load-monitor/values.phase5-kserve-local.yaml"),
+            *values,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0

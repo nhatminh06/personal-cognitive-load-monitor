@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import os
 import re
 from numbers import Integral
@@ -37,6 +38,7 @@ _SKOPS_TRUSTED_TYPES = ["sklearn.tree._tree.Tree"]
 _local_model: Any = None
 _local_model_load_attempted = False
 _local_model_provenance: dict[str, Any] | None = None
+_ZERO_SHA256 = "0" * 64
 
 
 def kserve_payload(request: PredictionRequest) -> dict[str, list[list[float]]]:
@@ -45,18 +47,11 @@ def kserve_payload(request: PredictionRequest) -> dict[str, list[list[float]]]:
     return {"instances": [feature_vector(request.model_dump())]}
 
 
-def _extract_prediction(payload: dict[str, Any]) -> CognitiveLoadLevel | None:
-    predictions = payload.get("predictions") or payload.get("outputs")
-    if predictions is None:
-        return None
-
-    first = predictions[0] if isinstance(predictions, list) and predictions else predictions
-    if isinstance(first, list) and first:
-        first = first[0]
-    if isinstance(first, dict):
-        first = first.get("class") or first.get("label") or first.get("prediction")
-
-    return _CLASS_MAP.get(first)
+def _extract_prediction(payload: dict[str, Any]) -> CognitiveLoadLevel:
+    predictions = payload.get("predictions")
+    if not isinstance(predictions, list) or len(predictions) != 1:
+        raise ValueError("KServe must return exactly one prediction")
+    return _validated_class(predictions[0])
 
 
 def reset_local_model_cache() -> None:
@@ -130,6 +125,21 @@ def _expected_kserve_provenance() -> dict[str, str]:
     }
     if any(not value for value in expected.values()):
         raise RuntimeError("KServe expected provenance is incomplete")
+    if (
+        not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", expected["model_name"])
+        or not re.fullmatch(r"[1-9][0-9]*", expected["model_version"])
+        or any(
+            not re.fullmatch(r"[a-f0-9]{64}", expected[name])
+            or expected[name] == _ZERO_SHA256
+            for name in (
+                "registered_artifact_sha256",
+                "packaged_model_sha256",
+                "dataset_sha256",
+            )
+        )
+        or expected["feature_schema_version"] != "1.0"
+    ):
+        raise RuntimeError("KServe expected provenance contains placeholder or invalid values")
     return expected
 
 
@@ -168,27 +178,47 @@ def _validate_kserve_provenance(payload: Any) -> dict[str, Any]:
     return payload
 
 
-def verified_kserve_provenance() -> dict[str, Any]:
-    import requests
+def _kserve_timeout() -> float:
+    try:
+        value = float(os.getenv("KSERVE_TIMEOUT_SECONDS", "3"))
+    except ValueError as exc:
+        raise RuntimeError("KSERVE_TIMEOUT_SECONDS must be a finite number") from exc
+    if not math.isfinite(value) or not 0 < value <= 30:
+        raise RuntimeError("KSERVE_TIMEOUT_SECONDS must be greater than zero and at most 30")
+    return value
+
+
+async def _kserve_request(method: str, url: str, **kwargs: Any) -> Any:
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=_kserve_timeout(), follow_redirects=False, trust_env=False
+        ) as client:
+            response = await client.request(method, url, **kwargs)
+    except httpx.TimeoutException as exc:
+        raise TimeoutError("KServe request timed out") from exc
+    except httpx.RequestError as exc:
+        raise ConnectionError("KServe request failed") from exc
+    if 300 <= response.status_code < 400:
+        raise ValueError("KServe redirect rejected")
+    if response.status_code >= 500:
+        raise ConnectionError("KServe service is unavailable")
+    if response.status_code >= 400:
+        raise ValueError("KServe returned an invalid HTTP response")
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise ValueError("KServe returned invalid JSON") from exc
+
+
+async def verified_kserve_provenance() -> dict[str, Any]:
 
     model_name = os.getenv("MODEL_NAME", "")
     url = _validated_kserve_url(
         "KSERVE_METADATA_URL", f"/v1/models/{model_name}/metadata"
     )
-    try:
-        response = requests.get(
-            url,
-            timeout=float(os.getenv("KSERVE_TIMEOUT_SECONDS", "3")),
-            allow_redirects=False,
-        )
-        if 300 <= response.status_code < 400:
-            raise ValueError("KServe metadata redirect rejected")
-        response.raise_for_status()
-        return _validate_kserve_provenance(response.json())
-    except (RuntimeError, ValueError):
-        raise
-    except Exception as exc:
-        raise ConnectionError("KServe metadata request failed") from exc
+    return _validate_kserve_provenance(await _kserve_request("GET", url))
 
 
 def verified_local_model_provenance() -> dict[str, Any] | None:
@@ -257,7 +287,7 @@ def predict_with_local_model(request: PredictionRequest) -> CognitiveLoadLevel |
         return None
 
 
-def predict_with_kserve(request: PredictionRequest) -> CognitiveLoadLevel | None:
+async def predict_with_kserve(request: PredictionRequest) -> CognitiveLoadLevel:
     """Call KServe when KSERVE_PREDICT_URL is configured.
 
     Raises a bounded error when KServe is unavailable; production callers must
@@ -267,27 +297,8 @@ def predict_with_kserve(request: PredictionRequest) -> CognitiveLoadLevel | None
     model_name = os.getenv("MODEL_NAME", "")
     predict_url = _validated_kserve_url("KSERVE_PREDICT_URL", f"/v1/models/{model_name}:predict")
 
-    try:
-        import requests
-
-        response = requests.post(
-            predict_url,
-            json=kserve_payload(request),
-            timeout=float(os.getenv("KSERVE_TIMEOUT_SECONDS", "3")),
-            allow_redirects=False,
-        )
-        if 300 <= response.status_code < 400:
-            raise ValueError("KServe prediction redirect rejected")
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict) or set(payload) != {"predictions", "provenance"}:
-            raise ValueError("KServe returned an unsupported prediction payload")
-        _validate_kserve_provenance(payload["provenance"])
-        prediction = _extract_prediction(payload)
-        if prediction is None:
-            raise ValueError("KServe returned an unsupported prediction payload")
-        return prediction
-    except (RuntimeError, ValueError):
-        raise
-    except Exception as exc:  # pragma: no cover - exercised through mocked request failures
-        raise ConnectionError("KServe prediction failed") from exc
+    payload = await _kserve_request("POST", predict_url, json=kserve_payload(request))
+    if not isinstance(payload, dict) or set(payload) != {"predictions", "provenance"}:
+        raise ValueError("KServe returned an unsupported prediction payload")
+    _validate_kserve_provenance(payload["provenance"])
+    return _extract_prediction(payload)

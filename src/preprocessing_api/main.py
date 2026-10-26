@@ -69,8 +69,12 @@ async def ready():
         raise HTTPException(status_code=503, detail="Configured local model is unavailable")
     if mode == "kserve":
         try:
-            verified_kserve_provenance()
-        except Exception as exc:
+            await verified_kserve_provenance()
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="KServe model timed out") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="KServe model returned invalid metadata") from exc
+        except (ConnectionError, RuntimeError) as exc:
             raise HTTPException(status_code=503, detail="KServe model is unavailable") from exc
     return {"status": "ready", "inference_mode": mode}
 
@@ -109,8 +113,12 @@ async def model_info():
         }
     elif mode == "kserve":
         try:
-            provenance = verified_kserve_provenance()
-        except Exception as exc:
+            provenance = await verified_kserve_provenance()
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="Model provenance request timed out") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Model provenance is invalid") from exc
+        except (ConnectionError, RuntimeError) as exc:
             raise HTTPException(status_code=503, detail="Verified model provenance is unavailable") from exc
         result = {
             "inference_mode": mode,
@@ -163,7 +171,7 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
     else:
         source = "kserve"
         try:
-            cognitive_load_level = predict_with_kserve(request)
+            cognitive_load_level = await predict_with_kserve(request)
         except TimeoutError as exc:
             raise HTTPException(status_code=504, detail="Model server timed out") from exc
         except (ConnectionError, RuntimeError) as exc:

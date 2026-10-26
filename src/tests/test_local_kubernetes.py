@@ -81,4 +81,4 @@ def test_phase3_helm_refuses_mutable_image_reference() -> None:
         text=True,
     )
     assert result.returncode != 0
-    assert "image.digest must be a sha256 digest in local_model mode" in result.stderr
+    assert "image.digest must be a non-placeholder sha256 digest" in result.stderr

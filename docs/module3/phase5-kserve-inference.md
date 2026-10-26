@@ -20,6 +20,11 @@
 - The disposable cluster and processes were stopped afterward; only
   `cogniflow-local` remained. No approved candidate, production image, cloud
   service or existing cluster was changed.
+- The hardening pass rechecked the exact KServe 0.20 probe contract without a
+  model artifact or Kubernetes deployment: `/` returned HTTP 200 with
+  `{"status":"alive"}`, and `/v1/models/probe-contract` returned HTTP 200 only
+  after the in-memory probe model's readiness flag was true. Unit coverage also
+  proves the readiness route rejects a non-ready model.
 
 This proves the controller, CRD, Standard-mode reconciliation, internal Service
 and process-level API contracts. The contract responder is deliberately not a
@@ -120,6 +125,22 @@ registered/packaged/dataset digests, schema, feature order and synthetic-label
 provenance. `/ready` performs a live verified metadata request. `/model-info`
 returns that verified provenance. Any outage or mismatch is a visible failure;
 there is no fallback to `local_model` or `demo_rule`.
+
+KServe 0.20 serves liveness at `/` (`200` with `{"status":"alive"}`) and
+model readiness at `/v1/models/<name>` (`200` only after `model.ready` is true).
+The Helm probes use those exact endpoints. The metadata route is not
+application-authenticated: it is reachable to workloads that can reach the
+internal ClusterIP service. Its response contains only non-secret model lineage,
+never credentials or prediction request payloads. FastAPI remains authenticated
+in production and verifies every metadata value before reporting readiness or
+accepting a prediction. A production cluster must enforce the intended caller
+boundary with a working NetworkPolicy implementation or equivalent service-mesh
+policy; kindnet alone does not provide that enforcement.
+
+The checked-in Phase 5 values contain all-zero documentation sentinels. Helm
+rejects those values, placeholder identities and versions, so the file cannot be
+installed until the operator supplies independently verified API image, KServe
+image and model lineage values.
 
 ## Verification and K9s
 

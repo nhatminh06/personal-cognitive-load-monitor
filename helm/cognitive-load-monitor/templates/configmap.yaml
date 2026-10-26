@@ -5,6 +5,9 @@ metadata:
   labels:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
 data:
+  {{- if or (not (regexMatch "^[0-9]+(\\.[0-9]+)?$" (.Values.config.kserveTimeoutSeconds | toString))) (le (float64 .Values.config.kserveTimeoutSeconds) 0.0) (gt (float64 .Values.config.kserveTimeoutSeconds) 30.0) }}
+  {{- fail "config.kserveTimeoutSeconds must be greater than zero and at most 30" }}
+  {{- end }}
   APP_ENV: {{ .Values.config.appEnv | quote }}
   LOG_LEVEL: {{ .Values.config.logLevel | quote }}
   ENABLE_TRACING: {{ .Values.config.enableTracing | quote }}
@@ -40,9 +43,12 @@ data:
   {{- if not (regexMatch "^[1-9][0-9]*$" (.Values.config.modelVersion | toString)) }}
   {{- fail "config.modelVersion must be a positive numeric version in kserve mode" }}
   {{- end }}
+  {{- if or (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Values.config.modelName)) (ne .Values.config.modelName .Values.kserve.name) }}
+  {{- fail "config.modelName must be a non-placeholder DNS label matching kserve.name" }}
+  {{- end }}
   {{- range $field := list .Values.config.modelSha256 .Values.config.modelArtifactSha256 .Values.config.modelDatasetSha256 }}
-  {{- if not (regexMatch "^[a-f0-9]{64}$" $field) }}
-  {{- fail "all KServe model digests must be lowercase SHA-256 values" }}
+  {{- if or (not (regexMatch "^[a-f0-9]{64}$" $field)) (eq $field "0000000000000000000000000000000000000000000000000000000000000000") }}
+  {{- fail "all KServe model digests must be non-placeholder lowercase SHA-256 values" }}
   {{- end }}
   {{- end }}
   {{- $origin := printf "http://%s-predictor.%s.svc.cluster.local" .Values.kserve.name .Release.Namespace }}
