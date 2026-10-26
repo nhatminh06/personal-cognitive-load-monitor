@@ -27,7 +27,8 @@ It is designed to demonstrate how independently developed data and machine learn
 | Module I: MLOps Foundation | Implemented and locally validated |
 | Module II: Data Engineering & Streaming | Implemented and locally validated |
 | Security hardening, PR #6 | Merged |
-| Module III: ML Platform Integration | Planned |
+| Module III Phase 1: Historical feature contracts | Implemented and locally validated |
+| Later Module III platform integration | Planned |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
 | GKE Terraform | Statically validated only |
@@ -36,7 +37,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ### Verification highlights
 
-- **78 Python tests passed**, with **88.67% combined coverage** against an 81% enforcement threshold.
+- **89 Python tests passed**, with **88.13% combined coverage** against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -46,6 +47,8 @@ It is designed to demonstrate how independently developed data and machine learn
 - No GCP resources or paid cloud deployment were required for the reported local results.
 
 See [Module II test evidence](docs/module2/testing.md) and [security verification](docs/security-audit/verification.md) for the detailed scope and results.
+
+Module III Phase 1 adds a version-pinned, point-in-time historical feature contract over Delta Silver without deploying new ML infrastructure. See the [historical features guide](docs/module3/phase1-historical-features.md).
 
 ---
 

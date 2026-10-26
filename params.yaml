@@ -11,3 +11,8 @@ model:
   registered_model_name: cognitive-load-classifier
 reports:
   drift_report: reports/evidently/data_drift.html
+historical:
+  code_revision: module3-phase1-contract-v1
+  fixture: tests/fixtures/historical_features.json
+  output: data/processed/historical_features.jsonl
+  metadata: data/processed/historical_features.manifest.json

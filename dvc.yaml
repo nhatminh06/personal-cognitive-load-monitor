@@ -40,3 +40,18 @@ stages:
     outs:
       - reports/evidently/data_drift.html:
           cache: false
+  historical_features:
+    cmd: env PYTHONPATH=src uv run python scripts/build_historical_features.py --input ${historical.fixture} --output ${historical.output} --metadata ${historical.metadata} --code-revision ${historical.code_revision}
+    deps:
+      - scripts/build_historical_features.py
+      - src/cogniflow_data/historical.py
+      - src/preprocessing_api/features.py
+      - tests/fixtures/historical_features.json
+    params:
+      - historical.code_revision
+      - historical.fixture
+      - historical.output
+      - historical.metadata
+    outs:
+      - data/processed/historical_features.jsonl
+      - data/processed/historical_features.manifest.json
