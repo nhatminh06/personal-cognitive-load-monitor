@@ -281,6 +281,36 @@ def test_kserve_failure_does_not_fallback(client: TestClient, monkeypatch):
     assert response.json() == {"detail": "Model server is unavailable"}
 
 
+def test_kserve_readiness_and_model_info_require_verified_provenance(
+    client: TestClient, monkeypatch
+):
+    monkeypatch.setenv("INFERENCE_MODE", "kserve")
+    provenance = {
+        "model_version": "7",
+        "label_provenance": "synthetic_proxy",
+        "model_name": "classifier",
+        "dataset_sha256": "1" * 64,
+        "feature_schema_version": "1.0",
+        "feature_names": ["a", "b", "c", "d", "e", "f"],
+        "registered_artifact_sha256": "2" * 64,
+        "packaged_model_sha256": "3" * 64,
+        "run_id": "run-1",
+        "git_revision": "4" * 40,
+    }
+    monkeypatch.setattr(
+        "preprocessing_api.main.verified_kserve_provenance", lambda: provenance
+    )
+    assert client.get("/ready").json() == {"status": "ready", "inference_mode": "kserve"}
+    assert client.get("/model-info").json()["registered_artifact_sha256"] == "2" * 64
+
+    monkeypatch.setattr(
+        "preprocessing_api.main.verified_kserve_provenance",
+        lambda: (_ for _ in ()).throw(ConnectionError()),
+    )
+    assert client.get("/ready").status_code == 503
+    assert client.get("/model-info").status_code == 503
+
+
 def test_local_model_failure_does_not_fallback(client: TestClient, monkeypatch):
     monkeypatch.setenv("INFERENCE_MODE", "local_model")
     monkeypatch.setattr("preprocessing_api.main.predict_with_local_model", lambda request: None)

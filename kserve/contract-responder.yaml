@@ -1,0 +1,33 @@
+# Controller-only smoke fixture. This is not a model and must never be used as acceptance evidence.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: contract-responder
+  namespace: cognitive-load-kserve
+spec:
+  predictor:
+    serviceAccountName: cognitive-load-kserve
+    containers:
+      - name: kserve-container
+        image: python@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377
+        imagePullPolicy: IfNotPresent
+        command: ["python", "-m", "http.server", "8080"]
+        ports:
+          - {name: http1, containerPort: 8080}
+        readinessProbe:
+          httpGet: {path: /, port: http1}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile: {type: RuntimeDefault}
+          capabilities: {drop: [ALL]}
+        resources:
+          requests: {cpu: 10m, memory: 32Mi}
+          limits: {cpu: 100m, memory: 64Mi}
+        volumeMounts:
+          - {name: tmp, mountPath: /tmp}
+    volumes:
+      - name: tmp
+        emptyDir: {}

@@ -58,6 +58,7 @@ def test_packages_exact_approved_artifact_without_loading(monkeypatch, tmp_path)
 
     assert (output / "cognitive_load_model.skops").read_bytes() == b"verified-model"
     assert manifest["registered_artifact_sha256"] == digest
+    assert manifest["approval_status"] == "approved"
     assert manifest["packaged_model_sha256"] != digest
     assert manifest["model_version"] == "7"
 

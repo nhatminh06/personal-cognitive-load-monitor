@@ -11,6 +11,7 @@ import re
 from numbers import Integral
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from preprocessing_api.features import FEATURE_NAMES, feature_vector
 from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest
@@ -76,11 +77,11 @@ def _validated_class(value: Any) -> CognitiveLoadLevel:
     return result
 
 
-def _validated_package_manifest(model_path: Path, actual_digest: str) -> dict[str, Any]:
+def validated_package_manifest(model_path: Path, actual_digest: str) -> dict[str, Any]:
     manifest_path = Path(os.getenv("MODEL_PACKAGE_PATH", model_path.with_name("model-package.json")))
     manifest = json.loads(manifest_path.read_text())
     required = {
-        "contract_version", "model_name", "model_version", "registered_artifact_sha256",
+        "contract_version", "approval_status", "model_name", "model_version", "registered_artifact_sha256",
         "packaged_model_sha256", "dataset_sha256", "feature_schema_version", "feature_names",
         "label_provenance", "run_id", "registered_source", "git_revision", "approved_by",
         "approved_at",
@@ -99,6 +100,7 @@ def _validated_package_manifest(model_path: Path, actual_digest: str) -> dict[st
         raise ValueError("model package manifest does not match deployment configuration")
     if (
         manifest["contract_version"] != "1.0"
+        or manifest["approval_status"] != "approved"
         or manifest["feature_schema_version"] != "1.0"
         or manifest["feature_names"] != list(FEATURE_NAMES)
         or manifest["label_provenance"] != "synthetic_proxy"
@@ -112,6 +114,81 @@ def _validated_package_manifest(model_path: Path, actual_digest: str) -> dict[st
     if not hmac.compare_digest(manifest["packaged_model_sha256"], actual_digest):
         raise ValueError("packaged model digest does not match manifest")
     return manifest
+
+
+_validated_package_manifest = validated_package_manifest
+
+
+def _expected_kserve_provenance() -> dict[str, str]:
+    expected = {
+        "model_name": os.getenv("MODEL_NAME", ""),
+        "model_version": os.getenv("MODEL_VERSION", ""),
+        "registered_artifact_sha256": os.getenv("MODEL_ARTIFACT_SHA256", ""),
+        "packaged_model_sha256": os.getenv("MODEL_SHA256", ""),
+        "dataset_sha256": os.getenv("MODEL_DATASET_SHA256", ""),
+        "feature_schema_version": os.getenv("MODEL_FEATURE_SCHEMA_VERSION", ""),
+    }
+    if any(not value for value in expected.values()):
+        raise RuntimeError("KServe expected provenance is incomplete")
+    return expected
+
+
+def _validated_kserve_url(name: str, expected_suffix: str) -> str:
+    value = os.getenv(name, "")
+    allowed_origin = os.getenv("KSERVE_ALLOWED_ORIGIN", "")
+    parsed, allowed = urlsplit(value), urlsplit(allowed_origin)
+    if (
+        not value
+        or parsed.scheme != "http"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or allowed.scheme != "http"
+        or not allowed.hostname
+        or allowed.path not in {"", "/"}
+        or allowed.query
+        or allowed.fragment
+        or (parsed.scheme, parsed.netloc) != (allowed.scheme, allowed.netloc)
+        or parsed.path != expected_suffix
+    ):
+        raise RuntimeError(f"{name} must use the explicit trusted KServe origin and path")
+    return value
+
+
+def _validate_kserve_provenance(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("KServe provenance response is malformed")
+    expected = _expected_kserve_provenance()
+    if any(str(payload.get(name, "")) != value for name, value in expected.items()):
+        raise ValueError("KServe provenance does not match deployment configuration")
+    if payload.get("feature_names") != list(FEATURE_NAMES) or payload.get("label_provenance") != "synthetic_proxy":
+        raise ValueError("KServe provenance contract is incompatible")
+    return payload
+
+
+def verified_kserve_provenance() -> dict[str, Any]:
+    import requests
+
+    model_name = os.getenv("MODEL_NAME", "")
+    url = _validated_kserve_url(
+        "KSERVE_METADATA_URL", f"/v1/models/{model_name}/metadata"
+    )
+    try:
+        response = requests.get(
+            url,
+            timeout=float(os.getenv("KSERVE_TIMEOUT_SECONDS", "3")),
+            allow_redirects=False,
+        )
+        if 300 <= response.status_code < 400:
+            raise ValueError("KServe metadata redirect rejected")
+        response.raise_for_status()
+        return _validate_kserve_provenance(response.json())
+    except (RuntimeError, ValueError):
+        raise
+    except Exception as exc:
+        raise ConnectionError("KServe metadata request failed") from exc
 
 
 def verified_local_model_provenance() -> dict[str, Any] | None:
@@ -145,7 +222,7 @@ def _load_local_model() -> Any:
         if model_path.suffix == ".skops":
             import skops.io
 
-            _local_model_provenance = _validated_package_manifest(model_path, actual_digest)
+            _local_model_provenance = validated_package_manifest(model_path, actual_digest)
             _local_model = skops.io.load(model_path, trusted=_SKOPS_TRUSTED_TYPES)
         elif model_path.suffix in {".joblib", ".pkl"}:
             import joblib
@@ -187,9 +264,8 @@ def predict_with_kserve(request: PredictionRequest) -> CognitiveLoadLevel | None
     never conceal that outage with a different predictor.
     """
 
-    predict_url = os.getenv("KSERVE_PREDICT_URL")
-    if not predict_url:
-        raise RuntimeError("KSERVE_PREDICT_URL is required in kserve mode")
+    model_name = os.getenv("MODEL_NAME", "")
+    predict_url = _validated_kserve_url("KSERVE_PREDICT_URL", f"/v1/models/{model_name}:predict")
 
     try:
         import requests
@@ -198,9 +274,16 @@ def predict_with_kserve(request: PredictionRequest) -> CognitiveLoadLevel | None
             predict_url,
             json=kserve_payload(request),
             timeout=float(os.getenv("KSERVE_TIMEOUT_SECONDS", "3")),
+            allow_redirects=False,
         )
+        if 300 <= response.status_code < 400:
+            raise ValueError("KServe prediction redirect rejected")
         response.raise_for_status()
-        prediction = _extract_prediction(response.json())
+        payload = response.json()
+        if not isinstance(payload, dict) or set(payload) != {"predictions", "provenance"}:
+            raise ValueError("KServe returned an unsupported prediction payload")
+        _validate_kserve_provenance(payload["provenance"])
+        prediction = _extract_prediction(payload)
         if prediction is None:
             raise ValueError("KServe returned an unsupported prediction payload")
         return prediction

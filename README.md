@@ -54,7 +54,7 @@ It is designed to demonstrate how independently developed data and machine learn
 | Module III Phase 3: Secure local model serving | Deployment machinery implemented; live rollout awaits an approved model |
 | Course API layer | Implemented; KServe end-to-end remains outstanding |
 | Kubeflow Pipelines | Six-component KFP v2 workflow verified on an isolated local backend |
-| KServe runtime | Manifests/client statically validated; no real `InferenceService` run |
+| KServe runtime | Custom KServe 0.20 `.skops` ModelServer, strict client and Standard-mode manifests implemented; approved-model runtime remains blocked |
 | Knative log Eventing | Not implemented |
 | Knative anomaly detector | Not implemented |
 | Local Docker and data pipelines | Runtime tested |
@@ -746,7 +746,7 @@ Kafka ingestion, SeaweedFS Bronze storage, Spark/Delta Silver processing, Trino/
 
 ### In progress: Module III — ML Platform Integration
 
-Phases 1–3 provide historical feature contracts, reproducible local training with candidate-only MLflow registration, and approval-bound local serving machinery. The local Kubeflow Pipelines training runtime is also verified. The remaining weighted gaps are KServe runtime, Knative log Eventing, Knative-based anomaly detection, authorized GKE/GCS integration and the real demonstration video.
+Phases 1–4 provide historical feature contracts, reproducible local training, approval-bound packaging, local Kubeflow Pipelines training, and the custom KServe serving path. See the [KServe runbook](docs/module3/phase5-kserve-inference.md). No reusable approved model exists, so real model deployment and end-to-end KServe acceptance remain blocked. The other weighted gaps are Knative log Eventing, Knative-based anomaly detection, authorized GKE/GCS integration and the real demonstration video.
 
 Planned work includes:
 

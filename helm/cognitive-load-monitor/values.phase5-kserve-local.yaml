@@ -1,0 +1,32 @@
+replicaCount: 1
+fullnameOverride: cognitive-load-kserve-api
+image:
+  repository: cognitive-load-api-kserve
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  pullPolicy: Never
+config:
+  appEnv: production
+  inferenceMode: kserve
+  enableTracing: "false"
+  modelName: cognitive-load-classifier
+  modelVersion: "1"
+  modelSha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  modelArtifactSha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  modelDatasetSha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  modelFeatureSchemaVersion: "1.0"
+existingSecret: cognitive-load-kserve-api-key
+autoscaling:
+  enabled: false
+kserve:
+  enabled: true
+  image:
+    repository: cognitive-load-kserve
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    pullPolicy: Never
+ingress:
+  enabled: false
+serviceMonitor:
+  enabled: false
+networkPolicy:
+  # kindnet does not enforce NetworkPolicy; use ClusterIP and loopback port-forward only.
+  enabled: false

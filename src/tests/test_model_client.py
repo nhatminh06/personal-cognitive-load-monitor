@@ -24,12 +24,51 @@ def _request() -> PredictionRequest:
     )
 
 
+def _kserve_environment(monkeypatch):
+    origin = "http://classifier.cognitive-load-kserve.svc.cluster.local"
+    provenance = {
+        "contract_version": "1.0",
+        "approval_status": "approved",
+        "model_name": "classifier",
+        "model_version": "7",
+        "run_id": "run-1",
+        "registered_source": "models:/immutable",
+        "registered_artifact_sha256": "a" * 64,
+        "packaged_model_sha256": "c" * 64,
+        "dataset_sha256": "b" * 64,
+        "feature_schema_version": "1.0",
+        "feature_names": [
+            "focus_minutes", "distraction_minutes", "tasks_due", "hours_to_deadline",
+            "focus_ratio", "distraction_ratio",
+        ],
+        "label_provenance": "synthetic_proxy",
+        "git_revision": "d" * 40,
+        "approved_by": "owner",
+        "approved_at": "2026-10-26T00:00:00+00:00",
+    }
+    values = {
+        "KSERVE_ALLOWED_ORIGIN": origin,
+        "KSERVE_PREDICT_URL": f"{origin}/v1/models/classifier:predict",
+        "KSERVE_METADATA_URL": f"{origin}/v1/models/classifier/metadata",
+        "MODEL_NAME": "classifier",
+        "MODEL_VERSION": "7",
+        "MODEL_ARTIFACT_SHA256": "a" * 64,
+        "MODEL_SHA256": "c" * 64,
+        "MODEL_DATASET_SHA256": "b" * 64,
+        "MODEL_FEATURE_SCHEMA_VERSION": "1.0",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    return provenance
+
+
 def _skops_package(monkeypatch, tmp_path):
     model_path = tmp_path / "cognitive_load_model.skops"
     model_path.write_bytes(b"trusted-skops")
     digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
     manifest = {
         "contract_version": "1.0",
+        "approval_status": "approved",
         "model_name": "classifier",
         "model_version": "7",
         "run_id": "run-1",
@@ -103,18 +142,19 @@ def test_predict_with_kserve_disabled(monkeypatch):
 
 
 def test_predict_with_kserve_success(monkeypatch):
-    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
+    provenance = _kserve_environment(monkeypatch)
 
     class _FakeResponse:
-        text = '{"predictions": [2]}'
+        status_code = 200
 
         def raise_for_status(self):
             return None
 
         def json(self):
-            return {"predictions": [2]}
+            return {"predictions": ["HIGH"], "provenance": provenance}
 
-    def _fake_post(url, json, timeout):
+    def _fake_post(url, json, timeout, allow_redirects):
+        assert allow_redirects is False
         return _FakeResponse()
 
     monkeypatch.setattr("requests.post", _fake_post)
@@ -122,10 +162,10 @@ def test_predict_with_kserve_success(monkeypatch):
 
 
 def test_predict_with_kserve_unsupported_payload_fails(monkeypatch):
-    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
+    _kserve_environment(monkeypatch)
 
     class _FakeResponse:
-        text = '{"predictions": ["???"]}'
+        status_code = 200
 
         def raise_for_status(self):
             return None
@@ -133,19 +173,51 @@ def test_predict_with_kserve_unsupported_payload_fails(monkeypatch):
         def json(self):
             return {"predictions": ["???"]}
 
-    monkeypatch.setattr("requests.post", lambda url, json, timeout: _FakeResponse())
+    monkeypatch.setattr("requests.post", lambda *args, **kwargs: _FakeResponse())
     with pytest.raises(ValueError, match="unsupported"):
         predict_with_kserve(_request())
 
 
 def test_predict_with_kserve_network_failure_fails(monkeypatch):
-    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://kserve.example/v1/models/x:predict")
+    _kserve_environment(monkeypatch)
 
     def _raise(*args, **kwargs):
         raise ConnectionError("boom")
 
     monkeypatch.setattr("requests.post", _raise)
     with pytest.raises(ConnectionError, match="KServe prediction failed"):
+        predict_with_kserve(_request())
+
+
+def test_kserve_metadata_and_prediction_reject_mismatch_and_redirect(monkeypatch):
+    provenance = _kserve_environment(monkeypatch)
+
+    class _Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return provenance
+
+    monkeypatch.setattr("requests.get", lambda *args, **kwargs: _Response())
+    assert model_client.verified_kserve_provenance()["model_version"] == "7"
+
+    provenance["model_version"] = "8"
+    with pytest.raises(ValueError, match="does not match"):
+        model_client.verified_kserve_provenance()
+
+    provenance["model_version"] = "7"
+    _Response.status_code = 302
+    with pytest.raises(ValueError, match="redirect"):
+        model_client.verified_kserve_provenance()
+
+
+def test_kserve_rejects_untrusted_origin(monkeypatch):
+    _kserve_environment(monkeypatch)
+    monkeypatch.setenv("KSERVE_PREDICT_URL", "http://attacker.invalid/v1/models/classifier:predict")
+    with pytest.raises(RuntimeError, match="trusted KServe origin"):
         predict_with_kserve(_request())
 
 
@@ -231,6 +303,7 @@ def test_genuine_skops_round_trip_uses_packaged_contract(monkeypatch, tmp_path):
     "field,value",
     [
         ("model_name", "tampered"),
+        ("approval_status", "candidate"),
         ("model_version", "8"),
         ("registered_artifact_sha256", "d" * 64),
         ("dataset_sha256", "d" * 64),

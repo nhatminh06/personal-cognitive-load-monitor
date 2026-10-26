@@ -34,5 +34,24 @@ data:
   MODEL_FEATURE_SCHEMA_VERSION: {{ required "config.modelFeatureSchemaVersion is required in local_model mode" .Values.config.modelFeatureSchemaVersion | quote }}
   {{- end }}
   {{- if .Values.kserve.enabled }}
-  KSERVE_PREDICT_URL: "http://{{ .Values.kserve.name }}-predictor-default.{{ .Release.Namespace }}.svc.cluster.local/v1/models/{{ .Values.kserve.name }}:predict"
+  {{- if ne .Values.config.inferenceMode "kserve" }}
+  {{- fail "config.inferenceMode must be kserve when kserve.enabled is true" }}
+  {{- end }}
+  {{- if not (regexMatch "^[1-9][0-9]*$" (.Values.config.modelVersion | toString)) }}
+  {{- fail "config.modelVersion must be a positive numeric version in kserve mode" }}
+  {{- end }}
+  {{- range $field := list .Values.config.modelSha256 .Values.config.modelArtifactSha256 .Values.config.modelDatasetSha256 }}
+  {{- if not (regexMatch "^[a-f0-9]{64}$" $field) }}
+  {{- fail "all KServe model digests must be lowercase SHA-256 values" }}
+  {{- end }}
+  {{- end }}
+  {{- $origin := printf "http://%s-predictor.%s.svc.cluster.local" .Values.kserve.name .Release.Namespace }}
+  MODEL_NAME: {{ required "config.modelName is required in kserve mode" .Values.config.modelName | quote }}
+  MODEL_SHA256: {{ .Values.config.modelSha256 | quote }}
+  MODEL_ARTIFACT_SHA256: {{ .Values.config.modelArtifactSha256 | quote }}
+  MODEL_DATASET_SHA256: {{ .Values.config.modelDatasetSha256 | quote }}
+  MODEL_FEATURE_SCHEMA_VERSION: {{ required "config.modelFeatureSchemaVersion is required in kserve mode" .Values.config.modelFeatureSchemaVersion | quote }}
+  KSERVE_ALLOWED_ORIGIN: {{ $origin | quote }}
+  KSERVE_PREDICT_URL: "{{ $origin }}/v1/models/{{ .Values.kserve.name }}:predict"
+  KSERVE_METADATA_URL: "{{ $origin }}/v1/models/{{ .Values.kserve.name }}/metadata"
   {{- end }}

@@ -32,22 +32,26 @@ flowchart TB
 ## Implemented but not runtime-verified
 
 - Approval-bound Phase 3 model packaging and isolated local-model Helm release. The current MLflow version 2 remains a candidate, so no image or deployment exists.
-- KServe client behavior and `InferenceService` manifests. They have been unit-tested/rendered, not run with KServe.
+- KServe 0.20 custom `.skops` ModelServer, strict client behavior and Standard-mode
+  `InferenceService` manifests. The controller and a non-model contract responder
+  were runtime-verified in a disposable cluster; approved-model Kubernetes
+  inference remains blocked pending explicit approval and a retrievable artifact.
 - GKE Terraform, Workload Identity definitions, GCS bucket and cloud deployment workflow. They are statically validated only.
 
 ## Not implemented
 
 - Kubeflow Pipelines training orchestration.
-- A custom KServe runtime that loads the verified `.skops` package.
+- An approved model package and immutable image deployed through the implemented
+  custom KServe runtime.
 - Knative Eventing logging Broker/Trigger/consumer.
 - Knative-based real-time anomaly detector.
 - Authorized GKE/GCS runtime and full demonstration video.
 
 ## Stable serving contract
 
-`INFERENCE_MODE` accepts only `demo_rule`, `local_model` or `kserve`. Explicit modes use only the selected backend; absence, timeout, invalid output or provenance failure returns a visible failure and keeps readiness closed. The six ordered feature names and `PredictionResponse` remain stable. `/model-info` reports verified manifest-backed provenance in local-model mode.
+`INFERENCE_MODE` accepts only `demo_rule`, `local_model` or `kserve`. Explicit modes use only the selected backend; absence, timeout, invalid output or provenance failure returns a visible failure and keeps readiness closed. The six ordered feature names and `PredictionResponse` remain stable. `/model-info` reports verified manifest-backed provenance in local-model and KServe modes; KServe readiness performs a live metadata check.
 
-The stock KServe sklearn server does not document `.skops` support, so the final target uses a digest-pinned custom KServe Python runtime that reuses the existing manifest/trusted-type checks. See the [final architecture](module3/final-rubric-architecture.md).
+The stock KServe sklearn server does not document `.skops` support, so the implemented target uses a digest-pinned custom KServe Python runtime that reuses the existing manifest/trusted-type checks. See the [KServe runbook](module3/phase5-kserve-inference.md).
 
 ## Deployment ownership and restrictions
 

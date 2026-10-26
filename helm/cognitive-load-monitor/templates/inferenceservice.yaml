@@ -5,14 +5,56 @@ metadata:
   name: {{ .Values.kserve.name }}
   labels:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
-  annotations:
-    autoscaling.knative.dev/min-scale: {{ .Values.kserve.minScale | quote }}
-    autoscaling.knative.dev/max-scale: {{ .Values.kserve.maxScale | quote }}
 spec:
   predictor:
-    sklearn:
-      protocolVersion: {{ .Values.kserve.predictor.sklearn.protocolVersion | quote }}
-      storageUri: {{ .Values.kserve.storageUri | quote }}
-      resources:
-        {{- toYaml .Values.kserve.predictor.sklearn.resources | nindent 8 }}
+    serviceAccountName: {{ include "cognitive-load-monitor.serviceAccountName" . }}
+    containers:
+      - name: kserve-container
+        {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.kserve.image.digest) }}
+        {{- fail "kserve.image.digest must be an immutable sha256 digest" }}
+        {{- end }}
+        image: {{ printf "%s@%s" .Values.kserve.image.repository .Values.kserve.image.digest | quote }}
+        imagePullPolicy: {{ .Values.kserve.image.pullPolicy }}
+        args: ["--model_name", {{ .Values.kserve.name | quote }}, "--http_port", "8080", "--enable_grpc=false"]
+        ports:
+          - name: http1
+            containerPort: 8080
+        env:
+          - name: MODEL_NAME
+            value: {{ .Values.config.modelName | quote }}
+          - name: MODEL_VERSION
+            value: {{ .Values.config.modelVersion | quote }}
+          - name: MODEL_SHA256
+            value: {{ .Values.config.modelSha256 | quote }}
+          - name: MODEL_ARTIFACT_SHA256
+            value: {{ .Values.config.modelArtifactSha256 | quote }}
+          - name: MODEL_DATASET_SHA256
+            value: {{ .Values.config.modelDatasetSha256 | quote }}
+          - name: MODEL_FEATURE_SCHEMA_VERSION
+            value: {{ .Values.config.modelFeatureSchemaVersion | quote }}
+        readinessProbe:
+          httpGet:
+            path: /v1/models/{{ .Values.kserve.name }}
+            port: http1
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http1
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+        resources:
+          {{- toYaml .Values.kserve.predictor.resources | nindent 10 }}
+    volumes:
+      - name: tmp
+        emptyDir: {}
 {{- end }}
