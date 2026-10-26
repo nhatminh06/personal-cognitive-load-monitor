@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cognitive-load-api
+  namespace: cogniflow-eventing
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cognitive-load-api
+  namespace: cogniflow-eventing
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: cognitive-load-api}
+  template:
+    metadata:
+      labels: {app: cognitive-load-api}
+    spec:
+      serviceAccountName: cognitive-load-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: api
+          image: cogniflow-api-eventing:dev
+          imagePullPolicy: Never
+          env:
+            - {name: APP_ENV, value: development}
+            - {name: INFERENCE_MODE, value: demo_rule}
+            - {name: INFERENCE_ACTIVITY_ENABLED, value: "true"}
+            - name: INFERENCE_ACTIVITY_DESTINATION
+              value: http://broker-ingress.knative-eventing.svc.cluster.local/cogniflow-eventing/cogniflow-v1
+            - {name: INFERENCE_ACTIVITY_TIMEOUT_SECONDS, value: "2"}
+            - {name: ENABLE_TRACING, value: "false"}
+          ports:
+            - {name: http, containerPort: 8000}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 300m, memory: 384Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cognitive-load-api
+  namespace: cogniflow-eventing
+spec:
+  type: ClusterIP
+  selector: {app: cognitive-load-api}
+  ports:
+    - {name: http, port: 80, targetPort: http}

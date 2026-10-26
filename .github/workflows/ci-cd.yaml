@@ -52,7 +52,7 @@ jobs:
       - name: Run Pytest and enforce coverage > 80%
         run: |
           uv run ruff check src scripts
-          uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov-report=term-missing --cov-report=xml --cov-fail-under=81
+          uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov=src/cogniflow_eventing --cov-report=term-missing --cov-report=xml --cov-fail-under=81
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

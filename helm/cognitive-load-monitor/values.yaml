@@ -64,6 +64,9 @@ config:
   modelArtifactSha256: ""
   modelDatasetSha256: ""
   modelFeatureSchemaVersion: ""
+  inferenceActivityEnabled: "false"
+  inferenceActivityDestination: ""
+  inferenceActivityTimeoutSeconds: "1"
 
 # Pre-create this Secret with COGNIFLOW_API_KEY. Digests are public integrity
 # metadata; credentials never belong in Helm values or ConfigMaps.

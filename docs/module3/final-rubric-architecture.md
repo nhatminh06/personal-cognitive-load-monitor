@@ -67,11 +67,10 @@ Stable event contract `io.cogniflow.inference.activity.v1`:
 | `source` | Fixed service URI, not a user-controlled URL |
 | `type` / `specversion` | Exact versioned values; CloudEvents 1.0 |
 | `time` | UTC inference completion timestamp |
-| `subject` | Pseudonymous request/session reference only when required |
-| `correlationid` extension | Validated opaque correlation ID propagated through services |
-| Data | outcome class, inference source, model version, latency bucket, HTTP status family, feature-age bucket and schema version |
+| `data.correlation_id` | Non-sensitive UUID generated at the API boundary and returned as `x-correlation-id` |
+| Data | outcome, exact sanitized HTTP status, inference backend, bounded latency in milliseconds, failure category, schema version and optional restricted model identity |
 
-Raw feature values, request bodies, API keys, credentials, IP addresses and user-controlled headers are excluded. The producer applies a bounded timeout and reports publish failure without changing prediction semantics. The Trigger configures a finite retry count, exponential backoff and a dead-letter sink. Consumers store event IDs for a bounded retention window and acknowledge duplicates without repeating side effects. Broker, Trigger, consumer and dead-letter metrics make failure visible.
+Raw feature values, request bodies, API keys, credentials, IP addresses and user-controlled headers are excluded. The producer applies a bounded timeout and reports publish failure without changing prediction semantics. The Trigger configures a finite retry count, exponential backoff and a dead-letter sink. Consumers enforce `(source, id)` uniqueness in bounded PVC-backed SQLite stores and acknowledge duplicates without repeating side effects. Broker, Trigger, consumer and dead-letter metrics make failure visible. The verified local InMemoryChannel remains development-only because queued events do not survive every dispatcher/node failure.
 
 Kafka, Flink and Loki remain useful supporting services; none substitutes for the required real Knative Broker/Trigger path.
 
