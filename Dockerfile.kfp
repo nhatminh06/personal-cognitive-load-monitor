@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1.7
+FROM ghcr.io/astral-sh/uv:0.10.0 AS uv
+FROM python:3.11-slim AS runtime
+
+ARG COGNIFLOW_CODE_REVISION
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    COGNIFLOW_CODE_REVISION=${COGNIFLOW_CODE_REVISION}
+
+WORKDIR /app
+COPY --from=uv /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
+RUN test -n "$COGNIFLOW_CODE_REVISION" \
+    && uv sync --frozen --extra kubeflow --no-dev --no-install-project \
+    && python -m pip uninstall -y pip setuptools
+ENV PATH="/app/.venv/bin:${PATH}"
+
+COPY src ./src
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
+
+ENTRYPOINT ["python", "-m", "cogniflow_data.kfp_tasks"]

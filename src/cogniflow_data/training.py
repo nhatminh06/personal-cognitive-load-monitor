@@ -10,9 +10,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
 from preprocessing_api.features import FEATURE_NAMES
 
 from .historical import HistoricalFeatureRow, SILVER_DATASET, SYNTHETIC_DATASET, SyntheticLabel
+
+LABELS = ("LOW", "MEDIUM", "HIGH")
 
 
 def sha256(path: Path) -> str:
@@ -239,3 +248,45 @@ def validate_training_frame(frame: Any, manifest: dict[str, Any]) -> None:
         and 0 < train[1] == validation[0] < validation[1] == test[0] < test[1] == count
     ):
         raise ValueError("training split boundaries are invalid")
+
+
+def split_training_frame(frame: Any, manifest: dict[str, Any]) -> tuple[Any, Any, Any]:
+    """Validate once, then return immutable chronological train/validation/test slices."""
+
+    if len(frame) < 90:
+        raise ValueError("at least 90 chronological samples are required")
+    validate_training_frame(frame, manifest)
+    splits = manifest["splits"]
+    parts = tuple(frame.iloc[slice(*splits[name])].copy() for name in ("train", "validation", "test"))
+    for name, part in zip(("train", "validation", "test"), parts):
+        if set(part["label"]) != set(LABELS):
+            raise ValueError(f"{name} split lacks class coverage")
+    return parts
+
+
+def candidate_models() -> dict[str, Any]:
+    return {
+        "dummy_majority": DummyClassifier(strategy="most_frequent"),
+        "logistic_regression": Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("classifier", LogisticRegression(max_iter=1000, random_state=42)),
+            ]
+        ),
+        "random_forest": RandomForestClassifier(
+            n_estimators=200, random_state=42, class_weight="balanced"
+        ),
+    }
+
+
+def evaluate_predictions(expected: Any, predicted: Any) -> dict[str, Any]:
+    precision, recall, _, _ = precision_recall_fscore_support(
+        expected, predicted, labels=LABELS, zero_division=0
+    )
+    return {
+        "accuracy": accuracy_score(expected, predicted),
+        "macro_f1": f1_score(expected, predicted, labels=LABELS, average="macro"),
+        "per_class_precision": dict(zip(LABELS, precision.tolist())),
+        "per_class_recall": dict(zip(LABELS, recall.tolist())),
+        "confusion_matrix": confusion_matrix(expected, predicted, labels=LABELS).tolist(),
+    }

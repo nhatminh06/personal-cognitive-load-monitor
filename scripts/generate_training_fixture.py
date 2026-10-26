@@ -13,19 +13,13 @@ from cogniflow_data.historical import HistoricalFeatureRow, SyntheticLabel, SYNT
 from preprocessing_api.features import FEATURE_NAMES, feature_vector
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--features", type=Path, required=True)
-    parser.add_argument("--labels", type=Path, required=True)
-    parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--samples", type=int, default=180)
-    args = parser.parse_args()
-    if not 90 <= args.samples <= 1000:
+def generate_fixture(features_path: Path, labels_path: Path, manifest_path: Path, samples: int = 180) -> None:
+    if not 90 <= samples <= 1000:
         raise ValueError("samples must be between 90 and 1000")
     base = datetime(2026, 1, 1, tzinfo=UTC)
     features, labels = [], []
     names = ("LOW", "MEDIUM", "HIGH")
-    for index in range(args.samples):
+    for index in range(samples):
         latent = index % 3
         decision = base + timedelta(hours=index)
         focus = (150, 90, 35)[latent] + (index * 7 % 15)
@@ -42,12 +36,22 @@ def main() -> None:
             **dict(zip(FEATURE_NAMES, vector)),
         ))
         labels.append(SyntheticLabel(decision_id=f"decision-{index:04d}", label=names[latent], event_time=decision + timedelta(hours=1), available_at=decision + timedelta(hours=24)))
-    args.features.parent.mkdir(parents=True, exist_ok=True)
+    features_path.parent.mkdir(parents=True, exist_ok=True)
     feature_bytes = "".join(row.model_dump_json() + "\n" for row in features).encode()
     label_bytes = "".join(row.model_dump_json() + "\n" for row in labels).encode()
-    args.features.write_bytes(feature_bytes)
-    args.labels.write_bytes(label_bytes)
-    args.manifest.write_text(json.dumps({"feature_schema_version":"1.0","feature_names":list(FEATURE_NAMES),"source_dataset":SYNTHETIC_DATASET,"source_delta_versions":[],"sha256":hashlib.sha256(feature_bytes).hexdigest(),"row_count":len(features)}, indent=2, sort_keys=True)+"\n")
+    features_path.write_bytes(feature_bytes)
+    labels_path.write_bytes(label_bytes)
+    manifest_path.write_text(json.dumps({"feature_schema_version":"1.0","feature_names":list(FEATURE_NAMES),"source_dataset":SYNTHETIC_DATASET,"source_delta_versions":[],"sha256":hashlib.sha256(feature_bytes).hexdigest(),"row_count":len(features)}, indent=2, sort_keys=True)+"\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--features", type=Path, required=True)
+    parser.add_argument("--labels", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--samples", type=int, default=180)
+    args = parser.parse_args()
+    generate_fixture(args.features, args.labels, args.manifest, args.samples)
 
 
 if __name__ == "__main__":
