@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import argparse
 from datetime import UTC, datetime
+from pathlib import Path
 
 import mlflow
+
+from cogniflow_data.training import sha256_tree
 
 
 def approve_candidate(model_name: str, version: str, expected_digest: str, actor: str) -> None:
@@ -14,8 +17,12 @@ def approve_candidate(model_name: str, version: str, expected_digest: str, actor
     tags = candidate.tags
     if tags.get("approval_status") != "candidate":
         raise ValueError("model version is not an unapproved candidate")
-    if tags.get("model_sha256") != expected_digest:
+    recorded_digest = tags.get("registered_artifact_sha256")
+    if recorded_digest != expected_digest:
         raise ValueError("candidate digest mismatch")
+    artifact_path = mlflow.artifacts.download_artifacts(artifact_uri=candidate.source)
+    if sha256_tree(Path(artifact_path)) != expected_digest:
+        raise ValueError("registered artifact integrity verification failed")
     client.set_model_version_tag(model_name, version, "approval_status", "approved")
     client.set_model_version_tag(model_name, version, "approved_by", actor)
     client.set_model_version_tag(model_name, version, "approved_at", datetime.now(UTC).isoformat())

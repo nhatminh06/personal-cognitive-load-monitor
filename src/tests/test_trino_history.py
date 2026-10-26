@@ -13,7 +13,7 @@ def test_reader_pins_delta_version_and_returns_history(monkeypatch):
         calls.append(sql)
         return [{"version": 1, "timestamp": "2026-01-01T00:00:00Z", "operation": "MERGE"}] if "$history" in sql else [{"event_id": "event"}]
 
-    monkeypatch.setattr(reader, "query", query)
+    monkeypatch.setattr(reader, "_query", query)
     history, rows = reader.snapshot(1)
     assert history["version"] == 1 and rows == [{"event_id": "event"}]
     assert "to_iso8601(timestamp)" in calls[0]
@@ -35,12 +35,38 @@ def test_query_rejects_cross_origin_pagination(monkeypatch):
     reader = TrinoHistoryReader()
     monkeypatch.setattr(reader.session, "post", lambda *args, **kwargs: response)
     with pytest.raises(RuntimeError, match="unsafe pagination"):
-        reader.query("SELECT 1")
+        reader._query("SELECT 1")
+
+
+def test_reader_rejects_redirects_and_disables_following(monkeypatch):
+    response = MockResponse({}, redirect=True)
+    reader = TrinoHistoryReader()
+    calls = []
+
+    def post(*args, **kwargs):
+        calls.append(kwargs)
+        return response
+
+    monkeypatch.setattr(reader.session, "post", post)
+    with pytest.raises(RuntimeError, match="redirects are forbidden"):
+        reader.snapshot(1)
+    assert calls == [{
+        "data": b'SELECT version, to_iso8601(timestamp) AS timestamp, operation FROM lakehouse.silver."session_features$history" WHERE version = 1',
+        "headers": {"X-Trino-User": "cogniflow-history", "X-Trino-Time-Zone": "UTC"},
+        "timeout": 10,
+        "allow_redirects": False,
+    }]
+
+
+def test_reader_has_no_public_arbitrary_sql_api():
+    assert not hasattr(TrinoHistoryReader(), "query")
 
 
 class MockResponse:
-    def __init__(self, body):
+    def __init__(self, body, *, redirect=False):
         self.body = body
+        self.is_redirect = redirect
+        self.is_permanent_redirect = redirect
 
     def raise_for_status(self):
         return None

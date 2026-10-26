@@ -18,7 +18,11 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precisio
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from cogniflow_data.training import sha256
+from cogniflow_data.training import (
+    sha256_tree,
+    validate_training_frame,
+    validate_training_manifest,
+)
 from preprocessing_api.features import FEATURE_NAMES
 
 LABELS = ("LOW", "MEDIUM", "HIGH")
@@ -31,11 +35,11 @@ def evaluate(expected, predicted) -> dict:
 
 def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *, tracking_uri: str, experiment: str, model_name: str) -> dict:
     manifest = json.loads(manifest_path.read_text())
-    if manifest["dataset_sha256"] != sha256(dataset) or manifest["feature_names"] != list(FEATURE_NAMES):
-        raise ValueError("training manifest validation failed")
-    frame = pd.read_json(dataset, lines=True).sort_values(["decision_time", "decision_id"])
+    validate_training_manifest(manifest, dataset)
+    frame = pd.read_json(dataset, lines=True)
     if len(frame) < 90:
         raise ValueError("at least 90 chronological samples are required")
+    validate_training_frame(frame, manifest)
     splits = manifest["splits"]
     train_frame = frame.iloc[slice(*splits["train"])]
     validation_frame = frame.iloc[slice(*splits["validation"])]
@@ -57,8 +61,8 @@ def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *
     test_metrics = evaluate(test_frame["label"], selected.predict(test_frame[list(FEATURE_NAMES)]))
     output.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(selected, output)
-    digest = hashlib.sha256(output.read_bytes()).hexdigest()
-    report = {"warning":"Metrics measure synthetic-proxy prediction, not real cognitive-load accuracy.","selected_model":selected_name,"validation":validation,"test":test_metrics,"class_distribution":frame["label"].value_counts().sort_index().to_dict(),"sample_counts":{"train":len(train_frame),"validation":len(validation_frame),"test":len(test_frame)},"model_sha256":digest,"dataset_manifest":manifest}
+    export_digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    report = {"warning":"Metrics measure synthetic-proxy prediction, not real cognitive-load accuracy.","selected_model":selected_name,"validation":validation,"test":test_metrics,"class_distribution":frame["label"].value_counts().sort_index().to_dict(),"sample_counts":{"train":len(train_frame),"validation":len(validation_frame),"test":len(test_frame)},"exported_joblib_sha256":export_digest,"dataset_manifest":manifest}
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
 
@@ -94,17 +98,26 @@ def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *
                 continue
             mlflow.log_metrics({"test_accuracy":test_metrics["accuracy"],"test_macro_f1":test_metrics["macro_f1"]})
             mlflow.log_dict(report, "evaluation.json")
-            mlflow.sklearn.log_model(
+            model_info = mlflow.sklearn.log_model(
                 selected,
                 artifact_path="model",
                 input_example=test_frame[list(FEATURE_NAMES)].head(2),
                 skops_trusted_types=["sklearn.tree._tree.Tree"],
             )
-            version = mlflow.register_model(f"runs:/{run.info.run_id}/model", model_name)
+            version = mlflow.register_model(model_info.model_uri, model_name)
+            registered_path = Path(
+                mlflow.artifacts.download_artifacts(artifact_uri=version.source)
+            )
+            artifact_digest = sha256_tree(registered_path)
             client = mlflow.MlflowClient()
             client.set_model_version_tag(model_name, version.version, "approval_status", "candidate")
-            client.set_model_version_tag(model_name, version.version, "model_sha256", digest)
-            report.update({"mlflow_run_id":run.info.run_id,"model_version":version.version,"approval_status":"candidate"})
+            client.set_model_version_tag(
+                model_name, version.version, "registered_artifact_sha256", artifact_digest
+            )
+            client.set_model_version_tag(
+                model_name, version.version, "exported_joblib_sha256", export_digest
+            )
+            report.update({"mlflow_run_id":run.info.run_id,"model_version":version.version,"approval_status":"candidate","registered_artifact_sha256":artifact_digest})
     report["mlflow_run_ids"] = run_ids
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
     return report
