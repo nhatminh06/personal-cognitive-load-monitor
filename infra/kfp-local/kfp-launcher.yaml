@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kfp-launcher
+  namespace: kubeflow
+data:
+  defaultPipelineRoot: s3://mlpipeline/cogniflow-artifacts
+  providers: |-
+    s3:
+      default:
+        endpoint: seaweedfs.kubeflow.svc:9000
+        disableSSL: true
+        region: us-east-1
+        forcePathStyle: true
+        credentials:
+          fromEnv: false
+          secretRef:
+            secretName: mlpipeline-minio-artifact
+            accessKeyKey: accesskey
+            secretKeyKey: secretkey

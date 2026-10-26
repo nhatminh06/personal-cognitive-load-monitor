@@ -53,7 +53,7 @@ It is designed to demonstrate how independently developed data and machine learn
 | Module III Phase 2: Reproducible training and registry | Implemented and locally validated |
 | Module III Phase 3: Secure local model serving | Deployment machinery implemented; live rollout awaits an approved model |
 | Course API layer | Implemented; KServe end-to-end remains outstanding |
-| Kubeflow Pipelines | Not implemented |
+| Kubeflow Pipelines | Six-component KFP v2 workflow verified on an isolated local backend |
 | KServe runtime | Manifests/client statically validated; no real `InferenceService` run |
 | Knative log Eventing | Not implemented |
 | Knative anomaly detector | Not implemented |
@@ -72,6 +72,7 @@ It is designed to demonstrate how independently developed data and machine learn
 - Airflow 3 completed its six-task orchestration DAG.
 - Kafka/Flink/Redis streaming and cross-language feature parity were verified.
 - GitHub Actions runs tests before trusted-branch image publication.
+- A genuine KFP v2 run validated inputs, trained/evaluated candidates, registered an MLflow candidate and recorded provenance; a negative run stopped before training.
 - No GCP resources or paid cloud deployment were required for the reported local results.
 
 See [Module II test evidence](docs/module2/testing.md) and [security verification](docs/security-audit/verification.md) for the detailed scope and results.
@@ -82,11 +83,13 @@ Phase 2 adds chronological synthetic-proxy model comparison, lineage manifests, 
 
 Phase 3 adds approval-bound MLflow artifact packaging, verified local `skops` loading, and an isolated kind/Helm serving path. The current candidate remains undeployed. See the [Phase 3 serving guide](docs/module3/phase3-model-serving.md).
 
+The next training milestone is now verified on a disposable standalone KFP backend with explicit object-store artifacts and candidate-only MLflow registration. See the [Kubeflow training integration guide](docs/module3/phase4-kubeflow-training.md). This local development proof does not authorize model deployment or claim production Kubeflow security.
+
 ## Course Rubric and Final Architecture
 
 The [authoritative 2026 course rubric](docs/course-rubric-2026.md) separates the weighted assignment requirements from additional engineering goals and records the evidence needed for every point. The selected practical path is **GKE (35%) plus GCS-backed MLflow artifacts (5%)**; the alternative GCE score is not added.
 
-The remaining work is specified in the [final rubric architecture](docs/module3/final-rubric-architecture.md), [implementation roadmap](docs/module3/implementation-roadmap.md), [resource and cost plan](docs/module3/resource-and-cost-plan.md), and [full demonstration contract](docs/demo/full-rubric-demo.md). These are plans, not claims that Kubeflow, KServe, Knative, GKE or GCS have run.
+The remaining work is specified in the [final rubric architecture](docs/module3/final-rubric-architecture.md), [implementation roadmap](docs/module3/implementation-roadmap.md), [resource and cost plan](docs/module3/resource-and-cost-plan.md), and [full demonstration contract](docs/demo/full-rubric-demo.md). KServe, Knative, GKE and GCS remain plans rather than runtime claims.
 
 ---
 
@@ -743,7 +746,7 @@ Kafka ingestion, SeaweedFS Bronze storage, Spark/Delta Silver processing, Trino/
 
 ### In progress: Module III — ML Platform Integration
 
-Phases 1–3 provide historical feature contracts, reproducible local training with candidate-only MLflow registration, and approval-bound local serving machinery. The exact weighted gaps are Kubeflow Pipelines runtime, KServe runtime, Knative log Eventing, Knative-based anomaly detection, authorized GKE/GCS integration and the real demonstration video.
+Phases 1–3 provide historical feature contracts, reproducible local training with candidate-only MLflow registration, and approval-bound local serving machinery. The local Kubeflow Pipelines training runtime is also verified. The remaining weighted gaps are KServe runtime, Knative log Eventing, Knative-based anomaly detection, authorized GKE/GCS integration and the real demonstration video.
 
 Planned work includes:
 

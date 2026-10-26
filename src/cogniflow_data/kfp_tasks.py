@@ -8,6 +8,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import joblib
@@ -388,7 +389,7 @@ def main() -> None:  # pragma: no cover - exercised through component commands
     args = parser.parse_args()
     values = vars(args)
     command = values.pop("command")
-    functions = {
+    functions: dict[str, Callable[..., dict[str, Any]]] = {
         "validate": validate_inputs,
         "prepare": prepare_dataset,
         "train": train_candidates,

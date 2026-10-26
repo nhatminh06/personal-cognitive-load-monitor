@@ -137,8 +137,8 @@ stages:
     deps:
     - path: scripts/generate_training_fixture.py
       hash: md5
-      md5: ad595fff5bcc8357c9570422cf3b4ef1
-      size: 2884
+      md5: abeb70cefb8de86dd96ed29aab520159
+      size: 3065
     - path: src/cogniflow_data/historical.py
       hash: md5
       md5: 18e0f65e94e7412de29c7cbc5b1843bc
@@ -191,8 +191,8 @@ stages:
       size: 811
     - path: src/cogniflow_data/training.py
       hash: md5
-      md5: bfb2565c92a78a9a0d2883541c669fc7
-      size: 11388
+      md5: b08ee8830faf65203a477882ddff9632
+      size: 13483
     params:
       params.yaml:
         module3_phase2.git_revision: 5237d674edf295addeafb7528920d9f41ade05ba
@@ -224,8 +224,8 @@ stages:
       size: 1066
     - path: scripts/train_historical_model.py
       hash: md5
-      md5: 0eb80f52b73e3653a0dc17763039e15c
-      size: 6975
+      md5: 85882263258cc90b6c5c2fd96c29e738
+      size: 5387
     - path: src/preprocessing_api/features.py
       hash: md5
       md5: 95e43ee56e121e8162b6a72f21b9616a
@@ -237,5 +237,5 @@ stages:
       size: 172497
     - path: reports/module3/phase2-metrics.json
       hash: md5
-      md5: 22237579c3873fb641f4726efd3b77f1
+      md5: aa53f71c62c4b8006bfd7209dd698efd
       size: 3948

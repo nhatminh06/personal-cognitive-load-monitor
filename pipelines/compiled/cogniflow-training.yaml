@@ -1,0 +1,699 @@
+# PIPELINE DEFINITION
+# Name: cogniflow-kubeflow-training
+# Description: Validated synthetic-proxy candidate training
+# Inputs:
+#    feature_manifest_uri: str
+#    feature_uri: str
+#    git_revision: str
+#    label_uri: str
+#    mlflow_experiment: str [Default: 'cogniflow-module3-kfp']
+#    mlflow_model_name: str [Default: 'cognitive-load-classifier-kfp']
+#    mlflow_tracking_uri: str
+#    training_cutoff: str
+components:
+  comp-evaluate-select-component:
+    executorLabel: exec-evaluate-select-component
+    inputDefinitions:
+      artifacts:
+        candidate_models:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        dataset:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        dataset_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        validation_metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        evaluation:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+        selected_model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+  comp-importer:
+    executorLabel: exec-importer
+    inputDefinitions:
+      parameters:
+        uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-importer-2:
+    executorLabel: exec-importer-2
+    inputDefinitions:
+      parameters:
+        uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-importer-3:
+    executorLabel: exec-importer-3
+    inputDefinitions:
+      parameters:
+        uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        artifact:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-prepare-dataset-component:
+    executorLabel: exec-prepare-dataset-component
+    inputDefinitions:
+      artifacts:
+        feature_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        features:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        labels:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        validation:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        git_revision:
+          parameterType: STRING
+        training_cutoff:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        dataset:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        dataset_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-record-provenance-component:
+    executorLabel: exec-record-provenance-component
+    inputDefinitions:
+      artifacts:
+        dataset_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        evaluation:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+        registration:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        pipeline_run_id:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        provenance:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-register-candidate-component:
+    executorLabel: exec-register-candidate-component
+    inputDefinitions:
+      artifacts:
+        dataset_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        evaluation:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+        selected_model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        experiment:
+          parameterType: STRING
+        model_name:
+          parameterType: STRING
+        pipeline_run_id:
+          parameterType: STRING
+        tracking_uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        registration:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-train-candidates-component:
+    executorLabel: exec-train-candidates-component
+    inputDefinitions:
+      artifacts:
+        dataset:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        dataset_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        candidate_models:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        validation_metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-validate-inputs-component:
+    executorLabel: exec-validate-inputs-component
+    inputDefinitions:
+      artifacts:
+        feature_manifest:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        features:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        labels:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        git_revision:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        validation:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-evaluate-select-component:
+      container:
+        args:
+        - --dataset
+        - '{{$.inputs.artifacts[''dataset''].path}}'
+        - --manifest
+        - '{{$.inputs.artifacts[''dataset_manifest''].path}}'
+        - --models
+        - '{{$.inputs.artifacts[''candidate_models''].path}}'
+        - --validation
+        - '{{$.inputs.artifacts[''validation_metrics''].path}}'
+        - --output-model
+        - '{{$.outputs.artifacts[''selected_model''].path}}'
+        - --output-evaluation
+        - '{{$.outputs.artifacts[''evaluation''].path}}'
+        command:
+        - python
+        - -m
+        - cogniflow_data.kfp_tasks
+        - evaluate
+        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        resources:
+          cpuLimit: 1.0
+          cpuRequest: 0.25
+          memoryLimit: 2.147483648
+          memoryRequest: 0.536870912
+          resourceCpuLimit: '1'
+          resourceCpuRequest: 250m
+          resourceMemoryLimit: 2Gi
+          resourceMemoryRequest: 512Mi
+    exec-importer:
+      importer:
+        artifactUri:
+          runtimeParameter: uri
+        typeSchema:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
+    exec-importer-2:
+      importer:
+        artifactUri:
+          runtimeParameter: uri
+        typeSchema:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
+    exec-importer-3:
+      importer:
+        artifactUri:
+          runtimeParameter: uri
+        typeSchema:
+          schemaTitle: system.Artifact
+          schemaVersion: 0.0.1
+    exec-prepare-dataset-component:
+      container:
+        args:
+        - --features
+        - '{{$.inputs.artifacts[''features''].path}}'
+        - --labels
+        - '{{$.inputs.artifacts[''labels''].path}}'
+        - --feature-manifest
+        - '{{$.inputs.artifacts[''feature_manifest''].path}}'
+        - --validation
+        - '{{$.inputs.artifacts[''validation''].path}}'
+        - --output-dataset
+        - '{{$.outputs.artifacts[''dataset''].path}}'
+        - --output-manifest
+        - '{{$.outputs.artifacts[''dataset_manifest''].path}}'
+        - --training-cutoff
+        - '{{$.inputs.parameters[''training_cutoff'']}}'
+        - --git-revision
+        - '{{$.inputs.parameters[''git_revision'']}}'
+        command:
+        - python
+        - -m
+        - cogniflow_data.kfp_tasks
+        - prepare
+        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        resources:
+          cpuLimit: 1.0
+          cpuRequest: 0.25
+          memoryLimit: 2.147483648
+          memoryRequest: 0.536870912
+          resourceCpuLimit: '1'
+          resourceCpuRequest: 250m
+          resourceMemoryLimit: 2Gi
+          resourceMemoryRequest: 512Mi
+    exec-record-provenance-component:
+      container:
+        args:
+        - --manifest
+        - '{{$.inputs.artifacts[''dataset_manifest''].path}}'
+        - --evaluation
+        - '{{$.inputs.artifacts[''evaluation''].path}}'
+        - --registration
+        - '{{$.inputs.artifacts[''registration''].path}}'
+        - --output
+        - '{{$.outputs.artifacts[''provenance''].path}}'
+        - --pipeline-name
+        - cogniflow-kubeflow-training
+        - --pipeline-run-id
+        - '{{$.inputs.parameters[''pipeline_run_id'']}}'
+        - --component-image
+        - localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        command:
+        - python
+        - -m
+        - cogniflow_data.kfp_tasks
+        - provenance
+        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        resources:
+          cpuLimit: 1.0
+          cpuRequest: 0.25
+          memoryLimit: 2.147483648
+          memoryRequest: 0.536870912
+          resourceCpuLimit: '1'
+          resourceCpuRequest: 250m
+          resourceMemoryLimit: 2Gi
+          resourceMemoryRequest: 512Mi
+    exec-register-candidate-component:
+      container:
+        args:
+        - --manifest
+        - '{{$.inputs.artifacts[''dataset_manifest''].path}}'
+        - --model
+        - '{{$.inputs.artifacts[''selected_model''].path}}'
+        - --evaluation
+        - '{{$.inputs.artifacts[''evaluation''].path}}'
+        - --output
+        - '{{$.outputs.artifacts[''registration''].path}}'
+        - --tracking-uri
+        - '{{$.inputs.parameters[''tracking_uri'']}}'
+        - --experiment
+        - '{{$.inputs.parameters[''experiment'']}}'
+        - --model-name
+        - '{{$.inputs.parameters[''model_name'']}}'
+        - --pipeline-name
+        - cogniflow-kubeflow-training
+        - --pipeline-run-id
+        - '{{$.inputs.parameters[''pipeline_run_id'']}}'
+        - --component-image
+        - localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        command:
+        - python
+        - -m
+        - cogniflow_data.kfp_tasks
+        - register
+        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        resources:
+          cpuLimit: 1.0
+          cpuRequest: 0.25
+          memoryLimit: 2.147483648
+          memoryRequest: 0.536870912
+          resourceCpuLimit: '1'
+          resourceCpuRequest: 250m
+          resourceMemoryLimit: 2Gi
+          resourceMemoryRequest: 512Mi
+    exec-train-candidates-component:
+      container:
+        args:
+        - --dataset
+        - '{{$.inputs.artifacts[''dataset''].path}}'
+        - --manifest
+        - '{{$.inputs.artifacts[''dataset_manifest''].path}}'
+        - --output-models
+        - '{{$.outputs.artifacts[''candidate_models''].path}}'
+        - --output-validation
+        - '{{$.outputs.artifacts[''validation_metrics''].path}}'
+        command:
+        - python
+        - -m
+        - cogniflow_data.kfp_tasks
+        - train
+        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        resources:
+          cpuLimit: 1.0
+          cpuRequest: 0.25
+          memoryLimit: 2.147483648
+          memoryRequest: 0.536870912
+          resourceCpuLimit: '1'
+          resourceCpuRequest: 250m
+          resourceMemoryLimit: 2Gi
+          resourceMemoryRequest: 512Mi
+    exec-validate-inputs-component:
+      container:
+        args:
+        - --features
+        - '{{$.inputs.artifacts[''features''].path}}'
+        - --labels
+        - '{{$.inputs.artifacts[''labels''].path}}'
+        - --feature-manifest
+        - '{{$.inputs.artifacts[''feature_manifest''].path}}'
+        - --output
+        - '{{$.outputs.artifacts[''validation''].path}}'
+        - --git-revision
+        - '{{$.inputs.parameters[''git_revision'']}}'
+        command:
+        - python
+        - -m
+        - cogniflow_data.kfp_tasks
+        - validate
+        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        resources:
+          cpuLimit: 1.0
+          cpuRequest: 0.25
+          memoryLimit: 2.147483648
+          memoryRequest: 0.536870912
+          resourceCpuLimit: '1'
+          resourceCpuRequest: 250m
+          resourceMemoryLimit: 2Gi
+          resourceMemoryRequest: 512Mi
+pipelineInfo:
+  description: Validated synthetic-proxy candidate training
+  name: cogniflow-kubeflow-training
+root:
+  dag:
+    tasks:
+      evaluate-select-component:
+        cachingOptions: {}
+        componentRef:
+          name: comp-evaluate-select-component
+        dependentTasks:
+        - prepare-dataset-component
+        - train-candidates-component
+        inputs:
+          artifacts:
+            candidate_models:
+              taskOutputArtifact:
+                outputArtifactKey: candidate_models
+                producerTask: train-candidates-component
+            dataset:
+              taskOutputArtifact:
+                outputArtifactKey: dataset
+                producerTask: prepare-dataset-component
+            dataset_manifest:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_manifest
+                producerTask: prepare-dataset-component
+            validation_metrics:
+              taskOutputArtifact:
+                outputArtifactKey: validation_metrics
+                producerTask: train-candidates-component
+        taskInfo:
+          name: evaluate-select-component
+      importer:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-importer
+        inputs:
+          parameters:
+            uri:
+              componentInputParameter: feature_uri
+        taskInfo:
+          name: importer
+      importer-2:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-importer-2
+        inputs:
+          parameters:
+            uri:
+              componentInputParameter: label_uri
+        taskInfo:
+          name: importer-2
+      importer-3:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-importer-3
+        inputs:
+          parameters:
+            uri:
+              componentInputParameter: feature_manifest_uri
+        taskInfo:
+          name: importer-3
+      prepare-dataset-component:
+        cachingOptions: {}
+        componentRef:
+          name: comp-prepare-dataset-component
+        dependentTasks:
+        - importer
+        - importer-2
+        - importer-3
+        - validate-inputs-component
+        inputs:
+          artifacts:
+            feature_manifest:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer-3
+            features:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer
+            labels:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer-2
+            validation:
+              taskOutputArtifact:
+                outputArtifactKey: validation
+                producerTask: validate-inputs-component
+          parameters:
+            git_revision:
+              componentInputParameter: git_revision
+            training_cutoff:
+              componentInputParameter: training_cutoff
+        taskInfo:
+          name: prepare-dataset-component
+      record-provenance-component:
+        cachingOptions: {}
+        componentRef:
+          name: comp-record-provenance-component
+        dependentTasks:
+        - evaluate-select-component
+        - prepare-dataset-component
+        - register-candidate-component
+        inputs:
+          artifacts:
+            dataset_manifest:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_manifest
+                producerTask: prepare-dataset-component
+            evaluation:
+              taskOutputArtifact:
+                outputArtifactKey: evaluation
+                producerTask: evaluate-select-component
+            registration:
+              taskOutputArtifact:
+                outputArtifactKey: registration
+                producerTask: register-candidate-component
+          parameters:
+            pipeline_run_id:
+              runtimeValue:
+                constant: '{{$.pipeline_job_uuid}}'
+        taskInfo:
+          name: record-provenance-component
+      register-candidate-component:
+        cachingOptions: {}
+        componentRef:
+          name: comp-register-candidate-component
+        dependentTasks:
+        - evaluate-select-component
+        - prepare-dataset-component
+        inputs:
+          artifacts:
+            dataset_manifest:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_manifest
+                producerTask: prepare-dataset-component
+            evaluation:
+              taskOutputArtifact:
+                outputArtifactKey: evaluation
+                producerTask: evaluate-select-component
+            selected_model:
+              taskOutputArtifact:
+                outputArtifactKey: selected_model
+                producerTask: evaluate-select-component
+          parameters:
+            experiment:
+              componentInputParameter: mlflow_experiment
+            model_name:
+              componentInputParameter: mlflow_model_name
+            pipeline_run_id:
+              runtimeValue:
+                constant: '{{$.pipeline_job_uuid}}'
+            tracking_uri:
+              componentInputParameter: mlflow_tracking_uri
+        taskInfo:
+          name: register-candidate-component
+      train-candidates-component:
+        cachingOptions: {}
+        componentRef:
+          name: comp-train-candidates-component
+        dependentTasks:
+        - prepare-dataset-component
+        inputs:
+          artifacts:
+            dataset:
+              taskOutputArtifact:
+                outputArtifactKey: dataset
+                producerTask: prepare-dataset-component
+            dataset_manifest:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_manifest
+                producerTask: prepare-dataset-component
+        taskInfo:
+          name: train-candidates-component
+      validate-inputs-component:
+        cachingOptions: {}
+        componentRef:
+          name: comp-validate-inputs-component
+        dependentTasks:
+        - importer
+        - importer-2
+        - importer-3
+        inputs:
+          artifacts:
+            feature_manifest:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer-3
+            features:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer
+            labels:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer-2
+          parameters:
+            git_revision:
+              componentInputParameter: git_revision
+        taskInfo:
+          name: validate-inputs-component
+  inputDefinitions:
+    parameters:
+      feature_manifest_uri:
+        parameterType: STRING
+      feature_uri:
+        parameterType: STRING
+      git_revision:
+        parameterType: STRING
+      label_uri:
+        parameterType: STRING
+      mlflow_experiment:
+        defaultValue: cogniflow-module3-kfp
+        isOptional: true
+        parameterType: STRING
+      mlflow_model_name:
+        defaultValue: cognitive-load-classifier-kfp
+        isOptional: true
+        parameterType: STRING
+      mlflow_tracking_uri:
+        parameterType: STRING
+      training_cutoff:
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.17.3
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-evaluate-select-component:
+          activeDeadlineSeconds: '600'
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsGroup: '10001'
+            runAsUser: '10001'
+        exec-prepare-dataset-component:
+          activeDeadlineSeconds: '600'
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsGroup: '10001'
+            runAsUser: '10001'
+        exec-record-provenance-component:
+          activeDeadlineSeconds: '600'
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsGroup: '10001'
+            runAsUser: '10001'
+        exec-register-candidate-component:
+          activeDeadlineSeconds: '600'
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsGroup: '10001'
+            runAsUser: '10001'
+        exec-train-candidates-component:
+          activeDeadlineSeconds: '600'
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsGroup: '10001'
+            runAsUser: '10001'
+        exec-validate-inputs-component:
+          activeDeadlineSeconds: '600'
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsGroup: '10001'
+            runAsUser: '10001'
