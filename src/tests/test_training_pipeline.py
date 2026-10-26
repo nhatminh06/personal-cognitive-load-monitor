@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -10,6 +11,35 @@ from cogniflow_data.historical import HistoricalFeatureRow, SyntheticLabel, SYNT
 from cogniflow_data.training import prepare_training_dataset
 from preprocessing_api.features import FEATURE_NAMES
 from scripts.train_historical_model import train
+
+
+def training_files(tmp_path: Path, *, labels: tuple[str, ...] = ("LOW", "MEDIUM", "HIGH")):
+    rows = []
+    for index in range(90):
+        label = labels[index % len(labels)]
+        rows.append(
+            {
+                "decision_id": f"d{index:03d}",
+                "decision_time": (datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=index)).isoformat(),
+                **{name: index % 11 for name in FEATURE_NAMES},
+                "label": label,
+            }
+        )
+    dataset = tmp_path / "dataset.jsonl"
+    dataset.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "dataset_sha256": hashlib.sha256(dataset.read_bytes()).hexdigest(),
+                "feature_names": list(FEATURE_NAMES),
+                "git_revision": "test-revision",
+                "training_cutoff": "2026-01-15T00:00:00+00:00",
+                "splits": {"train": [0, 54], "validation": [54, 72], "test": [72, 90]},
+            }
+        )
+    )
+    return dataset, manifest
 
 
 def files(tmp_path: Path, *, label_delay: int = 1):
@@ -64,6 +94,25 @@ def test_manifest_tampering_and_future_feature_fail_closed(tmp_path):
     with pytest.raises(ValueError, match="checksum mismatch"):
         prepare_training_dataset(features,manifest,labels,tmp_path/"out",tmp_path/"meta",training_cutoff=datetime(2026,1,3,tzinfo=UTC),git_revision="x")
 
+    feature = json.loads(features.read_text())
+    feature["available_at"] = "2026-01-01T01:00:00Z"
+    features.write_text(json.dumps(feature) + "\n")
+    feature_manifest = json.loads(manifest.read_text())
+    feature_manifest["sha256"] = hashlib.sha256(features.read_bytes()).hexdigest()
+    manifest.write_text(json.dumps(feature_manifest))
+    with pytest.raises(ValueError, match="future feature availability"):
+        prepare_training_dataset(features,manifest,labels,tmp_path/"out",tmp_path/"meta",training_cutoff=datetime(2026,1,3,tzinfo=UTC),git_revision="x")
+
+
+@pytest.mark.parametrize("field,value", [("feature_schema_version", "2.0"), ("feature_names", list(reversed(FEATURE_NAMES)))])
+def test_feature_manifest_contract_fails_closed(tmp_path, field, value):
+    features, manifest, labels = files(tmp_path)
+    feature_manifest = json.loads(manifest.read_text())
+    feature_manifest[field] = value
+    manifest.write_text(json.dumps(feature_manifest))
+    with pytest.raises(ValueError, match="unsupported feature manifest contract"):
+        prepare_training_dataset(features,manifest,labels,tmp_path/"out",tmp_path/"meta",training_cutoff=datetime(2026,1,3,tzinfo=UTC),git_revision="x")
+
 
 def test_training_rejects_insufficient_samples(tmp_path):
     dataset = tmp_path / "dataset.jsonl"
@@ -73,3 +122,36 @@ def test_training_rejects_insufficient_samples(tmp_path):
     manifest.write_text(json.dumps({"dataset_sha256":hashlib.sha256(dataset.read_bytes()).hexdigest(),"feature_names":list(FEATURE_NAMES),"splits":{"train":[0,1],"validation":[1,1],"test":[1,1]}}))
     with pytest.raises(ValueError, match="at least 90"):
         train(dataset,manifest,tmp_path/"model",tmp_path/"report",tracking_uri="sqlite:///:memory:",experiment="test",model_name="test")
+
+
+def test_training_rejects_missing_classes(tmp_path):
+    dataset, manifest = training_files(tmp_path, labels=("LOW",))
+    with pytest.raises(ValueError, match="train split lacks class coverage"):
+        train(dataset, manifest, tmp_path / "model", tmp_path / "report", tracking_uri="sqlite:///:memory:", experiment="test", model_name="test")
+
+
+def test_mlflow_failure_is_explicit(tmp_path, monkeypatch):
+    dataset, manifest = training_files(tmp_path)
+    monkeypatch.setattr("scripts.train_historical_model.mlflow.set_tracking_uri", lambda _: (_ for _ in ()).throw(RuntimeError("MLflow unavailable")))
+    with pytest.raises(RuntimeError, match="MLflow unavailable"):
+        train(dataset, manifest, tmp_path / "model", tmp_path / "report", tracking_uri="broken", experiment="test", model_name="test")
+
+
+def test_training_is_deterministic(tmp_path):
+    dataset, manifest = training_files(tmp_path)
+    reports = []
+    for run in (1, 2):
+        reports.append(
+            train(
+                dataset,
+                manifest,
+                tmp_path / f"model-{run}.joblib",
+                tmp_path / f"report-{run}.json",
+                tracking_uri=f"sqlite:///{tmp_path / f'mlflow-{run}.db'}",
+                experiment="determinism-test",
+                model_name=f"determinism-test-{run}",
+            )
+        )
+    assert reports[0]["model_sha256"] == reports[1]["model_sha256"]
+    assert reports[0]["validation"] == reports[1]["validation"]
+    assert reports[0]["test"] == reports[1]["test"]

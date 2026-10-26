@@ -68,6 +68,21 @@ This records approval tags only; it does not assign a production alias or deploy
 - No secrets are stored in manifests, MLflow metadata, reports, or DVC.
 - SEC-022 is unchanged. Spark, Kubernetes serving, Kubeflow, KServe, Knative, Argo CD, Terraform cloud apply, and remote deployment are outside this phase.
 
+## Local verification evidence
+
+Verified on October 26, 2026:
+
+- Full regression: 101 passed; combined coverage 89.85% (81% gate).
+- Ruff: passed. MyPy: passed for 17 source files.
+- DVC: all stages reproduced or skipped as unchanged; a second status check reported the pipeline up to date.
+- Dataset: `cogniflow-module3-training-synthetic-v1`, 180 rows (60 per proxy class), SHA-256 `44745685d680320537de7bca8169d4151598e7202888946d53cb52f8a546e67a`.
+- Split: 108 train, 36 validation, 36 held-out test, in chronological order.
+- MLflow runs: dummy `ad6323f27016427c9ffa0c0a0e0a2846`, logistic `fc4ff0fdb1a040278990fb34183baf73`, random forest `c980faa63ec648f091508e02a2577896`.
+- Registered candidate: model version 1, artifact SHA-256 `e3a3449a1e6b2a4ac301d3111c6d21ab5f78e626edd63b70113332de080bbafb`.
+- Validation accuracy/macro F1: dummy 0.3333/0.1667; logistic 1.0/1.0; random forest 1.0/1.0. Selected random-forest held-out accuracy/macro F1: 1.0/1.0.
+
+The perfect selected-model result reflects a deliberately separable synthetic integration fixture. It is pipeline evidence only and is not evidence of real-world or medical cognitive-load accuracy.
+
 ## Next phase
 
 Phase 3 may consume an explicitly approved immutable model version for local serving-contract verification. It must retain digest verification and must not infer production approval from candidate registration alone.

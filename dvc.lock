@@ -104,8 +104,8 @@ stages:
       size: 1131
     - path: src/cogniflow_data/historical.py
       hash: md5
-      md5: 6590cd2569c605be36960b04355440ca
-      size: 7690
+      md5: 1974278ee5446ab975063be961cf214f
+      size: 8368
     - path: src/preprocessing_api/features.py
       hash: md5
       md5: 95e43ee56e121e8162b6a72f21b9616a
@@ -129,3 +129,113 @@ stages:
       hash: md5
       md5: 6f177a88565b876ce88206704d17fa6c
       size: 706
+  phase2_fixture:
+    cmd: env PYTHONPATH=src uv run python scripts/generate_training_fixture.py
+      --features data/processed/module3/training_features.jsonl --labels
+      data/processed/module3/training_labels.jsonl --manifest
+      data/processed/module3/feature_manifest.json --samples 180
+    deps:
+    - path: scripts/generate_training_fixture.py
+      hash: md5
+      md5: ad595fff5bcc8357c9570422cf3b4ef1
+      size: 2884
+    - path: src/cogniflow_data/historical.py
+      hash: md5
+      md5: 1974278ee5446ab975063be961cf214f
+      size: 8368
+    - path: src/preprocessing_api/features.py
+      hash: md5
+      md5: 95e43ee56e121e8162b6a72f21b9616a
+      size: 765
+    params:
+      params.yaml:
+        module3_phase2.samples: 180
+    outs:
+    - path: data/processed/module3/feature_manifest.json
+      hash: md5
+      md5: 90d4656f0ff37c1f5641786accf82e15
+      size: 393
+    - path: data/processed/module3/training_features.jsonl
+      hash: md5
+      md5: 81aec2f72986d7b1413726f6814b1d48
+      size: 136582
+    - path: data/processed/module3/training_labels.jsonl
+      hash: md5
+      md5: 8a1682c847998be926667b76b4b347d8
+      size: 27420
+  phase2_dataset:
+    cmd: env PYTHONPATH=src uv run python scripts/prepare_training_dataset.py
+      --features data/processed/module3/training_features.jsonl
+      --feature-manifest data/processed/module3/feature_manifest.json --labels
+      data/processed/module3/training_labels.jsonl --output
+      data/processed/module3/training_dataset.jsonl --output-manifest
+      data/processed/module3/training_manifest.json --training-cutoff
+      2026-01-15T00:00:00+00:00 --git-revision
+      19993b42ca8bbc11e20d2b17a622118523aef63d
+    deps:
+    - path: data/processed/module3/feature_manifest.json
+      hash: md5
+      md5: 90d4656f0ff37c1f5641786accf82e15
+      size: 393
+    - path: data/processed/module3/training_features.jsonl
+      hash: md5
+      md5: 81aec2f72986d7b1413726f6814b1d48
+      size: 136582
+    - path: data/processed/module3/training_labels.jsonl
+      hash: md5
+      md5: 8a1682c847998be926667b76b4b347d8
+      size: 27420
+    - path: scripts/prepare_training_dataset.py
+      hash: md5
+      md5: 7a8f6e8d5a092061d6a73e88fbe86bd2
+      size: 811
+    - path: src/cogniflow_data/training.py
+      hash: md5
+      md5: 6f58eeeeeda3e466070a9989d9bb017b
+      size: 4149
+    params:
+      params.yaml:
+        module3_phase2.git_revision: 19993b42ca8bbc11e20d2b17a622118523aef63d
+        module3_phase2.training_cutoff: '2026-01-15T00:00:00+00:00'
+    outs:
+    - path: data/processed/module3/training_dataset.jsonl
+      hash: md5
+      md5: 0918dc3becb63934999a7e0f41a8ddd2
+      size: 69072
+    - path: data/processed/module3/training_manifest.json
+      hash: md5
+      md5: b8f73798843bc32e74ad811af328340e
+      size: 1006
+  phase2_train:
+    cmd: env PYTHONPATH=src uv run python scripts/train_historical_model.py
+      --dataset data/processed/module3/training_dataset.jsonl --manifest
+      data/processed/module3/training_manifest.json --output
+      models/cognitive_load_phase2.joblib --report
+      reports/module3/phase2-metrics.json --tracking-uri
+      sqlite:///mlflow-phase2.db
+    deps:
+    - path: data/processed/module3/training_dataset.jsonl
+      hash: md5
+      md5: 0918dc3becb63934999a7e0f41a8ddd2
+      size: 69072
+    - path: data/processed/module3/training_manifest.json
+      hash: md5
+      md5: b8f73798843bc32e74ad811af328340e
+      size: 1006
+    - path: scripts/train_historical_model.py
+      hash: md5
+      md5: 41058e7acab8b0c7c61c975f28174a1c
+      size: 6567
+    - path: src/preprocessing_api/features.py
+      hash: md5
+      md5: 95e43ee56e121e8162b6a72f21b9616a
+      size: 765
+    outs:
+    - path: models/cognitive_load_phase2.joblib
+      hash: md5
+      md5: 33ec319b4d3bbd73d132e858a7aba195
+      size: 172497
+    - path: reports/module3/phase2-metrics.json
+      hash: md5
+      md5: 752c4c6ae0cc56c44479a4f8af78a174
+      size: 3776
