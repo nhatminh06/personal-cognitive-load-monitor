@@ -57,21 +57,21 @@ kubectl --kubeconfig infra/terraform/local/.kube/cogniflow-local.yaml \
 
 kubectl --kubeconfig infra/terraform/local/.kube/cogniflow-local.yaml \
   --context kind-cogniflow-local -n cognitive-load \
-  port-forward service/cognitive-load-monitor 8000:80 --address 127.0.0.1
+  port-forward service/cognitive-load-monitor 18000:80 --address 127.0.0.1
 ```
 
-The UI is available at http://127.0.0.1:8000 and API documentation at http://127.0.0.1:8000/docs. In another terminal:
+The UI is available at http://127.0.0.1:18000 and API documentation at http://127.0.0.1:18000/docs. Host port 8000 is reserved for PersonalOS; the Kubernetes Service and FastAPI container continue to use ports 80 and 8000 respectively. In another terminal:
 
 ```fish
-curl --fail http://127.0.0.1:8000/health
-curl --fail http://127.0.0.1:8000/ready
-curl --fail -X POST http://127.0.0.1:8000/predict \
+curl --fail http://127.0.0.1:18000/health
+curl --fail http://127.0.0.1:18000/ready
+curl --fail -X POST http://127.0.0.1:18000/predict \
   -H 'Content-Type: application/json' \
   -d '{"focus_minutes":120,"distraction_minutes":30,"tasks_due":3,"hours_to_deadline":24}'
-curl --fail http://127.0.0.1:8000/metrics
+curl --fail http://127.0.0.1:18000/metrics
 ```
 
-The port-forward binds only to loopback. Stop it with Ctrl-C. If port 8000 is already occupied, stop the process that owns it or temporarily map another local port, for example `18000:80`.
+The port-forward binds only to loopback. Stop it with Ctrl-C. Do not stop or replace PersonalOS on host port 8000.
 
 ## Security and resource boundaries
 

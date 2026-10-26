@@ -162,10 +162,10 @@ terraform -chdir=infra/terraform/local/app init
 terraform -chdir=infra/terraform/local/app apply
 kubectl --kubeconfig infra/terraform/local/.kube/cogniflow-local.yaml \
   --context kind-cogniflow-local -n cognitive-load \
-  port-forward service/cognitive-load-monitor 8000:80 --address 127.0.0.1
+  port-forward service/cognitive-load-monitor 18000:80 --address 127.0.0.1
 ```
 
-Then open http://127.0.0.1:8000. See the [local Kubernetes guide](docs/deployment/local-kubernetes.md) for prerequisites, verification, upgrades, and safe teardown.
+Then open http://127.0.0.1:18000. Host port 8000 remains reserved for PersonalOS; CogniFlow still uses Kubernetes Service port 80 and container port 8000 internally. See the [local Kubernetes guide](docs/deployment/local-kubernetes.md) for prerequisites, verification, upgrades, and safe teardown.
 
 ---
 
