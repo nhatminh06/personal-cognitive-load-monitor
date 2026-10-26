@@ -1,0 +1,19 @@
+{
+  "annotations":{"list":[]},
+  "editable":true,
+  "panels":[
+    {"id":1,"type":"stat","title":"Event ingestion outcomes","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (outcome) (cogniflow_events_total)","legendFormat":"{{outcome}}"}],"gridPos":{"h":8,"w":8,"x":0,"y":0}},
+    {"id":2,"type":"timeseries","title":"Flink records in/out","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(flink_taskmanager_job_task_numRecordsIn[5m]))","legendFormat":"in"},{"expr":"sum(rate(flink_taskmanager_job_task_numRecordsOut[5m]))","legendFormat":"out"}],"gridPos":{"h":8,"w":8,"x":8,"y":0}},
+    {"id":3,"type":"stat","title":"Flink duplicate events","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(flink_taskmanager_job_task_operator_duplicate_events_total)","legendFormat":"duplicates"}],"gridPos":{"h":8,"w":8,"x":16,"y":0}},
+    {"id":4,"type":"stat","title":"Redis stale writes rejected","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(flink_taskmanager_job_task_operator_redis_stale_writes_total)","legendFormat":"stale"}],"gridPos":{"h":8,"w":8,"x":0,"y":8}},
+    {"id":5,"type":"timeseries","title":"Flink checkpoint results","datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(increase(flink_jobmanager_job_numberOfCompletedCheckpoints[15m]))","legendFormat":"completed"},{"expr":"sum(increase(flink_jobmanager_job_numberOfFailedCheckpoints[15m]))","legendFormat":"failed"}],"gridPos":{"h":8,"w":8,"x":8,"y":8}},
+    {"id":6,"type":"logs","title":"Module II structured logs","datasource":{"type":"loki","uid":"loki"},"targets":[{"expr":"{job=\"cogniflow-api\"}"}],"gridPos":{"h":8,"w":8,"x":16,"y":8}}
+  ],
+  "schemaVersion":39,
+  "tags":["cogniflow","module2"],
+  "templating":{"list":[]},
+  "time":{"from":"now-30m","to":"now"},
+  "title":"CogniFlow Module II — Streaming and Ingestion",
+  "uid":"cogniflow-module2",
+  "version":1
+}

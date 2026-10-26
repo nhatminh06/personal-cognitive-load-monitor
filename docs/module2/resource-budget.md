@@ -5,7 +5,7 @@ Baseline on 2026-10-24: 15 GiB RAM total, 3.6 GiB available, 13 GiB swap used; 2
 | Profile | Services | Memory limits | Expected active total |
 |---|---|---:|---:|
 | ingestion | Kafka | 768 MiB | <1 GiB |
-| lake | MinIO + initializer | 512 MiB + transient 64 MiB | <0.7 GiB |
+| lake | SeaweedFS S3 + initializer | 512 MiB + transient 64 MiB | <0.7 GiB |
 | batch | one local Spark driver | 1792 MiB | <1.8 GiB |
 | analytics | Trino + dbt runner | 1280 + transient 512 MiB | <1.8 GiB |
 | orchestration | Airflow + idle dbt runner | 640 + 384 MiB | <1.1 GiB |
@@ -30,3 +30,5 @@ du -sh data .dvc-storage 2>/dev/null
 ```
 
 The 100GB+ profile will enforce a configured byte ceiling and free-space reserve. Merely implementing it will not be reported as execution evidence.
+
+The generator now enforces both controls (`--max-bytes`, default 100 MB; `--min-free-bytes`, default 1 GB) and writes an atomic resume state after each source event. See `benchmark-plan.md`; no 100GB run was performed.

@@ -26,8 +26,8 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.ref"        = "assertion.ref"
   }
 
-  # Restrict tokens to this specific repo only.
-  attribute_condition = "assertion.repository == \"${var.github_repository}\""
+  # Deployment credentials are issued only to the protected main branch.
+  attribute_condition = "assertion.repository == \"${var.github_repository}\" && assertion.ref == \"refs/heads/main\""
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
@@ -49,22 +49,9 @@ resource "google_service_account_iam_member" "github_wif_binding" {
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
 }
 
-# Permissions the deploy job actually needs: get GKE credentials + kubectl,
-# and pull/push images if it ever needs to.
+# Permission the deploy job needs to obtain cluster credentials and deploy.
 resource "google_project_iam_member" "github_actions_gke_developer" {
   project = var.project_id
   role    = "roles/container.developer"
   member  = "serviceAccount:${google_service_account.github_actions.email}"
-}
-
-resource "google_project_iam_member" "github_actions_artifact_writer" {
-  project = var.project_id
-  role    = "roles/artifactregistry.writer"
-  member  = "serviceAccount:${google_service_account.github_actions.email}"
-}
-
-resource "google_storage_bucket_iam_member" "github_actions_model_bucket" {
-  bucket = google_storage_bucket.model_bucket.name
-  role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.github_actions.email}"
 }

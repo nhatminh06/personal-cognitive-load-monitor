@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from cogniflow_data.api import router as event_router
@@ -19,6 +19,7 @@ from preprocessing_api.observability import (
     record_prediction,
 )
 from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest, PredictionResponse
+from preprocessing_api.security import SecurityMiddleware, is_production, require_api_key
 from preprocessing_api.service import calculate_cognitive_load
 
 configure_logging()
@@ -31,9 +32,13 @@ app = FastAPI(
         "focus/task signals and uses one explicitly configured inference backend."
     ),
     version="1.0.0",
+    docs_url=None if is_production() else "/docs",
+    redoc_url=None if is_production() else "/redoc",
+    openapi_url=None if is_production() else "/openapi.json",
 )
 configure_tracing(app)
 app.add_middleware(MetricsMiddleware)
+app.add_middleware(SecurityMiddleware)
 app.include_router(event_router)
 
 
@@ -69,7 +74,7 @@ def inference_mode() -> str:
     return mode
 
 
-@app.get("/model-info")
+@app.get("/model-info", dependencies=[Depends(require_api_key)])
 async def model_info():
     mode = inference_mode()
     return {
@@ -97,7 +102,7 @@ async def robots():
     return Response(content="User-agent: *\nDisallow:\n", media_type="text/plain")
 
 
-@app.post("/predict", response_model=PredictionResponse)
+@app.post("/predict", response_model=PredictionResponse, dependencies=[Depends(require_api_key)])
 async def predict(request: PredictionRequest) -> PredictionResponse:
     """Predict cognitive load from validated focus/task signals."""
 

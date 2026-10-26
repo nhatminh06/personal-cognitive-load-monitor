@@ -4,3 +4,9 @@ cluster_name      = "cognitive-load-gke"
 node_count        = 2
 machine_type      = "e2-standard-2"
 github_repository = "nhatminh06/personal-cognitive-load-monitor"
+master_authorized_networks = [
+  {
+    cidr_block   = "203.0.113.10/32" # Replace with your operator or VPN public CIDR.
+    display_name = "operator"
+  }
+]

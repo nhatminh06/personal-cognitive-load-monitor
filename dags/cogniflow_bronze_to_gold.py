@@ -1,35 +1,55 @@
-"""Resource-conscious local batch orchestration through existing Compose containers."""
+"""Resource-conscious local batch orchestration without Docker daemon access."""
 
 from __future__ import annotations
 
+import json
+import os
 from datetime import datetime, timedelta
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
-import docker
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.sdk import DAG, task
+
+TIMEOUT_SECONDS = 30
+RUNNER_TIMEOUT_SECONDS = 1810
 
 
-def service(name: str):
-    matches = docker.from_env().containers.list(
-        filters={"label": f"com.docker.compose.service={name}"}
+def request(
+    url: str,
+    *,
+    data: bytes | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: int = TIMEOUT_SECONDS,
+) -> bytes:
+    try:
+        with urlopen(Request(url, data=data, headers=headers or {}), timeout=timeout) as response:
+            return response.read()
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[-4000:]
+        raise RuntimeError(f"Request to {url} failed: HTTP {exc.code}: {detail}") from exc
+
+
+def run_allowlisted_job(service: str) -> None:
+    if service not in {"spark", "dbt-runner"}:
+        raise ValueError(f"Unsupported runner: {service}")
+    token = os.environ.get("JOB_RUNNER_TOKEN", "")
+    if not token.strip():
+        raise RuntimeError("JOB_RUNNER_TOKEN is not configured")
+    request(
+        f"http://{service}:8090/run",
+        data=b"",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=RUNNER_TIMEOUT_SECONDS,
     )
-    if len(matches) != 1:
-        raise RuntimeError(f"Expected one running {name} container, found {len(matches)}")
-    return matches[0]
-
-
-def execute(name: str, command: list[str]) -> None:
-    result = service(name).exec_run(command, environment={"DBT_PROFILES_DIR": "/analytics", "DBT_TARGET_PATH": "/tmp/dbt-target", "DBT_LOG_PATH": "/tmp/dbt-logs"})
-    if result.exit_code:
-        raise RuntimeError(result.output.decode("utf-8", errors="replace")[-4000:])
-
-
-def check_service(name: str) -> None:
-    service(name)
 
 
 def trino(sql: str) -> None:
-    execute("trino", ["trino", "--execute", sql])
+    url = "http://trino:8080/v1/statement"
+    payload = json.loads(request(url, data=sql.encode(), headers={"X-Trino-User": "airflow"}))
+    while "nextUri" in payload:
+        payload = json.loads(request(payload["nextUri"], headers={"X-Trino-User": "airflow"}))
+    if "error" in payload:
+        raise RuntimeError(payload["error"].get("message", "Trino query failed"))
 
 
 default_args = {"retries": 2, "retry_delay": timedelta(seconds=10)}
@@ -42,22 +62,32 @@ with DAG(
     max_active_runs=1,
     tags=["cogniflow", "module2"],
 ) as dag:
-    source = PythonOperator(task_id="check_source", python_callable=check_service, op_args=["minio"])
-    validate = PythonOperator(
-        task_id="validate_input", python_callable=trino,
-        op_args=["SELECT count(*) FROM lakehouse.silver.session_features"],
-    )
-    spark = PythonOperator(
-        task_id="spark_bronze_to_silver", python_callable=execute,
-        op_args=["spark", ["/opt/spark/bin/spark-submit", "--packages", "io.delta:delta-spark_2.12:3.3.2,org.apache.hadoop:hadoop-aws:3.3.4", "jobs/bronze_to_silver.py"]],
-    )
-    silver = PythonOperator(
-        task_id="verify_silver", python_callable=trino,
-        op_args=["SELECT count(*) FROM lakehouse.silver.session_features"],
-    )
-    build = PythonOperator(task_id="dbt_build", python_callable=execute, op_args=["dbt-runner", ["dbt", "build"]])
-    quality = PythonOperator(
-        task_id="verify_gold_quality", python_callable=trino,
-        op_args=["SELECT accepted_rows, stale_rows FROM lakehouse.gold.gold_data_quality_summary"],
-    )
-    source >> validate >> spark >> silver >> build >> quality
+
+    @task
+    def check_source() -> None:
+        request("http://seaweedfs:9333/cluster/status")
+
+    @task
+    def validate_input() -> None:
+        trino("SELECT count(*) FROM lakehouse.silver.session_features")
+
+    @task
+    def spark_bronze_to_silver() -> None:
+        run_allowlisted_job("spark")
+
+    @task
+    def verify_silver() -> None:
+        trino("SELECT count(*) FROM lakehouse.silver.session_features")
+
+    @task
+    def dbt_build() -> None:
+        run_allowlisted_job("dbt-runner")
+
+    @task
+    def verify_gold_quality() -> None:
+        trino(
+            "SELECT accepted_rows, stale_rows "
+            "FROM lakehouse.gold.gold_data_quality_summary"
+        )
+
+    check_source() >> validate_input() >> spark_bronze_to_silver() >> verify_silver() >> dbt_build() >> verify_gold_quality()

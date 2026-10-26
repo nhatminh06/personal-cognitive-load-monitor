@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import os
 from pathlib import Path
@@ -9,6 +11,7 @@ from typing import Any
 
 from preprocessing_api.features import feature_vector
 from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest
+from preprocessing_api.security import is_production
 
 LOGGER = logging.getLogger(__name__)
 
@@ -71,12 +74,22 @@ def _load_local_model() -> Any:
     if not model_path.exists():
         return None
 
+    expected_digest = os.getenv("MODEL_SHA256", "").strip().lower()
+    if is_production() and not expected_digest:
+        LOGGER.error("MODEL_SHA256 is required before production joblib loading")
+        return None
+    if expected_digest:
+        actual_digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        if not hmac.compare_digest(actual_digest, expected_digest):
+            LOGGER.error("Local model digest verification failed")
+            return None
+
     try:
         import joblib
 
         _local_model = joblib.load(model_path)
-    except Exception as exc:  # pragma: no cover - corrupt/incompatible artifact
-        LOGGER.warning("Failed to load local model at %s: %s", model_path, exc)
+    except Exception:  # pragma: no cover - corrupt/incompatible artifact
+        LOGGER.warning("Trusted local model could not be loaded")
         _local_model = None
 
     return _local_model
@@ -96,8 +109,8 @@ def predict_with_local_model(request: PredictionRequest) -> CognitiveLoadLevel |
     try:
         prediction = model.predict([feature_vector(request.model_dump())])[0]
         return _INVERSE_LABEL_MAP.get(int(prediction))
-    except Exception as exc:
-        LOGGER.warning("Local model prediction failed; backend unavailable. Error: %s", exc)
+    except Exception:
+        LOGGER.warning("Local model prediction failed; backend unavailable")
         return None
 
 

@@ -246,3 +246,47 @@ def test_metrics_endpoint(client: TestClient):
     response = client.get("/metrics")
     assert response.status_code == 200
     assert "cognitive_load" in response.text or "prometheus_client" in response.text
+
+
+def test_api_docs_csp_allows_fastapi_assets(client: TestClient):
+    response = client.get("/docs")
+    assert response.status_code == 200
+    assert "SwaggerUIBundle" in response.text
+    docs_csp = response.headers["content-security-policy"]
+    assert "https://cdn.jsdelivr.net" in docs_csp
+    assert "script-src 'self' 'unsafe-inline'" in docs_csp
+
+
+def test_security_headers_and_request_size_limit(client: TestClient):
+    response = client.get("/health")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert "cdn.jsdelivr.net" not in response.headers["content-security-policy"]
+
+    response = client.post(
+        "/predict",
+        content=b"x" * (1024 * 1024 + 1),
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 413
+
+
+def test_production_prediction_authentication_fails_closed(client: TestClient, monkeypatch):
+    payload = {
+        "focus_minutes": 1,
+        "distraction_minutes": 1,
+        "tasks_due": 1,
+        "hours_to_deadline": 1,
+    }
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("COGNIFLOW_API_KEY", raising=False)
+    monkeypatch.delenv("EVENT_API_KEY", raising=False)
+    assert client.post("/predict", json=payload).status_code == 503
+
+    monkeypatch.setenv("COGNIFLOW_API_KEY", "test-secret")
+    assert client.post("/predict", json=payload).status_code == 401
+    assert client.post(
+        "/predict", json=payload, headers={"x-api-key": "test-secret"}
+    ).status_code == 200

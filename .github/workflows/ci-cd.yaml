@@ -7,10 +7,6 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: "Image tag to deploy. Defaults to the current commit SHA."
-        required: false
-        type: string
       namespace:
         description: "Kubernetes namespace"
         required: false
@@ -19,6 +15,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
   PYTHON_VERSION: "3.11"
@@ -31,15 +31,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
@@ -50,10 +52,10 @@ jobs:
       - name: Run Pytest and enforce coverage > 80%
         run: |
           uv run ruff check src scripts
-          uv run pytest src/tests --cov=src/preprocessing_api --cov-report=term-missing --cov-report=xml --cov-fail-under=81
+          uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov-report=term-missing --cov-report=xml --cov-fail-under=81
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-xml
           path: coverage.xml
@@ -62,36 +64,37 @@ jobs:
     name: Build and push Docker image
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
       contents: read
-      packages: write
+      packages: write # Publishes the verified image to this repository's GHCR namespace.
     outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
+      image_digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python for model packaging
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
-          enable-cache: true
-          cache-dependency-glob: pyproject.toml
+          enable-cache: false
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --frozen --all-extras
 
       - name: Start ephemeral MLflow tracking server
         # Self-contained tracking server for this job only, so "pull the model from
         # MLflow" is a real step CI exercises on every build instead of a path that
-        # only exists if someone happens to run a persistent MLflow server. Point
-        # MLFLOW_TRACKING_URI/MLFLOW_MODEL_URI secrets at a real server instead if
-        # you have one (see docker/build-push-action build-args below).
+        # only exists if someone happens to run a persistent MLflow server. A
+        # separately protected workflow can target a persistent registry later;
+        # registry credentials must never be Docker build arguments.
         run: |
           nohup uv run mlflow server --host 127.0.0.1 --port 5000 \
             --backend-store-uri "sqlite:///${RUNNER_TEMP}/mlflow.db" \
@@ -99,7 +102,7 @@ jobs:
             > "${RUNNER_TEMP}/mlflow-server.log" 2>&1 &
           disown
           echo "MLFLOW_TRACKING_URI=http://127.0.0.1:5000" >> "$GITHUB_ENV"
-          for i in $(seq 1 30); do
+          for _ in {1..30}; do
             curl -sf http://127.0.0.1:5000/health && exit 0
             sleep 1
           done
@@ -125,36 +128,26 @@ jobs:
             --output models/cognitive_load_model.joblib
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Docker metadata
-        id: meta
+      - name: Set immutable image tag
         run: |
-          TAG="${GITHUB_SHA::12}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image_tag }}" ]; then
-            TAG="${{ inputs.image_tag }}"
-          fi
-          echo "version=$TAG" >> "$GITHUB_OUTPUT"
-          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-            ${{ env.IMAGE_NAME }}:latest
-          build-args: |
-            MLFLOW_TRACKING_URI=${{ secrets.MLFLOW_TRACKING_URI }}
-            MODEL_URI=${{ secrets.MLFLOW_MODEL_URI }}
+          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -162,35 +155,49 @@ jobs:
     name: Manual deploy to Kubernetes with Helm
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
-      id-token: write
+      id-token: write # Exchanges GitHub's short-lived OIDC token for deployment credentials.
     environment:
       name: production
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
+        uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2
         with:
           cluster_name: ${{ secrets.GKE_CLUSTER }}
           location: ${{ secrets.GKE_LOCATION }}
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
 
       - name: Deploy chart
+        env:
+          DEPLOY_NAMESPACE: ${{ inputs.namespace }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.image_digest }}
+          KSERVE_STORAGE_URI: ${{ secrets.KSERVE_STORAGE_URI }}
+          APP_HOST: ${{ secrets.APP_HOST }}
         run: |
-          NAMESPACE="${{ inputs.namespace }}"
-          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
-          helm upgrade --install "$HELM_RELEASE" ./helm/cognitive-load-monitor             --namespace "$NAMESPACE"             --create-namespace             --set image.repository="${IMAGE_NAME}"             --set image.tag="$IMAGE_TAG"             --set kserve.storageUri="${{ secrets.KSERVE_STORAGE_URI }}"             --set ingress.hosts[0].host="${{ secrets.APP_HOST }}"
-          kubectl rollout status deployment/$HELM_RELEASE -n "$NAMESPACE" --timeout=180s
+          NAMESPACE="$DEPLOY_NAMESPACE"
+          [[ "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || { echo "Invalid namespace" >&2; exit 1; }
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid image digest" >&2; exit 1; }
+          helm upgrade --install "$HELM_RELEASE" ./helm/cognitive-load-monitor \
+            --namespace "$NAMESPACE" --create-namespace \
+            --values ./helm/cognitive-load-monitor/values.gke.yaml \
+            --set "image.repository=${IMAGE_NAME}" \
+            --set "image.digest=${IMAGE_DIGEST}" \
+            --set-string "kserve.storageUri=${KSERVE_STORAGE_URI}" \
+            --set-string "ingress.hosts[0].host=${APP_HOST}"
+          kubectl rollout status "deployment/$HELM_RELEASE" -n "$NAMESPACE" --timeout=180s

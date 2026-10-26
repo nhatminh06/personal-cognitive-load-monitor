@@ -36,7 +36,7 @@ class RedisFeatureStore:
             raise ConnectionError("Redis client is not installed") from exc
         self._redis_error = redis.RedisError
         self.client: Any = redis.Redis.from_url(
-            os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
+            os.getenv("REDIS_URL", "redis://:local-development-only@127.0.0.1:6379/0"),
             socket_connect_timeout=1,
             socket_timeout=1,
         )

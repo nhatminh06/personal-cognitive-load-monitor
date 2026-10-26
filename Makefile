@@ -1,10 +1,10 @@
-.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro notebooks helm-template verify-local clean module2-ingestion module2-lake module2-batch module2-analytics module2-streaming module2-stop module2-ps
+.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro notebooks helm-template verify-local clean module2-ingestion module2-lake module2-batch module2-analytics module2-streaming module2-orchestration-dev module2-stop module2-ps
 
 install sync:
 	uv sync --all-extras
 
 test:
-	uv run pytest src/tests --cov=src/preprocessing_api --cov-report=term-missing --cov-fail-under=81
+	uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov-report=term-missing --cov-fail-under=81
 
 coverage: test
 
@@ -57,8 +57,11 @@ module2-analytics:
 module2-streaming:
 	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile streaming up -d
 
+module2-orchestration-dev:
+	docker compose -f infra/module2/docker-compose.yml --profile lake --profile batch --profile analytics --profile orchestration-dev up -d
+
 module2-stop:
-	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile lake --profile batch --profile analytics --profile orchestration --profile streaming stop
+	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile lake --profile batch --profile analytics --profile orchestration-dev --profile streaming stop
 
 module2-ps:
-	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile lake --profile batch --profile analytics --profile orchestration --profile streaming ps -a
+	docker compose -f infra/module2/docker-compose.yml --profile ingestion --profile lake --profile batch --profile analytics --profile orchestration-dev --profile streaming ps -a

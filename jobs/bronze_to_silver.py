@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 
 import boto3
 from botocore.config import Config
-from delta import configure_spark_with_delta_pip
 from delta.tables import DeltaTable
 from pyspark.sql import DataFrame, SparkSession, functions as F, types as T
 
@@ -127,6 +126,7 @@ def spark_session() -> SparkSession:
         .config("spark.driver.memory", "1g")
         .config("spark.databricks.delta.snapshotPartitions", "1")
         .config("spark.sql.shuffle.partitions", "1")
+        .config("spark.sql.parquet.compression.codec", "uncompressed")
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
         .config("spark.hadoop.fs.s3a.endpoint", os.getenv("MINIO_ENDPOINT", "http://minio:9000"))
@@ -137,14 +137,12 @@ def spark_session() -> SparkSession:
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
         .config("spark.sql.session.timeZone", "UTC")
     )
-    return configure_spark_with_delta_pip(
-        builder,
-        extra_packages=["org.apache.hadoop:hadoop-aws:3.3.4"],
-    ).getOrCreate()
+    return builder.getOrCreate()
 
 
 def main() -> None:
     spark = spark_session()
+    spark.sparkContext.setLogLevel("WARN")
     rows, rejected = load_bronze()
     if not rows:
         raise RuntimeError("No valid Bronze records found")
@@ -163,8 +161,9 @@ def main() -> None:
         frame.write.format("delta").partitionBy("event_date").save(SILVER_URI)
     count = spark.read.format("delta").load(SILVER_URI).count()
     history = DeltaTable.forPath(spark, SILVER_URI).history().select("version", "operation").collect()
-    print(json.dumps({"silver_rows": count, "rejected_rows": len(rejected), "history": [row.asDict() for row in history]}))
+    result = {"silver_rows": count, "rejected_rows": len(rejected), "history": [row.asDict() for row in history]}
     spark.stop()
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":

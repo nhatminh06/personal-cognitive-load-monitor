@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -46,6 +47,11 @@ class KafkaPublisher:
         self._producer = producer
 
     def publish(self, event: SessionEvent, topic: str = SESSION_TOPIC) -> None:
+        self.publish_bytes(event.wire_bytes(), event.kafka_key(), topic)
+
+    def publish_bytes(self, value: bytes, key: bytes, topic: str = SESSION_TOPIC) -> None:
+        """Publish a raw test record with the same bounded acknowledgment policy."""
+
         failure: list[str] = []
 
         def delivered(error, _message) -> None:
@@ -55,8 +61,8 @@ class KafkaPublisher:
         try:
             self._producer.produce(
                 topic,
-                key=event.kafka_key(),
-                value=event.wire_bytes(),
+                key=key,
+                value=value,
                 on_delivery=delivered,
             )
             remaining = self._producer.flush(5.0)
@@ -110,13 +116,15 @@ class KafkaEventConsumer:
             if self._seen.add(str(event.event_id)):
                 handler(event, message)
         except Exception as exc:
+            raw_value = message.value()
             dead_letter = json.dumps(
                 {
                     "topic": message.topic(),
                     "partition": message.partition(),
                     "offset": message.offset(),
                     "error_type": type(exc).__name__,
-                    "raw_value": message.value().decode("utf-8", errors="replace"),
+                    "raw_sha256": hashlib.sha256(raw_value).hexdigest(),
+                    "raw_size_bytes": len(raw_value),
                 }
             ).encode()
             self._dead_letter_publisher.produce(

@@ -145,6 +145,7 @@ def main() -> None:
                 artifact_path="sklearn-model",
                 registered_model_name=args.registered_model_name,
                 input_example=x_test.head(2),
+                skops_trusted_types=["sklearn.tree._tree.Tree"],
             )
             print(f"MLflow run_id={run.info.run_id}")
     except Exception as exc:

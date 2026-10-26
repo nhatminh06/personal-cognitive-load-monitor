@@ -40,7 +40,7 @@ Requires a GCP project with billing enabled and owner/editor IAM.
 ```bash
 cd infra/terraform/gke
 cp terraform.tfvars.example terraform.tfvars
-# edit: project_id, github_repository=<owner>/<repo>
+# edit: project_id, github_repository=<owner>/<repo>, and master_authorized_networks
 terraform init
 terraform plan
 terraform apply
@@ -71,7 +71,7 @@ helm repo update
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace ingress-nginx --create-namespace
 
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/<PINNED_VERSION>/components.yaml
 
 kubectl get svc -n ingress-nginx ingress-nginx-controller -w   # wait for EXTERNAL-IP
 ```
@@ -122,13 +122,15 @@ this minimal path.
 ### 7. Verify
 
 ```bash
-curl -u admin:YOUR_STRONG_PASSWORD -X POST \
+read -rsp "Basic-auth password: " BASIC_AUTH_PASSWORD
+curl -u "admin:${BASIC_AUTH_PASSWORD}" -X POST \
   http://cognitive-load.<EXTERNAL-IP>.nip.io/predict \
   -H "Content-Type: application/json" \
   -d '{"focus_minutes":60,"distraction_minutes":60,"tasks_due":5,"hours_to_deadline":12}'
 
-curl -u admin:YOUR_STRONG_PASSWORD http://cognitive-load.<EXTERNAL-IP>.nip.io/model-info
-curl -u admin:YOUR_STRONG_PASSWORD http://cognitive-load.<EXTERNAL-IP>.nip.io/metrics | grep cognitive_load_predictions_total
+curl -u "admin:${BASIC_AUTH_PASSWORD}" http://cognitive-load.<EXTERNAL-IP>.nip.io/model-info
+curl -u "admin:${BASIC_AUTH_PASSWORD}" http://cognitive-load.<EXTERNAL-IP>.nip.io/metrics | grep cognitive_load_predictions_total
+unset BASIC_AUTH_PASSWORD
 
 kubectl get hpa -n cognitive-load
 ```

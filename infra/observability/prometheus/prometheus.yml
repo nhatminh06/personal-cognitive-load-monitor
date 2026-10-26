@@ -7,3 +7,11 @@ scrape_configs:
     static_configs:
       - targets:
           - api:8000
+  - job_name: cogniflow-flink-taskmanager
+    static_configs:
+      - targets:
+          - flink-taskmanager:9249
+  - job_name: cogniflow-flink-jobmanager
+    static_configs:
+      - targets:
+          - flink-jobmanager:9249
