@@ -1,95 +1,58 @@
-# Architecture
+# Implemented architecture
 
-## System overview
+**Current implementation snapshot: 2026-10-26.** This page describes what exists now. The unimplemented grading target is explicitly separated in [`module3/final-rubric-architecture.md`](module3/final-rubric-architecture.md).
 
-```text
-Developer
-  -> git push (feature branch)
-  -> GitHub Actions: test (Pytest, coverage > 80%)              [Verified in CI]
-       -> build (train -> register+pull from ephemeral MLflow    [Verified in CI]
-                 -> Docker image -> push to GHCR)
-       -> deploy (workflow_dispatch only, Helm to GKE)           [Implemented, not executed]
-
-Client request
-  -> NGINX Ingress + Basic Auth                                  [Statically validated]
-  -> FastAPI pre/post-processing API (HPA-scaled Deployment)      [Verified locally]
-       -> INFERENCE_MODE = auto | rule | local_model | kserve
-            - rule:         deterministic formula, no model
-            - local_model:  loads models/cognitive_load_model.joblib
-            - kserve:       forwards to KServe InferenceService   [Statically validated]
-            - auto:         kserve -> local_model -> rule, silently (local/demo default)
-
-Observability (all: implemented, not executed in this pass — see verification.md)
-  FastAPI/KServe/Kubernetes -> Prometheus -> Grafana
-  FastAPI                   -> Loki (via Promtail)
-  FastAPI                   -> Tempo (OTLP traces)
-
-Data / model lifecycle
-  DVC (generate_data -> train_model -> drift_report)              [Verified locally,
-  MLflow (tracking + registry)                                     reproducible: dvc repro
-  reference_data/current_data -> Evidently drift dashboard          run twice = no changes]
+```mermaid
+flowchart TB
+    Client --> API[FastAPI]
+    API --> Rule[demo_rule]
+    API --> Local[verified local skops model]
+    API --> KClient[KServe HTTP client]
+    Events[Session events] --> Kafka
+    Kafka --> Bronze[SeaweedFS S3 Bronze]
+    Bronze --> Spark[Spark / Delta Silver]
+    Spark --> Trino --> DBT[dbt Gold]
+    Kafka --> Flink --> Redis
+    Redis --> API
+    DVC --> Train[local training]
+    Train --> MLflow[local MLflow registry]
+    Prom[Prometheus] --> Grafana
+    API --> Loki
+    API --> Tempo
 ```
 
-## Why "auto" inference mode exists and what it means
+## Runtime-verified locally
 
-Before this pass, the API only ever had one behavior: try KServe, then the
-local model, then the rule engine, silently, with no way to require a
-specific backend or make its absence visible via `/ready`. That is fine for a
-local demo (there's always a fallback so the API "just works"), but it means
-a caller — or a Kubernetes readiness probe — cannot distinguish "the real
-model answered" from "the deterministic formula answered because the model
-was missing."
+- FastAPI request validation, authentication, explicit `demo_rule`, `local_model` and `kserve` modes, readiness and no silent fallback.
+- Deterministic/DVC training, candidate-only MLflow registration, explicit approval command and exact artifact-tree SHA-256 checks.
+- Kafka ingestion, Bronze object persistence, Spark/Delta Silver, Trino/dbt Gold, Airflow fixed-command orchestration, Flink event-time aggregation and Redis freshness protection.
+- Prometheus/Grafana metrics, Loki structured logs and Tempo traces in dated Module I/II verification runs.
+- Terraform-managed local kind cluster and Helm demo-rule release on loopback port `18000`.
 
-This pass added three **explicit** modes (`rule`, `local_model`, `kserve`)
-selected via `INFERENCE_MODE`. In an explicit mode:
+## Implemented but not runtime-verified
 
-- `/ready` reflects that specific backend's real health (model loads? KServe
-  reachable?) instead of always reporting healthy.
-- `/predict` uses only that backend. If it's unavailable, the API returns
-  **503**, not a silently-substituted answer — unless `ALLOW_RULE_FALLBACK=true`
-  is set, in which case it still falls back, but the response is labeled
-  `rule_fallback_after_error` in the recorded metric so the substitution is
-  visible in Prometheus, not hidden.
+- Approval-bound Phase 3 model packaging and isolated local-model Helm release. The current MLflow version 2 remains a candidate, so no image or deployment exists.
+- KServe client behavior and `InferenceService` manifests. They have been unit-tested/rendered, not run with KServe.
+- GKE Terraform, Workload Identity definitions, GCS bucket and cloud deployment workflow. They are statically validated only.
 
-`INFERENCE_MODE=auto` (the default, unchanged) preserves the original
-kserve→local_model→rule chain for local development, tests, and the current
-CI pipeline. It is intentionally not what a production Helm values file
-should use — see the README's "Inference modes" section for the recommended
-production values.
+## Not implemented
 
-## Deployment topology (as designed, not all of it executed)
+- Kubeflow Pipelines training orchestration.
+- A custom KServe runtime that loads the verified `.skops` package.
+- Knative Eventing logging Broker/Trigger/consumer.
+- Knative-based real-time anomaly detector.
+- Authorized GKE/GCS runtime and full demonstration video.
 
-- **Cluster**: GKE, provisioned by `infra/terraform/gke/` (validated with
-  `terraform fmt`/`init -backend=false`/`validate` this session; never
-  applied — no GCP credentials in this environment).
-- **Ingress**: NGINX ingress controller (installed separately, not part of
-  the app's own Helm chart) routes to the API Service; Basic Auth enforced at
-  the ingress via a Kubernetes Secret.
-- **API**: `Deployment` + `HorizontalPodAutoscaler` (CPU-based) + `Service`.
-- **Model serving**: either the API's own `local_model` mode (joblib artifact
-  baked into the image or downloaded at build time from MLflow) or a
-  `KServe InferenceService` with `autoscaling.knative.dev/min-scale: "0"`.
-  See `docs/requirement-matrix.md` item 14 for why scale-to-zero is not
-  treated as proven just because the annotation exists.
-- **Observability**: `ServiceMonitor` for Prometheus Operator scraping (only
-  renders/applies if the Prometheus Operator CRDs are installed — see the
-  README's GCP deployment notes for why this was disabled in the one actual
-  deploy this project has documented steps for).
+## Stable serving contract
 
-## Registry and image strategy
+`INFERENCE_MODE` accepts only `demo_rule`, `local_model` or `kserve`. Explicit modes use only the selected backend; absence, timeout, invalid output or provenance failure returns a visible failure and keeps readiness closed. The six ordered feature names and `PredictionResponse` remain stable. `/model-info` reports verified manifest-backed provenance in local-model mode.
 
-CI publishes to **GHCR** (`ghcr.io/<owner>/<repo>/cognitive-load-api`), tagged
-with the 12-character commit SHA and also `:latest`. Terraform additionally
-provisions a **GCP Artifact Registry** repository that CI does not use — a
-known, intentional inconsistency: GHCR was chosen because it requires zero
-extra CI configuration (uses `GITHUB_TOKEN`), while Artifact Registry stays
-available if a future change wants to publish there instead via Workload
-Identity Federation (`infra/terraform/gke/github_oidc.tf` already sets up the
-federation needed for that). This is documented rather than silently
-resolved by deleting either side, per the explicit instruction not to leave
-this ambiguous.
+The stock KServe sklearn server does not document `.skops` support, so the final target uses a digest-pinned custom KServe Python runtime that reuses the existing manifest/trusted-type checks. See the [final architecture](module3/final-rubric-architecture.md).
 
-**Do not rely on `:latest` for a real deployment** — Helm's default
-`image.tag` is `latest` for local convenience, but any real `helm upgrade`
-should pin the commit SHA tag CI produced (see README's Helm section and
-`docs/cloud-deployment.md`).
+## Deployment ownership and restrictions
+
+- Terraform owns the existing local demo release; experimental Helm releases use separate namespaces and names.
+- PersonalOS remains on host port `8000`; CogniFlow demo access is `18000`; experimental serving reserves `18001`.
+- Cloud deployment must pin OCI repository digests and enforce image signatures/attestations.
+- SEC-022 Spark is accepted only for isolated local development with trusted synthetic data and is prohibited in Kubernetes/GKE.
+- No current evidence claims KServe scale-to-zero, cloud HPA behavior, production ingress, GCS-backed artifacts or cloud security controls.

@@ -1,25 +1,32 @@
-# Module III handoff (design only)
+# Module III handoff
 
-Do not start Module III until PR #6 is merged. Create `feature/cogniflow-module3-ml-platform` from the resulting verified `main`, not from the current feature branch or an older local `main`.
+**Updated 2026-10-26 after PR #11 merged.** Phases 1–3 established historical feature contracts, reproducible candidate training/registration and approval-bound local serving machinery. They did not implement or run Kubeflow, a KServe `InferenceService`, Knative Eventing, a Knative anomaly detector, GKE/GCS integration or the final video.
+
+The authoritative next-step documents are:
+
+- [weighted course rubric](course-rubric-2026.md);
+- [final rubric architecture](module3/final-rubric-architecture.md);
+- [implementation roadmap](module3/implementation-roadmap.md);
+- [resource and cost plan](module3/resource-and-cost-plan.md);
+- [full demonstration contract](demo/full-rubric-demo.md).
 
 ## Stable contracts
 
-- Prediction: `POST /predict` retains the six ordered `v1` model features, explicit inference modes, `synthetic_proxy` provenance, and fail-closed production behavior.
-- Events: `SessionEvent` is the versioned Module II ingestion contract. Kafka, Bronze, Spark and Flink must continue to reject invalid versions, identifiers, timestamps and numeric bounds.
-- Offline features: Delta Silver is the point-in-time source for training joins; dbt Gold is analytical output, not a training source of truth.
-- Online features: Redis is a freshness-protected projection keyed by validated session ID. Its timestamp compare-and-set prevents stale overwrites; Redis is not authoritative history.
-- Cross-language parity: Python, Spark and Flink use `tests/fixtures/feature_vectors.json` for names, order, units, schema version, timestamp semantics and tolerances.
+- `POST /predict` preserves the existing request/response schema, six ordered `1.0` model features, explicit inference source, synthetic-proxy provenance and fail-closed explicit modes.
+- `SessionEvent` remains the Module II ingestion contract. Kafka, Bronze, Spark and Flink reject invalid versions, identifiers, timestamps and bounds.
+- Delta Silver is the point-in-time historical source; dbt Gold is analytical output, not training truth.
+- Redis is a freshness-protected online projection, not authoritative history.
+- `tests/fixtures/feature_vectors.json` defines cross-language names, order, units, timestamps and tolerances.
+- Model deployment names an exact approved MLflow version and registered artifact-tree SHA-256. Packaged model provenance and OCI repository digest are independently verified.
 
-## Module III integration requirements
+## Next milestone
 
-- Kubeflow pipelines must materialize point-in-time-correct training sets from immutable Delta versions and record dataset, code, feature-schema and image digests in MLflow.
-- Registry promotion must select an explicit approved MLflow version. Model artifacts and serving images require immutable digests and deployment-time signature/attestation verification.
-- KServe must preserve the current request/response contract, use a least-privilege storage identity, and fail visibly when its backend or artifact is unavailable.
-- Knative Eventing must consume versioned events with bounded retries, idempotency and payload-safe dead-letter metadata. It must not bypass existing schema validation.
-- Online/offline skew and feature freshness need explicit SLOs, metrics and tests before training or serving automation is accepted.
+PR #13 implements Kubeflow Pipelines v2 around the existing preparation/training logic. Acceptance requires a real run with pinned inputs and component images, chronological evaluation, immutable lineage and candidate-only MLflow registration. Compiled YAML or local sequential scripts alone do not pass.
 
-## Existing controls and blockers
+Subsequent milestones add the custom `.skops` KServe runtime, Knative logging, deterministic anomaly detection, authorized GKE/GCS integration and final evidence/video in that order.
 
-Production API-key authentication, request limits, secure response headers, model SHA-256 enforcement, structured telemetry, Redis stale-write protection and least-privilege CI remain mandatory. Before cloud deployment, close SEC-011 against the real cluster topology; add managed secrets, TLS, namespace RBAC, Pod Security, private/authorized control-plane access, image verification and runtime KServe/NetworkPolicy evidence. The Docker-socket Airflow profile is development-only and must not migrate into Module III.
+## Preserved security boundaries
 
-No GCP resource, cluster, pipeline or Module III branch is created by this handoff.
+Strict schema validation, API authentication, bounded HTTP, read-only Trino access, candidate/approved separation, pre-deserialization artifact verification, non-root/read-only workloads, immutable images, no silent fallback and secret-free telemetry remain mandatory. Image signing/attestation must be enforced before cloud deployment.
+
+SEC-022 is accepted risk for isolated local development only through 2027-01-23. Its Spark runtime is prohibited in production, staging, Kubernetes and GKE. The development-only Airflow execution boundary also must not migrate to cloud deployment.

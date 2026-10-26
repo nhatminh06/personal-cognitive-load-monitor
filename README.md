@@ -18,6 +18,28 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ---
 
+## Table of Contents
+
+- [Project Status](#project-status)
+- [Course Rubric and Final Architecture](#course-rubric-and-final-architecture)
+- [Why CogniFlow?](#why-cogniflow)
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Local Kubernetes Deployment](#local-kubernetes-deployment-no-cloud-required)
+- [Module I](#module-i-reproducible-mlops-foundation)
+- [Module II](#module-ii-data-engineering-and-real-time-processing)
+- [Getting Started](#getting-started)
+- [Running Module II Locally](#running-module-ii-locally)
+- [Docker and Infrastructure](#docker-and-infrastructure)
+- [Observability](#observability)
+- [CI/CD and Release Integrity](#cicd-and-release-integrity)
+- [Security Model](#security-model)
+- [Validation and Reproducibility](#validation-and-reproducibility)
+- [Repository Structure](#repository-structure)
+- [Roadmap](#roadmap)
+
+---
+
 ## Project Status
 
 **Last verified: October 26, 2026**
@@ -30,11 +52,15 @@ It is designed to demonstrate how independently developed data and machine learn
 | Module III Phase 1: Historical feature contracts | Implemented and locally validated |
 | Module III Phase 2: Reproducible training and registry | Implemented and locally validated |
 | Module III Phase 3: Secure local model serving | Deployment machinery implemented; live rollout awaits an approved model |
-| Later Module III serving/orchestration | Planned |
+| Course API layer | Implemented; KServe end-to-end remains outstanding |
+| Kubeflow Pipelines | Not implemented |
+| KServe runtime | Manifests/client statically validated; no real `InferenceService` run |
+| Knative log Eventing | Not implemented |
+| Knative anomaly detector | Not implemented |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
 | GKE Terraform | Statically validated only |
-| GKE / production KServe | Not deployed |
+| GKE, GCS-backed MLflow and full demo video | Not deployed or recorded |
 | 100 GB performance benchmark | Not performed |
 
 ### Verification highlights
@@ -55,6 +81,12 @@ Module III Phase 1 adds a version-pinned, point-in-time historical feature contr
 Phase 2 adds chronological synthetic-proxy model comparison, lineage manifests, explicit MLflow candidate registration, and a separate approval boundary. See the [Phase 2 training guide](docs/module3/phase2-ml-training.md).
 
 Phase 3 adds approval-bound MLflow artifact packaging, verified local `skops` loading, and an isolated kind/Helm serving path. The current candidate remains undeployed. See the [Phase 3 serving guide](docs/module3/phase3-model-serving.md).
+
+## Course Rubric and Final Architecture
+
+The [authoritative 2026 course rubric](docs/course-rubric-2026.md) separates the weighted assignment requirements from additional engineering goals and records the evidence needed for every point. The selected practical path is **GKE (35%) plus GCS-backed MLflow artifacts (5%)**; the alternative GCE score is not added.
+
+The remaining work is specified in the [final rubric architecture](docs/module3/final-rubric-architecture.md), [implementation roadmap](docs/module3/implementation-roadmap.md), [resource and cost plan](docs/module3/resource-and-cost-plan.md), and [full demonstration contract](docs/demo/full-rubric-demo.md). These are plans, not claims that Kubeflow, KServe, Knative, GKE or GCS have run.
 
 ---
 
@@ -711,7 +743,7 @@ Kafka ingestion, SeaweedFS Bronze storage, Spark/Delta Silver processing, Trino/
 
 ### In progress: Module III — ML Platform Integration
 
-Phases 1 and 2 now provide historical feature contracts and reproducible local training with candidate-only MLflow registration. Serving and orchestration remain planned.
+Phases 1–3 provide historical feature contracts, reproducible local training with candidate-only MLflow registration, and approval-bound local serving machinery. The exact weighted gaps are Kubeflow Pipelines runtime, KServe runtime, Knative log Eventing, Knative-based anomaly detection, authorized GKE/GCS integration and the real demonstration video.
 
 Planned work includes:
 
@@ -725,7 +757,7 @@ Planned work includes:
 
 The Module III plan is a design target, not an already implemented feature set.
 
-See [Module III handoff](docs/module3-handoff.md).
+See the [Module III implementation roadmap](docs/module3/implementation-roadmap.md) and [Module III handoff](docs/module3-handoff.md).
 
 ---
 
@@ -736,8 +768,12 @@ See [Module III handoff](docs/module3-handoff.md).
 | [PR #4](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/4) | Module I foundation |
 | [PR #5](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/5) | Module II data platform |
 | [PR #6](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/6) | Security hardening and development-only exception controls |
+| [PR #8](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/8) | Local Terraform/kind deployment |
+| [PR #9](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/9) | Historical feature contracts |
+| [PR #10](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/10) | Reproducible training and registry |
+| [PR #11](https://github.com/nhatminh06/personal-cognitive-load-monitor/pull/11) | Secure local model-serving workflow |
 
-All three have been merged into `main`.
+These milestones have been merged into `main`.
 
 ## License
 
