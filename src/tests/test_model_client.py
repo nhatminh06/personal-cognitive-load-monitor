@@ -1,6 +1,7 @@
 """Tests for optional KServe and local-model client helpers."""
 
 import hashlib
+import json
 
 import pytest
 
@@ -21,6 +22,46 @@ def _request() -> PredictionRequest:
         tasks_due=3,
         hours_to_deadline=24.0,
     )
+
+
+def _skops_package(monkeypatch, tmp_path):
+    model_path = tmp_path / "cognitive_load_model.skops"
+    model_path.write_bytes(b"trusted-skops")
+    digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    manifest = {
+        "contract_version": "1.0",
+        "model_name": "classifier",
+        "model_version": "7",
+        "run_id": "run-1",
+        "registered_source": "models:/immutable",
+        "registered_artifact_sha256": "a" * 64,
+        "packaged_model_sha256": digest,
+        "dataset_sha256": "b" * 64,
+        "feature_schema_version": "1.0",
+        "feature_names": [
+            "focus_minutes", "distraction_minutes", "tasks_due", "hours_to_deadline",
+            "focus_ratio", "distraction_ratio",
+        ],
+        "label_provenance": "synthetic_proxy",
+        "git_revision": "c" * 40,
+        "approved_by": "owner",
+        "approved_at": "2026-10-26T00:00:00+00:00",
+    }
+    manifest_path = tmp_path / "model-package.json"
+    manifest_path.write_text(json.dumps(manifest))
+    values = {
+        "MODEL_PATH": str(model_path),
+        "MODEL_PACKAGE_PATH": str(manifest_path),
+        "MODEL_SHA256": digest,
+        "MODEL_NAME": "classifier",
+        "MODEL_VERSION": "7",
+        "MODEL_ARTIFACT_SHA256": "a" * 64,
+        "MODEL_DATASET_SHA256": "b" * 64,
+        "MODEL_FEATURE_SCHEMA_VERSION": "1.0",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    return model_path, manifest_path, manifest
 
 
 @pytest.fixture(autouse=True)
@@ -113,17 +154,122 @@ def test_predict_with_local_model_missing_file_returns_none(monkeypatch, tmp_pat
     assert predict_with_local_model(_request()) is None
 
 
-def test_predict_with_local_model_success(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    "prediction,expected",
+    [
+        (0, CognitiveLoadLevel.LOW),
+        (1, CognitiveLoadLevel.MEDIUM),
+        (2, CognitiveLoadLevel.HIGH),
+        ("LOW", CognitiveLoadLevel.LOW),
+        ("MEDIUM", CognitiveLoadLevel.MEDIUM),
+        ("HIGH", CognitiveLoadLevel.HIGH),
+    ],
+)
+def test_predict_with_local_model_supported_classes(monkeypatch, tmp_path, prediction, expected):
     class _FakeModel:
         def predict(self, features):
-            return [1]
+            return [prediction]
 
     model_path = tmp_path / "model.joblib"
     model_path.write_bytes(b"placeholder")
     monkeypatch.setenv("MODEL_PATH", str(model_path))
     monkeypatch.setattr("joblib.load", lambda path: _FakeModel())
 
-    assert predict_with_local_model(_request()) == CognitiveLoadLevel.MEDIUM
+    assert predict_with_local_model(_request()) == expected
+
+
+@pytest.mark.parametrize("prediction", ["UNKNOWN", 3, 1.5, True])
+def test_predict_with_local_model_rejects_unknown_classes(monkeypatch, tmp_path, prediction):
+    class _FakeModel:
+        def predict(self, features):
+            return [prediction]
+
+    model_path = tmp_path / "model.joblib"
+    model_path.write_bytes(b"placeholder")
+    monkeypatch.setenv("MODEL_PATH", str(model_path))
+    monkeypatch.setattr("joblib.load", lambda path: _FakeModel())
+
+    assert predict_with_local_model(_request()) is None
+
+
+def test_local_skops_model_uses_explicit_trusted_types(monkeypatch, tmp_path):
+    model_path, _, _ = _skops_package(monkeypatch, tmp_path)
+    calls = []
+    fake_model = type("Model", (), {"predict": lambda self, _: ["LOW"]})()
+
+    def load(path, *, trusted):
+        calls.append((path, trusted))
+        return fake_model
+
+    monkeypatch.setattr("skops.io.load", load)
+    assert predict_with_local_model(_request()) == CognitiveLoadLevel.LOW
+    assert calls == [(model_path, ["sklearn.tree._tree.Tree"])]
+
+
+def test_genuine_skops_round_trip_uses_packaged_contract(monkeypatch, tmp_path):
+    import skops.io
+    from sklearn.ensemble import RandomForestClassifier
+
+    model_path, manifest_path, manifest = _skops_package(monkeypatch, tmp_path)
+    model = RandomForestClassifier(n_estimators=2, random_state=42).fit(
+        [[150, 10, 0, 96, 0.9375, 0.0625], [30, 120, 8, 4, 0.2, 0.8]],
+        ["LOW", "HIGH"],
+    )
+    skops.io.dump(model, model_path)
+    digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    manifest["packaged_model_sha256"] = digest
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("MODEL_SHA256", digest)
+
+    assert predict_with_local_model(_request()) in {
+        CognitiveLoadLevel.LOW,
+        CognitiveLoadLevel.HIGH,
+    }
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("model_name", "tampered"),
+        ("model_version", "8"),
+        ("registered_artifact_sha256", "d" * 64),
+        ("dataset_sha256", "d" * 64),
+        ("feature_schema_version", "2.0"),
+        ("feature_names", ["tasks_due"]),
+        ("packaged_model_sha256", "d" * 64),
+    ],
+)
+def test_skops_manifest_tampering_fails_before_deserialization(
+    monkeypatch, tmp_path, field, value
+):
+    _, manifest_path, manifest = _skops_package(monkeypatch, tmp_path)
+    manifest[field] = value
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(
+        "skops.io.load", lambda *args, **kwargs: pytest.fail("must fail before deserialization")
+    )
+    assert predict_with_local_model(_request()) is None
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("MODEL_NAME", "other"),
+        ("MODEL_VERSION", "8"),
+        ("MODEL_ARTIFACT_SHA256", "d" * 64),
+        ("MODEL_DATASET_SHA256", "d" * 64),
+        ("MODEL_FEATURE_SCHEMA_VERSION", "2.0"),
+    ],
+)
+def test_skops_deployment_configuration_mismatch_fails_closed(
+    monkeypatch, tmp_path, name, value
+):
+    _skops_package(monkeypatch, tmp_path)
+    monkeypatch.setenv(name, value)
+    monkeypatch.setattr(
+        "skops.io.load", lambda *args, **kwargs: pytest.fail("must fail before deserialization")
+    )
+    assert predict_with_local_model(_request()) is None
 
 
 def test_production_model_requires_matching_digest(monkeypatch, tmp_path):

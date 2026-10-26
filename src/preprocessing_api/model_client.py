@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import logging
 import os
+import re
+from numbers import Integral
 from pathlib import Path
 from typing import Any
 
-from preprocessing_api.features import feature_vector
+from preprocessing_api.features import FEATURE_NAMES, feature_vector
 from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest
 from preprocessing_api.security import is_production
 
 LOGGER = logging.getLogger(__name__)
 
+# Phase I models use encoded integers; Phase II models emit canonical string labels.
 _CLASS_MAP = {
     0: CognitiveLoadLevel.LOW,
     1: CognitiveLoadLevel.MEDIUM,
@@ -27,11 +31,11 @@ _CLASS_MAP = {
     "HIGH": CognitiveLoadLevel.HIGH,
 }
 
-# Mirrors LABEL_MAP in scripts/train_model.py, which encodes classes as 0/1/2 in that order.
-_INVERSE_LABEL_MAP = {0: CognitiveLoadLevel.LOW, 1: CognitiveLoadLevel.MEDIUM, 2: CognitiveLoadLevel.HIGH}
+_SKOPS_TRUSTED_TYPES = ["sklearn.tree._tree.Tree"]
 
 _local_model: Any = None
 _local_model_load_attempted = False
+_local_model_provenance: dict[str, Any] | None = None
 
 
 def kserve_payload(request: PredictionRequest) -> dict[str, list[list[float]]]:
@@ -57,15 +61,70 @@ def _extract_prediction(payload: dict[str, Any]) -> CognitiveLoadLevel | None:
 def reset_local_model_cache() -> None:
     """Clear the cached local model so the next call reloads from disk. Test hook."""
 
-    global _local_model, _local_model_load_attempted
+    global _local_model, _local_model_load_attempted, _local_model_provenance
     _local_model = None
     _local_model_load_attempted = False
+    _local_model_provenance = None
+
+
+def _validated_class(value: Any) -> CognitiveLoadLevel:
+    if isinstance(value, bool) or not isinstance(value, (Integral, str)):
+        raise ValueError("model returned an unsupported prediction class")
+    result = _CLASS_MAP.get(int(value) if isinstance(value, Integral) else value)
+    if result is None:
+        raise ValueError("model returned an unknown prediction class")
+    return result
+
+
+def _validated_package_manifest(model_path: Path, actual_digest: str) -> dict[str, Any]:
+    manifest_path = Path(os.getenv("MODEL_PACKAGE_PATH", model_path.with_name("model-package.json")))
+    manifest = json.loads(manifest_path.read_text())
+    required = {
+        "contract_version", "model_name", "model_version", "registered_artifact_sha256",
+        "packaged_model_sha256", "dataset_sha256", "feature_schema_version", "feature_names",
+        "label_provenance", "run_id", "registered_source", "git_revision", "approved_by",
+        "approved_at",
+    }
+    if not required <= manifest.keys():
+        raise ValueError("model package manifest is incomplete")
+    expected = {
+        "model_name": os.getenv("MODEL_NAME", ""),
+        "model_version": os.getenv("MODEL_VERSION", ""),
+        "registered_artifact_sha256": os.getenv("MODEL_ARTIFACT_SHA256", ""),
+        "dataset_sha256": os.getenv("MODEL_DATASET_SHA256", ""),
+        "feature_schema_version": os.getenv("MODEL_FEATURE_SCHEMA_VERSION", ""),
+        "packaged_model_sha256": os.getenv("MODEL_SHA256", ""),
+    }
+    if any(not value or str(manifest[name]) != value for name, value in expected.items()):
+        raise ValueError("model package manifest does not match deployment configuration")
+    if (
+        manifest["contract_version"] != "1.0"
+        or manifest["feature_schema_version"] != "1.0"
+        or manifest["feature_names"] != list(FEATURE_NAMES)
+        or manifest["label_provenance"] != "synthetic_proxy"
+        or not re.fullmatch(r"[a-f0-9]{64}", manifest["registered_artifact_sha256"])
+        or not re.fullmatch(r"[a-f0-9]{64}", manifest["dataset_sha256"])
+        or not re.fullmatch(r"[a-f0-9]{40}", manifest["git_revision"])
+        or not manifest["approved_by"]
+        or not manifest["approved_at"]
+    ):
+        raise ValueError("model package manifest contract is invalid")
+    if not hmac.compare_digest(manifest["packaged_model_sha256"], actual_digest):
+        raise ValueError("packaged model digest does not match manifest")
+    return manifest
+
+
+def verified_local_model_provenance() -> dict[str, Any] | None:
+    """Return provenance only after the packaged model passes every loading check."""
+
+    _load_local_model()
+    return _local_model_provenance
 
 
 def _load_local_model() -> Any:
     """Lazily load the joblib model trained by scripts/train_model.py, if present."""
 
-    global _local_model, _local_model_load_attempted
+    global _local_model, _local_model_load_attempted, _local_model_provenance
     if _local_model_load_attempted:
         return _local_model
 
@@ -76,30 +135,37 @@ def _load_local_model() -> Any:
 
     expected_digest = os.getenv("MODEL_SHA256", "").strip().lower()
     if is_production() and not expected_digest:
-        LOGGER.error("MODEL_SHA256 is required before production joblib loading")
+        LOGGER.error("MODEL_SHA256 is required before production local-model loading")
         return None
-    if expected_digest:
+    try:
         actual_digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
-        if not hmac.compare_digest(actual_digest, expected_digest):
+        if expected_digest and not hmac.compare_digest(actual_digest, expected_digest):
             LOGGER.error("Local model digest verification failed")
             return None
+        if model_path.suffix == ".skops":
+            import skops.io
 
-    try:
-        import joblib
+            _local_model_provenance = _validated_package_manifest(model_path, actual_digest)
+            _local_model = skops.io.load(model_path, trusted=_SKOPS_TRUSTED_TYPES)
+        elif model_path.suffix in {".joblib", ".pkl"}:
+            import joblib
 
-        _local_model = joblib.load(model_path)
+            _local_model = joblib.load(model_path)
+        else:
+            raise ValueError("unsupported local model format")
     except Exception:  # pragma: no cover - corrupt/incompatible artifact
         LOGGER.warning("Trusted local model could not be loaded")
         _local_model = None
+        _local_model_provenance = None
 
     return _local_model
 
 
 def predict_with_local_model(request: PredictionRequest) -> CognitiveLoadLevel | None:
-    """Run inference with the locally packaged joblib model, if one is available.
+    """Run inference with a digest-verified local model, if one is available.
 
-    Returns None when no model file is present or inference fails, allowing the
-    caller to fall through to the deterministic rule-based fallback.
+    Returns None when loading, provenance verification, or inference fails. The
+    local_model API mode treats None as unavailable and never falls back.
     """
 
     model = _load_local_model()
@@ -108,7 +174,7 @@ def predict_with_local_model(request: PredictionRequest) -> CognitiveLoadLevel |
 
     try:
         prediction = model.predict([feature_vector(request.model_dump())])[0]
-        return _INVERSE_LABEL_MAP.get(int(prediction))
+        return _validated_class(prediction)
     except Exception:
         LOGGER.warning("Local model prediction failed; backend unavailable")
         return None

@@ -58,9 +58,15 @@ config:
   kserveTimeoutSeconds: "3"
   inferenceMode: demo_rule
   modelVersion: ""
+  modelName: ""
+  modelPath: ""
+  modelSha256: ""
+  modelArtifactSha256: ""
+  modelDatasetSha256: ""
+  modelFeatureSchemaVersion: ""
 
-# Pre-create this Secret with COGNIFLOW_API_KEY and, for local_model mode,
-# MODEL_SHA256. Secret values never belong in Helm values or ConfigMaps.
+# Pre-create this Secret with COGNIFLOW_API_KEY. Digests are public integrity
+# metadata; credentials never belong in Helm values or ConfigMaps.
 existingSecret: ""
 
 kserve:

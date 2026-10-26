@@ -13,6 +13,26 @@ data:
   KSERVE_TIMEOUT_SECONDS: {{ .Values.config.kserveTimeoutSeconds | quote }}
   INFERENCE_MODE: {{ .Values.config.inferenceMode | quote }}
   MODEL_VERSION: {{ .Values.config.modelVersion | quote }}
+  {{- if eq .Values.config.inferenceMode "local_model" }}
+  {{- if not (regexMatch "^[1-9][0-9]*$" (.Values.config.modelVersion | toString)) }}
+  {{- fail "config.modelVersion must be a positive numeric version in local_model mode" }}
+  {{- end }}
+  {{- if not (regexMatch "^[a-f0-9]{64}$" .Values.config.modelSha256) }}
+  {{- fail "config.modelSha256 must be a SHA-256 in local_model mode" }}
+  {{- end }}
+  {{- if not (regexMatch "^[a-f0-9]{64}$" .Values.config.modelArtifactSha256) }}
+  {{- fail "config.modelArtifactSha256 must be a SHA-256 in local_model mode" }}
+  {{- end }}
+  {{- if not (regexMatch "^[a-f0-9]{64}$" .Values.config.modelDatasetSha256) }}
+  {{- fail "config.modelDatasetSha256 must be a SHA-256 in local_model mode" }}
+  {{- end }}
+  MODEL_NAME: {{ required "config.modelName is required in local_model mode" .Values.config.modelName | quote }}
+  MODEL_PATH: {{ required "config.modelPath is required in local_model mode" .Values.config.modelPath | quote }}
+  MODEL_SHA256: {{ required "config.modelSha256 is required in local_model mode" .Values.config.modelSha256 | quote }}
+  MODEL_ARTIFACT_SHA256: {{ required "config.modelArtifactSha256 is required in local_model mode" .Values.config.modelArtifactSha256 | quote }}
+  MODEL_DATASET_SHA256: {{ required "config.modelDatasetSha256 is required in local_model mode" .Values.config.modelDatasetSha256 | quote }}
+  MODEL_FEATURE_SCHEMA_VERSION: {{ required "config.modelFeatureSchemaVersion is required in local_model mode" .Values.config.modelFeatureSchemaVersion | quote }}
+  {{- end }}
   {{- if .Values.kserve.enabled }}
   KSERVE_PREDICT_URL: "http://{{ .Values.kserve.name }}-predictor-default.{{ .Release.Namespace }}.svc.cluster.local/v1/models/{{ .Values.kserve.name }}:predict"
   {{- end }}

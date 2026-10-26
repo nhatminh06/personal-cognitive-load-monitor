@@ -9,7 +9,11 @@ from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from cogniflow_data.api import router as event_router
-from preprocessing_api.model_client import predict_with_kserve, predict_with_local_model
+from preprocessing_api.model_client import (
+    predict_with_kserve,
+    predict_with_local_model,
+    verified_local_model_provenance,
+)
 from preprocessing_api.observability import (
     CONTENT_TYPE_LATEST,
     MetricsMiddleware,
@@ -77,11 +81,29 @@ def inference_mode() -> str:
 @app.get("/model-info", dependencies=[Depends(require_api_key)])
 async def model_info():
     mode = inference_mode()
-    return {
+    result = {
         "inference_mode": mode,
         "model_version": os.getenv("MODEL_VERSION") if mode != "demo_rule" else None,
         "label_provenance": "synthetic_proxy",
     }
+    if mode == "local_model":
+        provenance = verified_local_model_provenance()
+        if provenance is None:
+            raise HTTPException(status_code=503, detail="Verified model provenance is unavailable")
+        result = {
+            "inference_mode": mode,
+            "model_version": provenance["model_version"],
+            "label_provenance": provenance["label_provenance"],
+            "model_name": provenance["model_name"],
+            "dataset_sha256": provenance["dataset_sha256"],
+            "feature_schema_version": provenance["feature_schema_version"],
+            "feature_names": provenance["feature_names"],
+            "registered_artifact_sha256": provenance["registered_artifact_sha256"],
+            "packaged_model_sha256": provenance["packaged_model_sha256"],
+            "run_id": provenance["run_id"],
+            "git_revision": provenance["git_revision"],
+        }
+    return result
 
 
 @app.get("/metrics")

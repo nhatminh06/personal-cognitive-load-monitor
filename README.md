@@ -29,6 +29,7 @@ It is designed to demonstrate how independently developed data and machine learn
 | Security hardening, PR #6 | Merged |
 | Module III Phase 1: Historical feature contracts | Implemented and locally validated |
 | Module III Phase 2: Reproducible training and registry | Implemented and locally validated |
+| Module III Phase 3: Secure local model serving | Deployment machinery implemented; live rollout awaits an approved model |
 | Later Module III serving/orchestration | Planned |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
@@ -38,7 +39,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ### Verification highlights
 
-- **119 Python tests passed**, with **88.95% combined coverage** against an 81% enforcement threshold.
+- **152 Python tests passed**, with **89.41% combined coverage** against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -52,6 +53,8 @@ See [Module II test evidence](docs/module2/testing.md) and [security verificatio
 Module III Phase 1 adds a version-pinned, point-in-time historical feature contract over Delta Silver without deploying new ML infrastructure. See the [historical features guide](docs/module3/phase1-historical-features.md).
 
 Phase 2 adds chronological synthetic-proxy model comparison, lineage manifests, explicit MLflow candidate registration, and a separate approval boundary. See the [Phase 2 training guide](docs/module3/phase2-ml-training.md).
+
+Phase 3 adds approval-bound MLflow artifact packaging, verified local `skops` loading, and an isolated kind/Helm serving path. The current candidate remains undeployed. See the [Phase 3 serving guide](docs/module3/phase3-model-serving.md).
 
 ---
 
@@ -637,8 +640,8 @@ The most recent local release validation reported:
 
 | Verification | Result |
 |---|---|
-| Python regression suite | 119 passed |
-| Combined test coverage | 88.95% |
+| Python regression suite | 152 passed |
+| Combined test coverage | 89.41% |
 | Ruff / MyPy | Passed |
 | DVC pipeline | Up to date |
 | Four Jupyter notebooks | Executed in prior validated runs |

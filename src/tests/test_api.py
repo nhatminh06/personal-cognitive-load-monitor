@@ -220,6 +220,46 @@ def test_model_info_demo_provenance(client: TestClient):
     }
 
 
+def test_model_info_exposes_local_model_lineage(client: TestClient, monkeypatch):
+    monkeypatch.setenv("INFERENCE_MODE", "local_model")
+    provenance = {
+        "model_version": "7",
+        "model_name": "cognitive-load-classifier-phase2",
+        "dataset_sha256": "1" * 64,
+        "feature_schema_version": "1.0",
+        "feature_names": ["focus_minutes", "distraction_minutes", "tasks_due", "hours_to_deadline", "focus_ratio", "distraction_ratio"],
+        "registered_artifact_sha256": "2" * 64,
+        "packaged_model_sha256": "3" * 64,
+        "label_provenance": "synthetic_proxy",
+        "run_id": "run-1",
+        "git_revision": "4" * 40,
+    }
+    monkeypatch.setattr("preprocessing_api.main.verified_local_model_provenance", lambda: provenance)
+    response = client.get("/model-info")
+    assert response.status_code == 200
+    assert response.json() == {
+        "inference_mode": "local_model",
+        "model_version": "7",
+        "label_provenance": "synthetic_proxy",
+        "model_name": "cognitive-load-classifier-phase2",
+        "dataset_sha256": "1" * 64,
+        "feature_schema_version": "1.0",
+        "feature_names": provenance["feature_names"],
+        "registered_artifact_sha256": "2" * 64,
+        "packaged_model_sha256": "3" * 64,
+        "run_id": "run-1",
+        "git_revision": "4" * 40,
+    }
+
+
+def test_model_info_fails_closed_without_verified_provenance(client: TestClient, monkeypatch):
+    monkeypatch.setenv("INFERENCE_MODE", "local_model")
+    monkeypatch.setattr("preprocessing_api.main.verified_local_model_provenance", lambda: None)
+    response = client.get("/model-info")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Verified model provenance is unavailable"}
+
+
 def test_invalid_inference_mode_fails_closed(client: TestClient, monkeypatch):
     monkeypatch.setenv("INFERENCE_MODE", "surprise")
     response = client.post("/predict", json={
@@ -239,6 +279,21 @@ def test_kserve_failure_does_not_fallback(client: TestClient, monkeypatch):
     })
     assert response.status_code == 503
     assert response.json() == {"detail": "Model server is unavailable"}
+
+
+def test_local_model_failure_does_not_fallback(client: TestClient, monkeypatch):
+    monkeypatch.setenv("INFERENCE_MODE", "local_model")
+    monkeypatch.setattr("preprocessing_api.main.predict_with_local_model", lambda request: None)
+    request = {
+        "focus_minutes": 1,
+        "distraction_minutes": 1,
+        "tasks_due": 1,
+        "hours_to_deadline": 1,
+    }
+    assert client.get("/ready").status_code == 503
+    response = client.post("/predict", json=request)
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Configured local model is unavailable"}
 
 
 def test_metrics_endpoint(client: TestClient):
