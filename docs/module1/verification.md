@@ -1,5 +1,26 @@
 # Module I local verification
 
+The current source-readiness review adds a separate Knative-mode KServe overlay,
+explicit KPA scale-to-zero settings, bounded HPA behavior, a protected manual
+Module I deployment workflow and a fail-closed evidence validator. These are
+offline/static results until the authorization gates in `final-acceptance.md`
+are satisfied. Historical evidence below retains its original date and scope.
+
+On 2026-10-27, **341 Python tests passed in 45.26 seconds with 88.89%
+coverage**. Ruff, scoped MyPy, Helm lint, Standard and Knative GKE renders,
+workflow YAML parsing and Terraform formatting passed. The 41 focused Module I
+tests cover deployment-mode selection, KPA scale-to-zero values, HPA target and
+bounds, gateway authentication/ClusterIP isolation, CI dependencies, protected
+manual deployment, immutable images, model identity/digests, context guards,
+evidence completeness and exclusive report creation.
+
+Read-only DVC status completed and reported the pre-existing modified
+`data/processed/module3/training_manifest.json` dependency; it was not changed
+or reproduced. Terraform validation was attempted but the installed Google
+provider could not complete its local plugin handshake. Actionlint, Gitleaks
+and Trivy were unavailable locally. No containers, Kubernetes resources,
+Terraform state, model metadata, images or cloud resources were touched.
+
 Verified on 2026-10-23 on branch `feature/cogniflow-module1-foundation`. No cloud resources or remote deployments were used.
 
 ## Verified

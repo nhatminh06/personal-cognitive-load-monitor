@@ -8,4 +8,26 @@ MLFLOW_TRACKING_URI=http://127.0.0.1:5000 uv run dvc repro
 uv run dvc repro  # expected: every stage unchanged
 ```
 
-The repository DVC remote is local (`.dvc-storage`) and suitable for reproducible offline demonstrations. Do not commit `mlflow.db`, `mlartifacts`, `.dvc-storage`, or model binaries. Deployment must select an exact `models:/cognitive-load-classifier/<version>` URI; aliases and arbitrary pickle discovery are not accepted.
+The repository DVC remote is local (`.dvc-storage`) and suitable for reproducible offline demonstrations. Do not commit `mlflow.db`, `mlartifacts`, `.dvc-storage`, or model binaries. Deployment must select an exact `models:/cognitive-load-classifier/<version>` URI; aliases, stages such as `latest`, and arbitrary pickle discovery are not accepted.
+
+The immutable production chain is:
+
+```text
+DVC dataset digest -> training run -> MLflow registered numeric version
+-> independent approval metadata -> artifact-tree SHA-256 verification
+-> .skops-only package -> OCI repository digest -> deployment -> prediction provenance
+```
+
+`scripts/package_approved_model.py` checks the exact registry identity,
+`approval_status=approved`, approver/time, registered and downloaded tree
+digests, `.skops` format, dataset/git/schema provenance and canonical six
+features without deserializing the model. The serving processes then recheck
+the package manifest and model digest before loading. Missing, corrupt,
+unapproved or mismatched material fails closed; production never selects
+`demo_rule` implicitly.
+
+The existing candidate remains unchanged and unapproved. GCS is artifact
+storage; PostgreSQL is the required durable MLflow registry metadata store.
+Before cloud acceptance, choose the managed PostgreSQL instance, private
+connectivity, encryption, backup schedule, point-in-time recovery test and
+restore RTO/RPO. A GCS bucket does not replace registry metadata backups.

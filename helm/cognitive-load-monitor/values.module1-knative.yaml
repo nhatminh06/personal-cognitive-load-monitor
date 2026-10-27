@@ -1,0 +1,15 @@
+# Explicit Module I override. Apply after values.gke.yaml only on a cluster with
+# the pinned KServe/Knative Serving/networking/cert-manager stack documented in
+# docs/module1/final-acceptance.md.
+kserve:
+  deploymentMode: Knative
+  knativeAutoscaling:
+    minScale: 0
+    maxScale: 3
+    targetConcurrency: 1
+    scaleDownDelay: 0s
+    scaleToZeroPodRetentionPeriod: 0s
+
+config:
+  inferenceActivityEnabled: "false"
+  inferenceActivityDestination: ""

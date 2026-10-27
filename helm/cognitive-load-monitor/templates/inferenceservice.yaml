@@ -1,4 +1,10 @@
 {{- if .Values.kserve.enabled }}
+{{- if not (has .Values.kserve.deploymentMode (list "Standard" "Knative")) }}
+{{- fail "kserve.deploymentMode must be Standard or Knative" }}
+{{- end }}
+{{- if and (eq .Values.kserve.deploymentMode "Knative") (or (ne (int .Values.kserve.knativeAutoscaling.minScale) 0) (lt (int .Values.kserve.knativeAutoscaling.maxScale) 1) (lt (int .Values.kserve.knativeAutoscaling.targetConcurrency) 1)) }}
+{{- fail "Knative mode requires minScale=0, maxScale >= 1 and targetConcurrency >= 1" }}
+{{- end }}
 {{- if or (gt (len .Values.kserve.name) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Values.kserve.name)) }}
 {{- fail "kserve.name must be a lowercase DNS label of at most 63 characters" }}
 {{- end }}
@@ -6,6 +12,17 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: {{ .Values.kserve.name }}
+  annotations:
+    serving.kserve.io/deploymentMode: {{ .Values.kserve.deploymentMode | quote }}
+    {{- if eq .Values.kserve.deploymentMode "Knative" }}
+    autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
+    autoscaling.knative.dev/metric: concurrency
+    autoscaling.knative.dev/min-scale: {{ .Values.kserve.knativeAutoscaling.minScale | quote }}
+    autoscaling.knative.dev/max-scale: {{ .Values.kserve.knativeAutoscaling.maxScale | quote }}
+    autoscaling.knative.dev/target: {{ .Values.kserve.knativeAutoscaling.targetConcurrency | quote }}
+    autoscaling.knative.dev/scale-down-delay: {{ .Values.kserve.knativeAutoscaling.scaleDownDelay | quote }}
+    autoscaling.knative.dev/scale-to-zero-pod-retention-period: {{ .Values.kserve.knativeAutoscaling.scaleToZeroPodRetentionPeriod | quote }}
+    {{- end }}
   labels:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
 spec:

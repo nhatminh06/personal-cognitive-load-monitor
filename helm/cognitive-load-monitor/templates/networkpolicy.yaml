@@ -76,8 +76,16 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "cognitive-load-monitor.selectorLabels" . | nindent 14 }}
+        {{- if eq .Values.kserve.deploymentMode "Knative" }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.knativeServingNamespace }}
+        {{- end }}
       ports:
         - {protocol: TCP, port: 8080}
+        {{- if eq .Values.kserve.deploymentMode "Knative" }}
+        - {protocol: TCP, port: 8012}
+        {{- end }}
   egress:
     - to:
         - ipBlock:

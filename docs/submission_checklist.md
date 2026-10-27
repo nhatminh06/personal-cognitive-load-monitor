@@ -1,6 +1,6 @@
 # Course submission checklist
 
-**Evidence audit updated 2026-10-26.** Checked items are supported by dated local or CI evidence. A source file or rendered manifest alone does not prove runtime behavior. The authoritative weights are in [`course-rubric-2026.md`](course-rubric-2026.md).
+**Evidence audit updated 2026-10-27.** Checked items are supported by dated local or CI evidence. A source file or rendered manifest alone does not prove runtime behavior. The authoritative weights are in [`course-rubric-2026.md`](course-rubric-2026.md).
 
 ## Weighted technical implementation — 60%
 
@@ -37,18 +37,23 @@ The unselected GCE-only 20% alternative is not additive. Private-node GKE, priva
 - [x] SEC-022 constrained to accepted-risk local development through 2027-01-23.
 - [ ] Image signature and attestation enforcement for cloud deployment.
 - [ ] Runtime HPA and KServe scale-to-zero evidence; these are additional engineering targets, not separate supplied rubric points.
+- [x] Separate Standard/Knative Helm modes, fail-closed Knative scale-to-zero render and bounded HPA policy are source-tested.
+- [x] Protected manual Module I deployment contract uses OIDC and immutable release/model inputs.
+- [ ] Resolve the supported KServe 0.20 / Knative Serving / GKE compatibility matrix before installation.
+- [ ] Run the authorized Module I acceptance report and observe KServe 1→0→1 plus API HPA 2→N→2.
 - [ ] Optional bounded 100 GB benchmark; not required for the weighted rubric and not yet run.
 
 ## Release gates before the final submission
 
-- [ ] PR #13 Kubeflow acceptance tests and evidence pass.
+- [x] PR #13 isolated Kubeflow acceptance tests and evidence pass.
 - [ ] Exact synthetic-demo model version and registered artifact digest receive explicit owner approval.
-- [ ] PR #14 KServe acceptance tests and fail-closed cases pass.
-- [ ] PR #15 Knative logging delivery/retry/dedup/DLQ tests pass.
-- [ ] PR #16 normal/anomaly fixtures and detection-latency SLO pass.
+- [x] PR #14 KServe source, local controller and fail-closed tests pass; approved-model runtime remains pending.
+- [x] PR #15 isolated Knative logging delivery/retry/dedup/DLQ tests pass.
+- [x] PR #16 local normal/anomaly fixtures and recovery tests pass; hardened cloud rerun remains pending.
 - [ ] Owner approves a dated GCP calculator estimate, budget alerts and Terraform plan.
-- [ ] PR #17 GKE/GCS end-to-end, security, cost and teardown evidence pass.
-- [ ] PR #18 clean-run documentation and [`demo/full-rubric-demo.md`](demo/full-rubric-demo.md) recording checklist pass.
+- [x] PR #17 offline GKE/GCS source-readiness checks pass; cloud execution remains pending.
+- [x] PR #18 clean-run documentation and benchmark safety checks pass; the 100 GB run remains disabled.
+- [ ] Module I protected cloud deployment, HPA, Knative scale-to-zero, gateway and hosted observability acceptance pass.
 - [ ] No credentials, raw sensitive inputs, mutable image tags or unapproved model artifacts appear in Git/evidence/video.
 
 ## Current local quick checks

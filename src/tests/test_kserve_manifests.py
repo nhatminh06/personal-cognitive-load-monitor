@@ -8,6 +8,7 @@ import yaml
 
 
 ROOT = Path(__file__).parents[2]
+CHART = ROOT / "helm/cognitive-load-monitor"
 VALID_VALUES = [
     "--set", "image.digest=sha256:" + "1" * 64,
     "--set", "kserve.image.digest=sha256:" + "2" * 64,
@@ -50,12 +51,61 @@ def test_helm_kserve_render_is_custom_digest_pinned_and_internal():
     ).stdout
 
     assert "kind: InferenceService" in rendered
+    assert 'serving.kserve.io/deploymentMode: "Standard"' in rendered
     assert "sklearn:" not in rendered
     assert "autoscaling.knative.dev" not in rendered
     assert "cognitive-load-kserve@sha256:" in rendered
     assert "KSERVE_ALLOWED_ORIGIN" in rendered
     assert "type: NodePort" not in rendered
     assert "kind: Ingress" not in rendered
+
+
+def test_module1_knative_mode_renders_explicit_scale_to_zero_contract():
+    rendered = subprocess.run(
+        [
+            "helm", "template", "module1", str(CHART), "--namespace", "cogniflow",
+            "-f", str(CHART / "values.gke.yaml"),
+            "-f", str(CHART / "values.module1-knative.yaml"),
+            "--set-string", "config.modelName=cognitive-load-classifier",
+            "--set-string", "config.modelVersion=1",
+            *VALID_VALUES,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    assert 'serving.kserve.io/deploymentMode: "Knative"' in rendered
+    assert "autoscaling.knative.dev/class: kpa.autoscaling.knative.dev" in rendered
+    assert 'autoscaling.knative.dev/min-scale: "0"' in rendered
+    assert 'autoscaling.knative.dev/max-scale: "3"' in rendered
+    assert 'autoscaling.knative.dev/target: "1"' in rendered
+
+
+@pytest.mark.parametrize(
+    "override",
+    (
+        "kserve.deploymentMode=Serverless",
+        "kserve.knativeAutoscaling.minScale=1",
+        "kserve.knativeAutoscaling.maxScale=0",
+        "kserve.knativeAutoscaling.targetConcurrency=0",
+    ),
+)
+def test_module1_knative_mode_rejects_invalid_autoscaling(override):
+    result = subprocess.run(
+        [
+            "helm", "template", "module1", str(CHART), "--namespace", "cogniflow",
+            "-f", str(CHART / "values.gke.yaml"),
+            "-f", str(CHART / "values.module1-knative.yaml"),
+            "--set-string", "config.modelName=cognitive-load-classifier",
+            "--set-string", "config.modelVersion=1",
+            *VALID_VALUES,
+            "--set-string", override,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
 
 
 def test_helm_rejects_all_documentation_sentinels():

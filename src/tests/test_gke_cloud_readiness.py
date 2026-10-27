@@ -63,6 +63,7 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert 'attribute.environment/production"' in terraform
     assert 'attribute.environment/production-release"' in terraform
     assert 'attribute.environment/production-knative"' in terraform
+    assert 'attribute.environment/module1-production"' in terraform
     assert "github_actions_release.email" in terraform
 
 
@@ -79,13 +80,45 @@ def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_networ
     images.append(inference["spec"]["predictor"]["containers"][0]["image"])
 
     assert all("@sha256:" in image for image in images)
+    assert inference["metadata"]["annotations"]["serving.kserve.io/deploymentMode"] == "Standard"
     assert inference["spec"]["predictor"]["serviceAccountName"] == "cogniflow-kserve"
     ingress = next(document for document in documents if document["kind"] == "Ingress")
     assert ingress["spec"]["tls"][0]["secretName"] == "cogniflow-api-tls"
+    assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-type"] == "basic"
+    service = next(document for document in documents if document["kind"] == "Service")
+    assert service["spec"]["type"] == "ClusterIP"
     policy = next(document for document in documents if document["kind"] == "NetworkPolicy")
     policy_text = yaml.safe_dump(policy)
     assert "169.254.169.254/32" in policy_text
     assert "0.0.0.0/0" not in result.stdout
+
+
+def test_hpa_targets_api_with_bounded_explicit_behavior() -> None:
+    result = _render()
+    assert result.returncode == 0, result.stderr
+    documents = [document for document in yaml.safe_load_all(result.stdout) if document]
+    hpa = next(document for document in documents if document["kind"] == "HorizontalPodAutoscaler")
+    deployment = next(document for document in documents if document["kind"] == "Deployment")
+
+    assert hpa["spec"]["scaleTargetRef"] == {
+        "apiVersion": "apps/v1", "kind": "Deployment", "name": deployment["metadata"]["name"],
+    }
+    assert hpa["spec"]["minReplicas"] == 2
+    assert hpa["spec"]["maxReplicas"] == 5
+    assert hpa["spec"]["behavior"]["scaleUp"]["policies"][0]["value"] == 100
+    assert hpa["spec"]["behavior"]["scaleDown"]["stabilizationWindowSeconds"] == 300
+    assert deployment["spec"]["template"]["spec"]["containers"][0]["resources"]["requests"]["cpu"] == "100m"
+
+
+def test_hpa_rejects_invalid_production_bounds() -> None:
+    for override in (
+        ("--set", "autoscaling.minReplicas=0"),
+        ("--set", "autoscaling.minReplicas=6"),
+        ("--set", "autoscaling.targetCPUUtilizationPercentage=101"),
+    ):
+        result = _render(*override)
+        assert result.returncode != 0
+        assert "autoscaling" in result.stderr
 
 
 def test_gke_helm_fails_closed_on_placeholder_digest_and_missing_tls() -> None:
@@ -183,6 +216,21 @@ def test_deploy_uses_predictable_runner_and_verifies_exact_release() -> None:
     assert "Trivy 0.76.1 is required" in verifier
 
 
+def test_ci_test_build_and_manual_deploy_boundaries_are_explicit() -> None:
+    workflow = (ROOT / ".github/workflows/ci-cd.yaml").read_text()
+
+    assert "pull_request:" in workflow
+    assert "uv run ruff check src scripts" in workflow
+    assert "--cov-fail-under=81" in workflow
+    assert "build:\n    name: Build and push Docker image\n    needs: test" in workflow
+    assert "github.ref == 'refs/heads/main' && github.event_name == 'push'" in workflow
+    assert 'models:/cognitive-load-classifier/${MODEL_VERSION}' in workflow
+    assert "deploy:\n    name: Manual deploy to Kubernetes with Helm\n    needs: test" in workflow
+    assert "github.event_name == 'workflow_dispatch'" in workflow
+    assert "name: production" in workflow
+    assert "id-token: write" in workflow
+
+
 def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     workflow = (ROOT / ".github/workflows/release.yaml").read_text()
 
@@ -213,6 +261,23 @@ def test_knative_deploy_is_separately_gated_and_verifies_all_release_images() ->
         assert f'"${image}"' in workflow
     assert "docker build" not in workflow
     assert "cosign sign" not in workflow
+
+
+def test_module1_deploy_is_manual_protected_oidc_and_knative_only() -> None:
+    workflow = (ROOT / ".github/workflows/deploy-module1.yaml").read_text()
+
+    assert "workflow_dispatch:" in workflow
+    assert "github.ref == 'refs/heads/main'" in workflow
+    assert "name: module1-production" in workflow
+    assert "id-token: write" in workflow
+    assert "google-github-actions/auth@" in workflow
+    assert "GCP_WORKLOAD_IDENTITY_PROVIDER" in workflow
+    assert "values.module1-knative.yaml" in workflow
+    assert "scripts/verify_cloud_release.sh" in workflow
+    assert "--atomic --timeout 10m" in workflow
+    assert "docker build" not in workflow
+    assert "package_approved_model.py" not in workflow
+    assert "approve_model_candidate.py" not in workflow
 
 
 def test_production_knative_render_replaces_all_development_images() -> None:
