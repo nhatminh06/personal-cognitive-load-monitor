@@ -10,6 +10,8 @@ locals {
     "cloudresourcemanager.googleapis.com",
     "storage.googleapis.com", # Model bucket
     "compute.googleapis.com", # GKE networking dependency
+    "secretmanager.googleapis.com",
+    "billingbudgets.googleapis.com",
   ]
 }
 

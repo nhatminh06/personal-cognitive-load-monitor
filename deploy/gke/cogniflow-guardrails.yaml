@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cogniflow
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: cogniflow-quota, namespace: cogniflow}
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "6"
+    limits.memory: 12Gi
+    pods: "12"
+    persistentvolumeclaims: "2"
+---
+apiVersion: v1
+kind: LimitRange
+metadata: {name: cogniflow-defaults, namespace: cogniflow}
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 50m, memory: 128Mi}
+      default: {cpu: 500m, memory: 512Mi}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: cogniflow}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# Replace SET_PROJECT before the reviewed apply. GKE authenticates the Google
+# service account as this Kubernetes user; namespace admin avoids cluster-admin.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: github-actions-deployer, namespace: cogniflow}
+subjects:
+  - kind: User
+    name: github-actions-deployer@SET_PROJECT.iam.gserviceaccount.com
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io

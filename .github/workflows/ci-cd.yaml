@@ -10,7 +10,7 @@ on:
       namespace:
         description: "Kubernetes namespace"
         required: false
-        default: cognitive-load
+        default: cogniflow
         type: string
 
 permissions:
@@ -64,7 +64,7 @@ jobs:
     name: Build and push Docker image
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       packages: write # Publishes the verified image to this repository's GHCR namespace.
@@ -153,8 +153,8 @@ jobs:
 
   deploy:
     name: Manual deploy to Kubernetes with Helm
-    needs: build
-    runs-on: ubuntu-latest
+    needs: test
+    runs-on: [self-hosted, linux, x64, cogniflow-gke-deploy]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -186,18 +186,54 @@ jobs:
       - name: Deploy chart
         env:
           DEPLOY_NAMESPACE: ${{ inputs.namespace }}
-          IMAGE_DIGEST: ${{ needs.build.outputs.image_digest }}
-          KSERVE_STORAGE_URI: ${{ secrets.KSERVE_STORAGE_URI }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          API_IMAGE_REPOSITORY: ${{ secrets.API_IMAGE_REPOSITORY }}
+          API_IMAGE_DIGEST: ${{ secrets.API_IMAGE_DIGEST }}
+          KSERVE_IMAGE_REPOSITORY: ${{ secrets.KSERVE_IMAGE_REPOSITORY }}
+          KSERVE_IMAGE_DIGEST: ${{ secrets.KSERVE_IMAGE_DIGEST }}
+          API_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.API_GOOGLE_SERVICE_ACCOUNT }}
+          KSERVE_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.KSERVE_GOOGLE_SERVICE_ACCOUNT }}
+          MODEL_NAME: ${{ secrets.APPROVED_MODEL_NAME }}
+          MODEL_VERSION: ${{ secrets.APPROVED_MODEL_VERSION }}
+          MODEL_SHA256: ${{ secrets.APPROVED_MODEL_SHA256 }}
+          MODEL_ARTIFACT_SHA256: ${{ secrets.APPROVED_MODEL_ARTIFACT_SHA256 }}
+          MODEL_DATASET_SHA256: ${{ secrets.APPROVED_MODEL_DATASET_SHA256 }}
+          COSIGN_CERTIFICATE_IDENTITY_REGEXP: ${{ secrets.COSIGN_CERTIFICATE_IDENTITY_REGEXP }}
           APP_HOST: ${{ secrets.APP_HOST }}
         run: |
           NAMESPACE="$DEPLOY_NAMESPACE"
           [[ "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || { echo "Invalid namespace" >&2; exit 1; }
-          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid image digest" >&2; exit 1; }
+          [[ "$NAMESPACE" == "cogniflow" ]] || { echo "Workload Identity is bound to the cogniflow namespace" >&2; exit 1; }
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
+          [[ "$API_IMAGE_REPOSITORY" == *-docker.pkg.dev/*/cogniflow-images/* ]] || { echo "Invalid API Artifact Registry repository" >&2; exit 1; }
+          [[ "$KSERVE_IMAGE_REPOSITORY" == *-docker.pkg.dev/*/cogniflow-images/* ]] || { echo "Invalid KServe Artifact Registry repository" >&2; exit 1; }
+          [[ "$API_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid API image digest" >&2; exit 1; }
+          [[ "$KSERVE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid KServe image digest" >&2; exit 1; }
+          [[ "$API_GOOGLE_SERVICE_ACCOUNT" == cogniflow-api@*.iam.gserviceaccount.com ]] || { echo "Invalid API service account" >&2; exit 1; }
+          [[ "$KSERVE_GOOGLE_SERVICE_ACCOUNT" == cogniflow-kserve@*.iam.gserviceaccount.com ]] || { echo "Invalid KServe service account" >&2; exit 1; }
+          [[ "$MODEL_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid approved model version" >&2; exit 1; }
+          for digest in "$MODEL_SHA256" "$MODEL_ARTIFACT_SHA256" "$MODEL_DATASET_SHA256"; do
+            [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid model lineage digest" >&2; exit 1; }
+          done
+          bash scripts/verify_cloud_release.sh \
+            "${API_IMAGE_REPOSITORY}@${API_IMAGE_DIGEST}" \
+            "${KSERVE_IMAGE_REPOSITORY}@${KSERVE_IMAGE_DIGEST}"
+          sed "s/SET_PROJECT/${GCP_PROJECT_ID}/g" deploy/gke/external-secret.yaml | kubectl apply -f -
           helm upgrade --install "$HELM_RELEASE" ./helm/cognitive-load-monitor \
             --namespace "$NAMESPACE" --create-namespace \
             --values ./helm/cognitive-load-monitor/values.gke.yaml \
-            --set "image.repository=${IMAGE_NAME}" \
-            --set "image.digest=${IMAGE_DIGEST}" \
-            --set-string "kserve.storageUri=${KSERVE_STORAGE_URI}" \
-            --set-string "ingress.hosts[0].host=${APP_HOST}"
+            --set-string "image.repository=${API_IMAGE_REPOSITORY}" \
+            --set-string "image.digest=${API_IMAGE_DIGEST}" \
+            --set-string "kserve.image.repository=${KSERVE_IMAGE_REPOSITORY}" \
+            --set-string "kserve.image.digest=${KSERVE_IMAGE_DIGEST}" \
+            --set-string "kserve.name=${MODEL_NAME}" \
+            --set-string "serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${API_GOOGLE_SERVICE_ACCOUNT}" \
+            --set-string "kserve.serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${KSERVE_GOOGLE_SERVICE_ACCOUNT}" \
+            --set-string "config.modelName=${MODEL_NAME}" \
+            --set-string "config.modelVersion=${MODEL_VERSION}" \
+            --set-string "config.modelSha256=${MODEL_SHA256}" \
+            --set-string "config.modelArtifactSha256=${MODEL_ARTIFACT_SHA256}" \
+            --set-string "config.modelDatasetSha256=${MODEL_DATASET_SHA256}" \
+            --set-string "ingress.hosts[0].host=${APP_HOST}" \
+            --set-string "ingress.tls[0].hosts[0]=${APP_HOST}"
           kubectl rollout status "deployment/$HELM_RELEASE" -n "$NAMESPACE" --timeout=180s

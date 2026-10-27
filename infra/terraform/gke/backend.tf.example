@@ -1,0 +1,9 @@
+# Copy to backend.tf only after a separately bootstrapped state bucket exists.
+# The bucket must enforce uniform access and public-access prevention, enable
+# versioning and retention, and grant state access only to Terraform operators.
+terraform {
+  backend "gcs" {
+    bucket = "REPLACE_WITH_DEDICATED_TERRAFORM_STATE_BUCKET"
+    prefix = "cogniflow/gke"
+  }
+}

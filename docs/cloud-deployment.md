@@ -1,162 +1,142 @@
-# Cloud Deployment Guide (GKE)
+# GKE/GCS deployment and final-demo runbook
 
-**Status: none of this has been executed against a real cluster in this
-repository's history.** This is a complete, ready-to-run guide, not a record
-of a completed deployment. `gcloud` is not installed and no GCP credentials
-are available in the environment these docs were written in — see
-`docs/requirement-matrix.md` items 12–18 for exactly which requirements this
-blocks and why.
+**Status:** planning and offline validation only, 2026-10-26. Nothing in this runbook has been applied to GCP. Read [the cloud-readiness design](module3/gke-gcs-readiness.md) first.
 
-## Decisions this guide assumes
+## 1. Owner approvals and release inputs
 
-- **Registry**: GHCR (already what CI publishes to — zero extra setup).
-  Terraform also provisions a GCP Artifact Registry repo that goes unused
-  under this choice; see `docs/architecture.md` for why that's left as a
-  documented inconsistency rather than silently deleted.
-- **KServe**: skipped for a first deployment. `INFERENCE_MODE=auto` (or
-  explicit `local_model`) already serves genuine model predictions without
-  it, so skipping KServe removes the heaviest, most failure-prone part of a
-  first GKE rollout (Knative/Istio/cert-manager/KServe CRDs). Install it
-  later by following the standard KServe quickstart and setting
-  `kserve.enabled=true` plus a real `kserve.storageUri`.
-- **Ingress host**: nip.io wildcard DNS from the ingress controller's
-  external IP — no owned domain required for a demo.
+Record approvals for project/billing account, `us-central1`, a maximum **$100** monthly budget alert (alerts do not cap spend), an eight-hour initial lifetime, remote state, IAM, DNS/TLS, image publication and the exact Terraform plan. Model approval is separate and is not granted here.
 
-## Steps
+Required immutable inputs:
 
-### 0. Prerequisites
+- exact GKE version available in both planned zones;
+- reviewed add-on manifest/chart digests from the compatibility matrix;
+- API, KServe, event consumer and anomaly images in Artifact Registry by registry digest;
+- candidate lineage and approved package digests, only if an authorized owner has separately approved a model;
+- operator/VPN `/32`, owned hostname, certificate issuer and Secret Manager/Kubernetes secret-sync procedure.
+- fixed `/32` egress for the dedicated self-hosted deployment runner; GitHub-hosted runners are forbidden because their changing source ranges do not fit master-authorized networks;
+- approved project-scoped budget alerts, PostgreSQL/backup digests and a passing two-node resource-budget check.
+
+Stop if GitHub `main` is not branch-protected, the deploy environment lacks required reviewers, the fixed runner cannot reach the authorized endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
+
+## 2. State and static preflight
+
+Do not inspect, move or reuse ignored local state. Its recorded `0644` permissions must be remediated by its owner. Bootstrap the dedicated state bucket separately, review its IAM/retention, then copy `infra/terraform/gke/backend.tf.example` to the deliberately untracked `backend.tf` and initialize with migration disabled until approved.
 
 ```bash
-brew install --cask google-cloud-sdk   # if gcloud is not already installed
-gcloud auth login
-gcloud auth application-default login
-gcloud config set project YOUR_PROJECT_ID
+terraform -chdir=infra/terraform/gke fmt -check -recursive
+terraform -chdir=infra/terraform/gke init -backend=false
+terraform -chdir=infra/terraform/gke validate
+helm lint helm/cognitive-load-monitor
+pytest --cov --cov-fail-under=81
+ruff check .
+mypy src/preprocessing_api src/cogniflow_data src/cogniflow_anomaly src/cogniflow_eventing
 ```
 
-Requires a GCP project with billing enabled and owner/editor IAM.
+Compile KFP, parse every Kubernetes YAML, run DVC status, Gitleaks and High/Critical configuration/image scans. These commands are validation, not authority to create cloud resources.
 
-### 1. Provision GKE with Terraform
+Run `pytest -q src/tests/test_gke_cloud_readiness.py::test_cloud_guardrails_and_two_node_budget_are_enforceable` as the two-node arithmetic gate. Then render all pinned controllers and replace every estimate in `deploy/gke/resource-budget.yaml` with the summed requests. Offline arithmetic cannot prove that GKE's scheduler will accept the topology.
+
+## 3. Reviewed plan (still no apply)
+
+Create an untracked tfvars file from the example. Set the project, two zones in the same region, operator and dedicated-runner `/32` addresses, GitHub repository, owner-approved billing account and numeric project number. Terraform intentionally refuses a plan without the budget inputs.
 
 ```bash
-cd infra/terraform/gke
-cp terraform.tfvars.example terraform.tfvars
-# edit: project_id, github_repository=<owner>/<repo>, and master_authorized_networks
-terraform init
-terraform plan
-terraform apply
-terraform output
+terraform -chdir=infra/terraform/gke plan -out=PR17-REVIEW-ONLY.tfplan
+terraform -chdir=infra/terraform/gke show PR17-REVIEW-ONLY.tfplan
 ```
 
-This creates: the GKE cluster + node pool, a GCS model bucket (only used if
-KServe is enabled later), an Artifact Registry repo (unused under the GHCR
-choice above), and GitHub Actions Workload Identity Federation
-(pool/provider/service account) for future automated deploys.
+Review resource count, region, IAM members, private nodes, authorized networks, retention, `force_destroy=false`, deletion protection and estimated cost. Never commit the plan (it can contain sensitive values). A changed plan invalidates approval.
 
-**Cost note**: a regional GKE cluster + node pool + load balancer bill
-continuously. See step 8 for teardown.
+## 4. Authorized provisioning and cluster gates
 
-### 2. Get cluster credentials
+Only an authorized operator may apply the exact reviewed plan. Immediately confirm two private nodes, Workload Identity, Dataplane V2, Cloud Logging/Managed Prometheus, only reviewed `/32` control-plane networks, budget alerts and Artifact Registry/GCS public-access prevention. Dataplane V2 already enables policy enforcement; do not add the incompatible GKE `network_policy` switch. A bootstrap cluster administrator substitutes the reviewed project ID and applies `deploy/gke/cogniflow-guardrails.yaml`; the deployment identity then has namespace admin only. Apply the eventing namespace/policy before its workloads.
+
+Install pinned cert-manager, ingress-nginx, Knative Serving/Eventing, KServe Standard and standalone KFP in compatibility order. Resolve every deployed image ID and compare it with the evidence ledger. Reject mutable `master`, `latest` or SHA-shaped tags.
+
+Deploy the reviewed PostgreSQL 17.6 design and MLflow 3.17.2 privately by exact digest. Bind `mlflow/mlflow` to the Terraform MLflow Google service account. Prove a write/read round trip to `gs://<model_bucket>/candidates/...`, run the daily custom-format backup, and restore it into an isolated validation database before training. Install External Secrets Operator chart 2.13.0 by reviewed digest. Apply `deploy/gke/external-secret.yaml` before Helm; it can reconcile after Helm creates `cogniflow-api`. Verify only the expected Secret keys, without printing values.
+
+## 5. Candidate training and explicit promotion
+
+Submit one bounded KFP run by immutable component digest. Confirm all six tasks, dataset digest, KFP run ID and MLflow candidate tags. A successful run must remain `candidate`; it must not update an alias/stage used by serving.
+
+Pause for independent human review. If and only if the authorized owner approves the exact version, run the existing approval/package workflow, copy the verified package under `approved/.../<package-digest>/`, and record the approver and all lineage digests. Any digest mismatch stops deployment.
+
+## 6. Digest-pinned application deployment
+
+An approved operator creates the Secret Manager secret version and the external Kubernetes Secrets without printing values. Render first; the checked-in sentinels must fail closed.
+
+The manual `.github/workflows/release.yaml` job uses the separately protected
+`production-release` environment and a release-only Google service account. It
+does not approve models or deploy: `package_approved_model.py` first requires an
+independently approved exact MLflow version and artifact-tree digest. The job
+then builds the API, KServe, event-consumer and anomaly images once, resolves
+their Artifact Registry digests, emits BuildKit SBOM/provenance attestations,
+and uses Cosign 3.1.4 keyless signing with GitHub OIDC. It verifies each
+signature and runs Trivy 0.76.1 against that same digest before retaining the
+non-secret evidence. The main-push job in `ci-cd.yaml` remains a GHCR CI build;
+it is not a production release.
+
+Provisioning the `cogniflow-release` runner, configuring required reviewers on
+`production-release`, and setting its `GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_RELEASE_SERVICE_ACCOUNT`, `MLFLOW_TRACKING_URI`, `GCP_PROJECT_ID`, and
+`GAR_LOCATION` values remain owner-controlled pending operations. The Terraform
+OIDC bindings separate the `production-release` publisher from the `production`
+deployer and bind each impersonation grant to its environment. On the dedicated
+deploy runner, `scripts/verify_cloud_release.sh` re-verifies the release identity
+and runs Trivy against the exact digests before Helm.
+
+The existing protected `deploy` job in `.github/workflows/ci-cd.yaml` installs
+only the Helm API/KServe chart and verifies only those two image digests. It
+does **not** install the rendered logging, dead-letter, anomaly-detector or
+alert-sink workloads and must not be cited as four-image deployment evidence.
 
 ```bash
-gcloud container clusters get-credentials $(terraform output -raw cluster_name) \
-  --region $(terraform output -raw cluster_location) --project YOUR_PROJECT_ID
-kubectl get nodes
+helm template cogniflow helm/cognitive-load-monitor \
+  --namespace cogniflow -f helm/cognitive-load-monitor/values.gke.yaml \
+  --set-string image.digest=sha256:<API_DIGEST> \
+  --set-string kserve.image.digest=sha256:<KSERVE_DIGEST> \
+  --set-string kserve.name=<APPROVED_NAME> \
+  --set-string config.modelName=<APPROVED_NAME> \
+  --set-string config.modelVersion=<APPROVED_VERSION> \
+  --set-string config.modelSha256=<MODEL_SHA256> \
+  --set-string config.modelArtifactSha256=<ARTIFACT_SHA256> \
+  --set-string config.modelDatasetSha256=<DATASET_SHA256>
 ```
 
-### 3. Install cluster add-ons
+Inspect TLS, ServiceAccounts, requests/limits and NetworkPolicies, then use the same exact overrides for `helm upgrade --install`. Deploy the digest-pinned logging consumer, anomaly detector and sink with bounded PVCs. SEC-022 Spark must not appear in any GKE namespace.
 
-```bash
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx --create-namespace
+Never apply the checked-in Knative workload YAML directly in GKE: those files
+intentionally contain local `:dev` images and `imagePullPolicy: Never`.
+`scripts/render_production_knative.py` is the fail-closed production path. It
+accepts only the two released Artifact Registry digest references, replaces all
+four logging/dead-letter/detector/sink container occurrences, and fails if any
+mutable or development image remains. Apply its reviewed output only from the
+separate manual `.github/workflows/deploy-knative.yaml` action. That workflow is
+main-only, uses the separately protected `production-knative` environment and
+the OIDC deployer identity, re-verifies all four released image digests, checks
+namespace-local authorization and restricted Pod Security admission, then
+applies the network policy, Broker, rendered workloads and Triggers. It neither
+builds nor publishes images. Before its first authorized run, a bootstrap
+administrator must create/label the namespace and apply
+`deploy/gke/eventing-deployer-rbac.yaml` with the reviewed project substitution;
+the workflow deliberately cannot grant itself access.
 
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/<PINNED_VERSION>/components.yaml
+## 7. Final demo acceptance
 
-kubectl get svc -n ingress-nginx ingress-nginx-controller -w   # wait for EXTERNAL-IP
-```
+Capture timestamps and exact digests for every check:
 
-KServe and the Prometheus/Loki/Tempo stack are not installed by this guide —
-see "Extending this deployment" below.
+- TLS endpoint rejects unauthenticated traffic and serves authenticated `/health`, `/model-info` and `/predict` without exposing secrets;
+- FastAPI reaches internal KServe Standard and reports the approved model/package/data lineage;
+- KFP bounded run succeeds and creates only a candidate; show the separate approval record used by serving;
+- Broker and both Triggers are `Ready=True`; one inference persists in the logging consumer;
+- an anomaly persists exactly one alert, including sink-down recovery without a new event and restart recovery from the transactional outbox;
+- replay the same CloudEvent after window-state eviction and show deduplication within the seven-day retry horizon;
+- show GCS bucket private access/versioning/retention, Workload Identity principals, exact Artifact Registry digests, TLS and enforced NetworkPolicies;
+- show node/pod utilization, quotas, budget alerts, current cost and that no Spark resource exists;
+- run the full validation matrix against the final commit and scan the final exact images, not predecessor tags.
 
-### 4. Make the image pullable
+If monitoring does not fit after required workloads, retain GKE Managed Prometheus/Cloud Logging and omit optional dashboards; record that limitation rather than overcommit nodes.
 
-```bash
-gh run list --branch main --limit 3   # find the commit SHA CI built successfully
-```
+## 8. Failure, teardown and evidence
 
-GHCR images pushed via `GITHUB_TOKEN` are private by default, and this Helm
-chart has no `imagePullSecrets` support. Simplest fix: GitHub repo → Packages
-→ `cognitive-load-api` → Package settings → Change visibility → **Public**.
-
-### 5. Generate a real Basic Auth credential
-
-```bash
-htpasswd -nb admin 'YOUR_STRONG_PASSWORD'
-```
-
-Do not deploy with the chart's demo `admin/admin123` default.
-
-### 6. Deploy with Helm
-
-```bash
-helm upgrade --install cognitive-load-monitor ./helm/cognitive-load-monitor \
-  --namespace cognitive-load --create-namespace \
-  --set image.repository=ghcr.io/<owner>/<repo>/cognitive-load-api \
-  --set image.tag=<commit-sha-from-step-4> \
-  --set kserve.enabled=false \
-  --set serviceMonitor.enabled=false \
-  --set config.enableTracing="false" \
-  --set ingress.hosts[0].host=cognitive-load.<EXTERNAL-IP>.nip.io \
-  --set-string basicAuth.auth='admin:<hash-from-step-5>'
-
-kubectl rollout status deployment/cognitive-load-monitor -n cognitive-load --timeout=180s
-```
-
-`serviceMonitor.enabled=false` is required unless the Prometheus Operator
-CRDs are installed — otherwise `helm install` fails outright with "no
-matches for kind ServiceMonitor". `config.enableTracing=false` avoids
-background OTLP connection-refused log spam since Tempo isn't deployed in
-this minimal path.
-
-### 7. Verify
-
-```bash
-read -rsp "Basic-auth password: " BASIC_AUTH_PASSWORD
-curl -u "admin:${BASIC_AUTH_PASSWORD}" -X POST \
-  http://cognitive-load.<EXTERNAL-IP>.nip.io/predict \
-  -H "Content-Type: application/json" \
-  -d '{"focus_minutes":60,"distraction_minutes":60,"tasks_due":5,"hours_to_deadline":12}'
-
-curl -u "admin:${BASIC_AUTH_PASSWORD}" http://cognitive-load.<EXTERNAL-IP>.nip.io/model-info
-curl -u "admin:${BASIC_AUTH_PASSWORD}" http://cognitive-load.<EXTERNAL-IP>.nip.io/metrics | grep cognitive_load_predictions_total
-unset BASIC_AUTH_PASSWORD
-
-kubectl get hpa -n cognitive-load
-```
-
-Confirm an unauthenticated request is rejected:
-
-```bash
-curl -i http://cognitive-load.<EXTERNAL-IP>.nip.io/health   # expect 401
-```
-
-**Security note**: Basic Auth without TLS sends the password in a
-base64-encoded (not encrypted) header. This guide does not configure TLS;
-treat this deployment as a development/demo configuration only. Add a real
-TLS certificate (e.g. via cert-manager + Let's Encrypt) before exposing this
-to the public internet with real credentials.
-
-### 8. Teardown
-
-```bash
-helm uninstall cognitive-load-monitor -n cognitive-load
-helm uninstall ingress-nginx -n ingress-nginx
-cd infra/terraform/gke && terraform destroy
-```
-
-## Extending this deployment
-
-- **KServe**: follow the [KServe quickstart](https://kserve.github.io/website/latest/get_started/) to install Knative Serving + a networking layer + cert-manager + KServe CRDs, then redeploy with `--set kserve.enabled=true --set kserve.storageUri=gs://<bucket>/models/cognitive-load-classifier` (upload the model artifact to that bucket first).
-- **Observability stack on GKE**: deploy `kube-prometheus-stack` (Prometheus + Grafana + the Prometheus Operator CRDs this chart's `ServiceMonitor` needs), Loki + Promtail, and Tempo via their respective Helm charts, in a separate `monitoring` namespace, before setting `serviceMonitor.enabled=true` / `config.enableTracing=true` here.
-- **Automated deploys**: wire the Terraform outputs (`gcp_workload_identity_provider`, `gcp_service_account`, `gcp_project_id`, `gke_cluster`, `gke_location`) plus `APP_HOST` into GitHub Actions secrets so the existing `workflow_dispatch` `deploy` job works without manual `helm` commands. That job's current `helm upgrade` call does not pass the `kserve.enabled=false` / `serviceMonitor.enabled=false` / `config.enableTracing=false` flags used above — add them if you want an automated deploy to succeed against a cluster without KServe/Prometheus Operator installed.
+Do not destroy on test failure. First export non-secret logs, rendered manifests, KFP/MLflow lineage, alert evidence, image digests, utilization and cost. Teardown needs a separately reviewed plan and explicit owner approval. Remove releases, external load balancers/IPs and NAT, then the cluster. A GCS retention policy cannot be shortened and protected object versions can outlive compute teardown; keep the bucket/state, record its earliest deletion date and residual storage/operation cost, and schedule an owner-approved follow-up. `force_destroy=false` and cluster deletion protection deliberately require conscious changes. Confirm the billing console has no unintended cluster, disk, IP, NAT or load balancer and keep budget alerts active until all retained resources are gone.

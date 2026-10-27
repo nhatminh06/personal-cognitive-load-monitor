@@ -71,6 +71,16 @@ def test_packaging_rejects_unapproved_version(monkeypatch, tmp_path, status):
         package_approved_model("model", "7", digest, tmp_path / "package")
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    ["Uppercase", "has.dot", "has_underscore", "-leading", "trailing-", "a" * 64],
+)
+def test_packaging_rejects_names_incompatible_with_kserve(monkeypatch, tmp_path, model_name):
+    monkeypatch.setattr("mlflow.MlflowClient", lambda: pytest.fail("must fail before MLflow"))
+    with pytest.raises(ValueError, match="lowercase DNS label"):
+        package_approved_model(model_name, "7", "a" * 64, tmp_path / "package")
+
+
 def test_packaging_rejects_identity_digest_and_artifact_mismatch(monkeypatch, tmp_path):
     artifact, digest, candidate, client = registry(tmp_path)
     monkeypatch.setattr("mlflow.MlflowClient", lambda: client)

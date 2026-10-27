@@ -1,0 +1,138 @@
+name: Approved production image release
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_name:
+        description: Approved MLflow model name
+        required: true
+        type: string
+      model_version:
+        description: Approved positive MLflow model version
+        required: true
+        type: string
+      artifact_sha256:
+        description: Approved registered MLflow artifact-tree SHA-256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: approved-production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, cogniflow-release]
+    environment:
+      name: production-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate protected release inputs
+        env:
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+        run: |
+          [[ "$MODEL_NAME" =~ ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$ ]] || { echo "Model name must be a lowercase DNS label of at most 63 characters" >&2; exit 1; }
+          [[ "$MODEL_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid model version" >&2; exit 1; }
+          [[ "$ARTIFACT_SHA256" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid artifact digest" >&2; exit 1; }
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
+          [[ "$GAR_LOCATION" =~ ^[a-z]+-[a-z]+[0-9]$ ]] || { echo "Invalid Artifact Registry location" >&2; exit 1; }
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        id: auth
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_RELEASE_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ vars.GAR_LOCATION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
+
+      - name: Install locked packaging dependencies
+        run: uv sync --frozen --all-extras
+
+      - name: Package independently approved model
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          uv run python scripts/package_approved_model.py \
+            --tracking-uri "$MLFLOW_TRACKING_URI" \
+            --model-name "$MODEL_NAME" \
+            --version "$MODEL_VERSION" \
+            --expected-artifact-digest "$ARTIFACT_SHA256" \
+            --output-dir build/model-package
+
+      - name: Require pinned release tools
+        run: |
+          docker buildx version
+          cosign version | grep -q 'GitVersion.*v3.1.4' || { echo "cosign v3.1.4 is required" >&2; exit 1; }
+          trivy --version | grep -q 'Version: 0.76.1' || { echo "Trivy 0.76.1 is required" >&2; exit 1; }
+
+      - name: Build, attest, sign, verify, and scan exact images
+        env:
+          REGISTRY: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/cogniflow-images
+          COSIGN_YES: "true"
+        run: |
+          mkdir -p build/release-evidence
+          while IFS='|' read -r name dockerfile; do
+            image="${REGISTRY}/${name}:${GITHUB_SHA}"
+            metadata="build/release-evidence/${name}.json"
+            docker buildx build --file "$dockerfile" --tag "$image" --push \
+              --provenance=mode=max --sbom=true --metadata-file "$metadata" .
+            digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' "$metadata")
+            reference="${REGISTRY}/${name}@${digest}"
+            cosign sign "$reference"
+            cosign verify \
+              --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yaml@refs/heads/main$" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              "$reference" > "build/release-evidence/${name}.cosign.json"
+            trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+              --format json --output "build/release-evidence/${name}.trivy.json" "$reference"
+            printf '%s\n' "$reference" >> build/release-evidence/images.txt
+          done <<'IMAGES'
+          cognitive-load-api|Dockerfile.model-serving
+          cogniflow-kserve|Dockerfile.kserve
+          cogniflow-event-consumer|Dockerfile.event-consumer
+          cogniflow-anomaly-detector|Dockerfile.anomaly-detector
+          IMAGES
+
+      - name: Upload non-secret release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-evidence-${{ github.sha }}
+          path: build/release-evidence
+          if-no-files-found: error
+          retention-days: 90
+

@@ -1,26 +1,60 @@
 image:
-  repository: ghcr.io/OWNER/REPO/cognitive-load-api
-  tag: SET_IMMUTABLE_GIT_SHA
+  repository: us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cognitive-load-api
+  tag: ""
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+serviceAccount:
+  name: cogniflow-api
+  annotations:
+    iam.gke.io/gcp-service-account: cogniflow-api@SET_PROJECT.iam.gserviceaccount.com
+
 config:
   appEnv: production
   inferenceMode: kserve
+  inferenceActivityEnabled: "true"
+  inferenceActivityDestination: http://broker-ingress.knative-eventing.svc.cluster.local/cogniflow-eventing/cogniflow-v1
   modelName: SET_APPROVED_MODEL_NAME
-  modelVersion: "1"
+  modelVersion: SET_APPROVED_MODEL_VERSION
   modelSha256: "0000000000000000000000000000000000000000000000000000000000000000"
   modelArtifactSha256: "0000000000000000000000000000000000000000000000000000000000000000"
   modelDatasetSha256: "0000000000000000000000000000000000000000000000000000000000000000"
   modelFeatureSchemaVersion: "1.0"
+
 kserve:
   enabled: true
+  serviceAccount:
+    create: true
+    name: cogniflow-kserve
+    annotations:
+      iam.gke.io/gcp-service-account: cogniflow-kserve@SET_PROJECT.iam.gserviceaccount.com
   image:
-    repository: ghcr.io/OWNER/REPO/cogniflow-kserve
+    repository: us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cogniflow-kserve
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
 ingress:
   enabled: true
-  authSecret: SET_EXTERNAL_BASIC_AUTH_SECRET
+  authSecret: cogniflow-ingress-basic-auth
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
     - host: SET_REAL_HOST
       paths:
         - path: /
           pathType: Prefix
-existingSecret: SET_EXTERNAL_API_SECRET
+  tls:
+    - secretName: cogniflow-api-tls
+      hosts: [SET_REAL_HOST]
+
+existingSecret: cogniflow-api
+
+networkPolicy:
+  enabled: true
+  ingressNamespace: ingress-nginx
+  kserveNamespace: cogniflow
+  eventingNamespace: knative-eventing
+  observabilityNamespace: monitoring
+
+eventing:
+  brokerNamespace: cogniflow-eventing
+  brokerName: cogniflow-v1
