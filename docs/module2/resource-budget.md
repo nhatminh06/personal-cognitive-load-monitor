@@ -2,6 +2,12 @@
 
 Baseline on 2026-10-24: 15 GiB RAM total, 3.6 GiB available, 13 GiB swap used; 263 GiB disk free; `/tmp` had 1.3 GiB free. Running everything together is unsafe.
 
+The PR #19 rehearsal preflight on 2026-10-27 required at least 6 GiB available
+memory and 10 GiB free disk. It assigned five unique loopback ports and refused
+an existing project, network, port collision, foreign volume name, Spark image
+drift or an expired SEC-022 exception. Runtime phases remained sequential and
+used only three batch events and a bounded streaming fixture.
+
 | Profile | Services | Memory limits | Expected active total |
 |---|---|---:|---:|
 | ingestion | Kafka | 768 MiB | <1 GiB |

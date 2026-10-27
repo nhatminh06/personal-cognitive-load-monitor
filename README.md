@@ -521,6 +521,8 @@ Stopping services preserves named Docker volumes.
 **Spark batch profile restrictions:** Spark is subject to an approved, time-limited local-development security exception. Before activating the `batch` profile, follow the mandatory Ivy artifact verification, runner-token and isolation procedures in the [SEC-022 exception document](docs/security-audit/sec-022-development-exception-proposal.md). Do not run arbitrary Spark jobs or process untrusted datasets with this runtime.
 
 For the complete sequential batch/streaming walkthrough, see [Module II demo script](docs/module2/demo-script.md).
+The same guide includes the fail-closed, isolated rehearsal used for PR #19;
+fresh results and explicit non-claims are recorded in [Module II verification](docs/module2/testing.md).
 
 ---
 

@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from cogniflow_data.api import online_features
-from cogniflow_data.online import OnlineFeatureRecord
+from cogniflow_data.online import OnlineFeatureRecord, RedisFeatureStore
 
 
 class Store:
@@ -41,3 +41,14 @@ def test_online_features_missing_stale_and_unavailable():
         with pytest.raises(HTTPException) as error:
             asyncio.run(online_features("session-1", store))
         assert error.value.status_code == status
+
+
+def test_redis_adapter_projects_flink_window_metadata() -> None:
+    expected = record(datetime.now(UTC))
+    payload = expected.model_dump_json().removesuffix("}")
+    payload += ',"window_type":"rolling","window_start":"2026-01-01T00:00:00Z",'
+    payload += '"window_end":"2026-01-01T00:05:00Z","event_count":2,"feature_schema_version":"1.0"}'
+    store = RedisFeatureStore.__new__(RedisFeatureStore)
+    store.client = type("Client", (), {"get": lambda self, key: payload.encode()})()
+    store._redis_error = RuntimeError
+    assert store.get("session-1") == expected

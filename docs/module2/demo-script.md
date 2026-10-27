@@ -1,5 +1,40 @@
 # Reproducible local demo
 
+## Isolated PR rehearsal
+
+Use the rehearsal override when existing development resources must remain
+untouched. The bootstrap is dry-run by default; `--execute` creates only the
+isolated configuration, fresh secret file and preflight evidence. It does not
+start containers or imply a successful runtime rehearsal.
+
+```bash
+python scripts/module2_e2e_rehearsal.py
+python scripts/module2_e2e_rehearsal.py --execute \
+  --project cogniflow-rehearsal-YYYYMMDDa \
+  --run-dir build/module2-rehearsal/REHEARSAL_ID
+```
+
+Use the generated `0600` `.env.secrets` with both
+`infra/module2/docker-compose.yml` and
+`infra/module2/docker-compose.rehearsal.yml`. Run these checkpoints in order:
+
+1. ingestion + lake, then `scripts/module2_rehearsal_fixture.py`;
+2. batch, then Spark twice; stop Spark;
+3. analytics, query Trino, and run dbt twice; stop analytics;
+4. ingestion + streaming, submit the Flink job, then run
+   `scripts/module2_rehearsal_stream.py`; restart only its TaskManager and
+   verify checkpoint restoration; stop streaming and ingestion;
+5. lake + batch + analytics + orchestration, reserialize the DAG and run
+   `airflow dags test cogniflow_bronze_to_gold YYYY-MM-DD`;
+6. capture `docker stats --no-stream`, task states and hashes, then use Compose
+   `stop` with the same project and profiles. Never use `down -v` for evidence
+   you intend to preserve.
+
+Spark and Flink must not overlap on the current 15 GiB host. Before batch,
+verify the exact SEC-022 image ID and all Ivy JAR hashes. Every Docker command
+must include the generated project name and both Compose files; a command that
+falls back to `cogniflow-module2` is unsafe and must be aborted.
+
 1. Start ingestion and lake profiles; submit an authenticated `/events` request.
 2. Run the Bronze consumer and verify the stored JSONL checksum/readback.
 3. Start batch, run `jobs/bronze_to_silver.py`, then query Silver through Trino.

@@ -1,0 +1,35 @@
+name: ${REHEARSAL_PROJECT:?set REHEARSAL_PROJECT}
+
+networks:
+  default:
+    name: ${REHEARSAL_PROJECT:?set REHEARSAL_PROJECT}-default
+
+services:
+  seaweedfs:
+    command: server -dir=/data -filer=true -master.port=9333 -volume.port=8080 -volume.max=32 -filer.port=8888 -ip=seaweedfs -master.telemetry=false
+
+  kafka:
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:${REHEARSAL_KAFKA_PORT:?set REHEARSAL_KAFKA_PORT}
+    ports: !override
+      - 127.0.0.1:${REHEARSAL_KAFKA_PORT}:29092
+
+  minio:
+    ports: !override
+      - 127.0.0.1:${REHEARSAL_S3_PORT:?set REHEARSAL_S3_PORT}:9000
+
+  trino:
+    ports: !override
+      - 127.0.0.1:${REHEARSAL_TRINO_PORT:?set REHEARSAL_TRINO_PORT}:8080
+
+  redis:
+    ports: !override
+      - 127.0.0.1:${REHEARSAL_REDIS_PORT:?set REHEARSAL_REDIS_PORT}:6379
+
+  flink-jobmanager:
+    ports: !override
+      - 127.0.0.1:${REHEARSAL_FLINK_PORT:?set REHEARSAL_FLINK_PORT}:8081
+
+  flink-taskmanager:
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
