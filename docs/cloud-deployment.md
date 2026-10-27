@@ -65,7 +65,25 @@ Pause for independent human review. If and only if the authorized owner approves
 
 An approved operator creates the Secret Manager secret version and the external Kubernetes Secrets without printing values. Render first; the checked-in sentinels must fail closed.
 
-The protected release workflow builds once, resolves each Artifact Registry digest, emits an SBOM/provenance attestation, and uses Cosign 3.1.4 keyless signing with GitHub OIDC. Record the workflow identity, issuer, digest and bundle. On the dedicated deploy runner, `scripts/verify_cloud_release.sh` re-verifies that identity and runs Trivy 0.76.1 against the same digest; a signature, identity, digest or fixable High/Critical failure stops before Helm.
+The manual `.github/workflows/release.yaml` job uses the separately protected
+`production-release` environment and a release-only Google service account. It
+does not approve models or deploy: `package_approved_model.py` first requires an
+independently approved exact MLflow version and artifact-tree digest. The job
+then builds the API, KServe, event-consumer and anomaly images once, resolves
+their Artifact Registry digests, emits BuildKit SBOM/provenance attestations,
+and uses Cosign 3.1.4 keyless signing with GitHub OIDC. It verifies each
+signature and runs Trivy 0.76.1 against that same digest before retaining the
+non-secret evidence. The main-push job in `ci-cd.yaml` remains a GHCR CI build;
+it is not a production release.
+
+Provisioning the `cogniflow-release` runner, configuring required reviewers on
+`production-release`, and setting its `GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_RELEASE_SERVICE_ACCOUNT`, `MLFLOW_TRACKING_URI`, `GCP_PROJECT_ID`, and
+`GAR_LOCATION` values remain owner-controlled pending operations. The Terraform
+OIDC bindings separate the `production-release` publisher from the `production`
+deployer and bind each impersonation grant to its environment. On the dedicated
+deploy runner, `scripts/verify_cloud_release.sh` re-verifies the release identity
+and runs Trivy against the exact digests before Helm.
 
 ```bash
 helm template cogniflow helm/cognitive-load-monitor \
@@ -81,6 +99,14 @@ helm template cogniflow helm/cognitive-load-monitor \
 ```
 
 Inspect TLS, ServiceAccounts, requests/limits and NetworkPolicies, then use the same exact overrides for `helm upgrade --install`. Deploy the digest-pinned logging consumer, anomaly detector and sink with bounded PVCs. SEC-022 Spark must not appear in any GKE namespace.
+
+Never apply the checked-in Knative workload YAML directly in GKE: those files
+intentionally contain local `:dev` images and `imagePullPolicy: Never`.
+`scripts/render_production_knative.py` is the fail-closed production path. It
+accepts only the two released Artifact Registry digest references, replaces all
+four logging/dead-letter/detector/sink container occurrences, and fails if any
+mutable or development image remains. Apply its reviewed output only from the
+separate protected deployment action.
 
 ## 7. Final demo acceptance
 

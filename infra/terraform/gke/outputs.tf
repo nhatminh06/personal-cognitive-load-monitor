@@ -51,6 +51,11 @@ output "gcp_service_account" {
   value       = google_service_account.github_actions.email
 }
 
+output "gcp_release_service_account" {
+  description = "Value for the GCP_RELEASE_SERVICE_ACCOUNT GitHub secret"
+  value       = google_service_account.github_actions_release.email
+}
+
 output "gcp_project_id" {
   description = "Value for the GCP_PROJECT_ID GitHub secret"
   value       = var.project_id

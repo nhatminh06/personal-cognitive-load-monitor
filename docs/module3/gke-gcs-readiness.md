@@ -51,11 +51,11 @@ Artifact paths are immutable by convention: `candidates/<model>/<run-id>/<artifa
 
 - Private GKE nodes use a dedicated VPC/subnet, Private Google Access and logged Cloud NAT. The public control-plane endpoint is restricted to explicit `/32` operator/VPN ranges.
 - Dataplane V2 has NetworkPolicy enforcement built in. Terraform deliberately does not set the incompatible cluster `network_policy` field; GKE documents that explicitly enabling or disabling it with `ADVANCED_DATAPATH` fails. The checked-in namespace default-deny and workload policies allow only DNS, the Dataplane V2 metadata endpoint, KServe, Knative, monitoring and alert-sink flows.
-- Images come from private Artifact Registry and are referenced by `sha256` digest. Node read and GitHub publisher roles are repository-scoped.
+- Images come from private Artifact Registry and are referenced by `sha256` digest. Node read is repository-scoped. Separate OIDC service accounts bind Artifact Registry publication to the protected `production-release` environment and cluster discovery to the protected `production` environment; neither uses a permanent key.
 - TLS and an externally created authentication Secret are mandatory for production ingress. Terraform creates only Secret Manager metadata, never a secret version. External Secrets Operator 2.13.0 uses the annotated `cogniflow-api` KSA/GSA to create only the namespaced `cogniflow-api` Secret from `cogniflow-api-key`; plaintext values never enter Terraform, Git or Helm values.
 - `deploy/gke/cogniflow-guardrails.yaml` applies restricted Pod Security Admission, default deny, ResourceQuota, LimitRange and a namespace-only deployer binding. Platform namespaces need their own reviewed policies before installation; no cluster-admin binding is accepted.
 - GitHub-hosted runners use changing public egress ranges and can be blocked by master-authorized networks. Deployment therefore runs only on a dedicated, ephemeral, patched self-hosted runner labeled `cogniflow-gke-deploy`, behind a fixed NAT `/32` included in the reviewed authorized networks. GitHub OIDC remains restricted to this repository's `main` ref and the protected `production` environment requires reviewers. `0.0.0.0/0` is rejected.
-- `scripts/verify_cloud_release.sh` requires Cosign 3.1.4 and Trivy 0.76.1, verifies the GitHub OIDC certificate identity for both exact Artifact Registry digest references, and rejects fixable High/Critical findings before Helm. Signing occurs only in a separately approved protected release workflow; no signing or publication occurred here.
+- `.github/workflows/release.yaml` is manual, runs on the pending dedicated `cogniflow-release` runner in the protected `production-release` environment, packages only an independently approved MLflow version, publishes four exact Artifact Registry images with SBOM/provenance attestations, and signs, verifies and scans their digests. It never deploys. `scripts/verify_cloud_release.sh` repeats signature and Trivy gates before the separate protected deployment action. No signing or publication occurred here.
 
 ## Terraform state finding
 
@@ -74,6 +74,12 @@ For GKE use a separately bootstrapped GCS backend (see `backend.tf.example`) wit
 ## Approval boundary
 
 Explicit owner approval is required before enabling billing/APIs; creating a backend, budget, IAM binding, bucket, registry, network, IP, NAT, load balancer, DNS, certificate or cluster; adding a Secret Manager version; applying/destroying Terraform; publishing/signing an image; approving/deploying a model; or exposing an endpoint. Billing account and project number are required Terraform inputs, so an approved project-scoped budget at 25/50/75/90/100% is part of the plan rather than optional. `terraform plan` must show only the intended project and no local-state migration. No approval is implied by this design.
+
+The following operations are explicitly **pending** and were not authorized by
+this source review: GKE Terraform plan/apply, protected release/deployment
+runner provisioning, Terraform state security remediation, exact image
+publication/signing, model approval, GCS upload/download, GKE runtime
+verification, and final teardown.
 
 ## Observed offline verification
 

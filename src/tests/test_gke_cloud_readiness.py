@@ -5,6 +5,8 @@ import subprocess
 
 import yaml
 
+from scripts.render_production_knative import render
+
 
 ROOT = Path(__file__).parents[2]
 CHART = ROOT / "helm/cognitive-load-monitor"
@@ -58,6 +60,9 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert 'can(regex("^[0-9.]+/32$", network.cidr_block))' in variables
     assert "roles/container.developer" not in terraform
     assert "roles/container.clusterViewer" in terraform
+    assert 'attribute.environment/production"' in terraform
+    assert 'attribute.environment/production-release"' in terraform
+    assert "github_actions_release.email" in terraform
 
 
 def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_network() -> None:
@@ -165,3 +170,49 @@ def test_deploy_uses_predictable_runner_and_verifies_exact_release() -> None:
     assert "scripts/verify_cloud_release.sh" in workflow
     assert "cosign v3.1.4 is required" in verifier
     assert "Trivy 0.76.1 is required" in verifier
+
+
+def test_release_is_manual_approval_gated_and_never_deploys() -> None:
+    workflow = (ROOT / ".github/workflows/release.yaml").read_text()
+
+    assert "workflow_dispatch:" in workflow
+    assert "name: production-release" in workflow
+    assert "id-token: write" in workflow
+    assert "scripts/package_approved_model.py" in workflow
+    assert "--provenance=mode=max --sbom=true" in workflow
+    assert 'cosign sign "$reference"' in workflow
+    assert 'trivy image --severity HIGH,CRITICAL' in workflow
+    assert "kubectl" not in workflow
+    assert "helm upgrade" not in workflow
+    assert "GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER" in workflow
+    assert "GCP_RELEASE_SERVICE_ACCOUNT" in workflow
+
+
+def test_production_knative_render_replaces_all_development_images() -> None:
+    registry = "us-central1-docker.pkg.dev/example-project/cogniflow-images"
+    rendered = render(
+        ROOT / "deploy/knative",
+        {
+            "event_consumer": f"{registry}/event-consumer@sha256:" + "a" * 64,
+            "anomaly_detector": f"{registry}/anomaly-detector@sha256:" + "b" * 64,
+        },
+    )
+
+    assert ":dev" not in rendered
+    assert "imagePullPolicy: Never" not in rendered
+    assert rendered.count("@sha256:") == 4
+
+
+def test_production_knative_render_rejects_mutable_images() -> None:
+    try:
+        render(
+            ROOT / "deploy/knative",
+            {
+                "event_consumer": "us-central1-docker.pkg.dev/example-project/cogniflow-images/event-consumer:latest",
+                "anomaly_detector": "us-central1-docker.pkg.dev/example-project/cogniflow-images/anomaly-detector@sha256:" + "b" * 64,
+            },
+        )
+    except ValueError as error:
+        assert "Artifact Registry digest" in str(error)
+    else:
+        raise AssertionError("mutable production image was accepted")
