@@ -29,17 +29,19 @@ git -C "$evidence/upstream" checkout --detach "$commit"
 actual_commit=$(git -C "$evidence/upstream" rev-parse HEAD)
 [[ "$actual_commit" == "$commit" ]] || { echo "checked-out source commit mismatch" >&2; exit 1; }
 
-mkdir -m 0700 "$evidence/rendered"
+mkdir -m 0700 "$evidence/raw-rendered"
 cd "$evidence/upstream"
-kustomize build common/cert-manager/base >../rendered/cert-manager.yaml
-kustomize build common/istio/istio-crds/base >../rendered/istio-crds.yaml
-kustomize build common/istio/istio-namespace/base >../rendered/istio-namespace.yaml
-kustomize build common/istio/istio-install/base >../rendered/istio.yaml
-kustomize build common/knative/knative-serving/overlays/gateways >../rendered/knative-serving.yaml
-kustomize build common/istio/cluster-local-gateway/base >../rendered/cluster-local-gateway.yaml
-kustomize build applications/kserve/kserve >../rendered/kserve.yaml
+kustomize build common/cert-manager/base >../raw-rendered/cert-manager.yaml
+kustomize build common/istio/istio-crds/base >../raw-rendered/istio-crds.yaml
+kustomize build common/istio/istio-namespace/base >../raw-rendered/istio-namespace.yaml
+kustomize build common/istio/istio-install/base >../raw-rendered/istio.yaml
+kustomize build common/knative/knative-serving/overlays/gateways >../raw-rendered/knative-serving.yaml
+kustomize build common/istio/cluster-local-gateway/base >../raw-rendered/cluster-local-gateway.yaml
+kustomize build applications/kserve/kserve >../raw-rendered/kserve.yaml
 cd - >/dev/null
 
+python scripts/prepare_module1_manifests.py --input-dir "$evidence/raw-rendered" \
+  --output-dir "$evidence/rendered" --evidence "$evidence/manifest-preparation.json"
 python scripts/render_module1_inventory.py --commit "$actual_commit" \
   --output "$evidence/installation.json" \
   cert-manager="$evidence/rendered/cert-manager.yaml" \
@@ -49,10 +51,15 @@ python scripts/render_module1_inventory.py --commit "$actual_commit" \
   knative-serving="$evidence/rendered/knative-serving.yaml" \
   cluster-local-gateway="$evidence/rendered/cluster-local-gateway.yaml" \
   kserve="$evidence/rendered/kserve.yaml"
-python scripts/verify_module1_upstream_inventory.py --output "$evidence/rendered-inventory.json" \
-  "$evidence"/rendered/*.yaml
-sha256sum "$evidence"/rendered/*.yaml >"$evidence/rendered-manifests.sha256"
-chmod 0444 "$evidence"/rendered/*.yaml "$evidence/installation.json" \
+python -m scripts.verify_module1_upstream_inventory --output "$evidence/rendered-inventory.json" \
+  "$evidence/rendered/cert-manager.yaml" "$evidence/rendered/istio-crds.yaml" \
+  "$evidence/rendered/istio-namespace.yaml" "$evidence/rendered/istio.yaml" \
+  "$evidence/rendered/knative-serving.yaml" "$evidence/rendered/cluster-local-gateway.yaml" \
+  "$evidence/rendered/kserve.yaml"
+find "$evidence/raw-rendered" "$evidence/rendered" -type f -name '*.yaml' -print0 | \
+  sort -z | xargs -0 sha256sum >"$evidence/rendered-manifests.sha256"
+chmod 0444 "$evidence"/raw-rendered/*.yaml "$evidence"/rendered/*.yaml \
+  "$evidence/installation.json" "$evidence/manifest-preparation.json" \
   "$evidence/rendered-inventory.json" "$evidence/rendered-manifests.sha256"
 
 kind create cluster --name "$cluster" --image "$node_image" --wait 120s

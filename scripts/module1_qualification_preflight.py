@@ -53,9 +53,10 @@ def main() -> None:
         raise SystemExit("preflight requires explicit --execute authorization")
     if args.context != f"kind-{args.cluster}":
         raise SystemExit("context must be the unique kind context for the requested cluster")
-    for command in ("docker", "git", "kind", "kubectl", "kustomize", "sha256sum"):
+    for command in ("docker", "git", "jq", "kind", "kubectl", "kustomize", "python", "sha256sum"):
         if shutil.which(command) is None:
             raise SystemExit(f"required command is unavailable: {command}")
+    output("python", "-c", "import yaml")
     clusters = set(output("kind", "get", "clusters").splitlines())
     contexts = set(output("kubectl", "config", "get-contexts", "-o", "name").splitlines())
     if args.cluster in clusters or args.context in contexts:

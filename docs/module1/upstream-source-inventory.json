@@ -14,7 +14,6 @@
     "knative-serving/net-istio-webhook",
     "knative-serving/webhook",
     "kserve/kserve-controller-manager",
-    "kserve/kserve-kernelcachenode-agent",
     "kserve/kserve-localmodel-controller-manager",
     "kserve/llmisvc-controller-manager",
     "kube-system/istio-cni-node"
@@ -29,6 +28,7 @@
   },
   "disabled_or_omitted_workloads": [
     "kserve/kserve-localmodelnode-agent",
+    "kserve/kserve-kernelcachenode-agent",
     "kserve/kserve-models-web-application"
   ],
   "security_sensitive_workloads": {
@@ -49,24 +49,23 @@
   "required_crd_count": 38,
   "required_crd_inventory": "scripts/module1_compatibility.py:REQUIRED_CRDS",
   "rendered_images": {
-    "docker.io/istio/install-cni:1.31.3": null,
-    "docker.io/istio/pilot:1.31.3": null,
-    "docker.io/istio/proxyv2:1.31.3": null,
+    "docker.io/istio/install-cni:1.31.3": "115d9d77a6f70da7ea84f997964e871bf4c9b0f235e56aed30c773ffd7154b06",
+    "docker.io/istio/pilot:1.31.3": "1a349da3d48a59f2663256b50284de6ff84776db5ea9f42d426f752b34b44e62",
+    "docker.io/istio/proxyv2:1.31.3": "be401d180020fd4dba0d106135e1af1fb8f3796868c581068081a18c94c2534c",
     "gcr.io/knative-releases/knative.dev/net-istio/cmd/controller@sha256:cf1530d3b625d247114f006e4902ba8c0f2a3196d1d7a6b7acbeb7d7db11d148": "cf1530d3b625d247114f006e4902ba8c0f2a3196d1d7a6b7acbeb7d7db11d148",
     "gcr.io/knative-releases/knative.dev/net-istio/cmd/webhook@sha256:ac5c0458f32e353a635919ccd89fe77a7bf650c5354dd76c71e9316eff5de65d": "ac5c0458f32e353a635919ccd89fe77a7bf650c5354dd76c71e9316eff5de65d",
     "gcr.io/knative-releases/knative.dev/serving/cmd/activator@sha256:e5ab46f3b73fa2e3898fe47f6a3a0c2bd765596f4fb36ceb4c28c35d0a74b2e5": "e5ab46f3b73fa2e3898fe47f6a3a0c2bd765596f4fb36ceb4c28c35d0a74b2e5",
     "gcr.io/knative-releases/knative.dev/serving/cmd/autoscaler@sha256:879da127b23db65d862cafa6b23fb987381d0e44150f0027d44e1f5aee83bde2": "879da127b23db65d862cafa6b23fb987381d0e44150f0027d44e1f5aee83bde2",
     "gcr.io/knative-releases/knative.dev/serving/cmd/controller@sha256:ca5062ece0329d002a81940cf4268d7898866434d70049bb93f27d3a786d3292": "ca5062ece0329d002a81940cf4268d7898866434d70049bb93f27d3a786d3292",
     "gcr.io/knative-releases/knative.dev/serving/cmd/webhook@sha256:3846e9a416665c5b9ec2e4de246cfcb5c4ab0d01ba19348aa008caf30144b650": "3846e9a416665c5b9ec2e4de246cfcb5c4ab0d01ba19348aa008caf30144b650",
-    "kserve/kserve-controller:v0.21.0": null,
-    "kserve/kserve-kernelcachenode-agent:v0.21.0": null,
-    "kserve/kserve-localmodel-controller:v0.21.0": null,
-    "kserve/llmisvc-controller:v0.21.0": null,
-    "quay.io/brancz/kube-rbac-proxy:v0.18.0": null,
-    "quay.io/jetstack/cert-manager-cainjector:v1.21.2": null,
-    "quay.io/jetstack/cert-manager-controller:v1.21.2": null,
-    "quay.io/jetstack/cert-manager-webhook:v1.21.2": null
+    "kserve/kserve-controller:v0.21.0": "878cb1a071a378b25da91c2d74c03d88e288dbbcdaf7cb87c776dcc849fcdf5f",
+    "kserve/kserve-localmodel-controller:v0.21.0": "ef525ebc445e1fe6108c4c013d819620e5d80e1450539fb54ff65ace0c959a83",
+    "kserve/llmisvc-controller:v0.21.0": "e3d71368f622e8c57a088de15e23c28f981c6c51b4b028cb1b1081f0c472adf1",
+    "quay.io/brancz/kube-rbac-proxy:v0.18.0": "62eeb8a0aaa13a8d886de07e5805940cec079ffbaf1d74483e26ad4a84952dce",
+    "quay.io/jetstack/cert-manager-cainjector:v1.21.2": "aa2bc58725d92a643f5069dde58abc93b65566ded8951348873ac9ee7efef66c",
+    "quay.io/jetstack/cert-manager-controller:v1.21.2": "57bb397c639e0e94184ba67848e5dad04284f24645e521e764a0ee5f5002f286",
+    "quay.io/jetstack/cert-manager-webhook:v1.21.2": "b929259301ee75270ab4651d5e6bd4ba7b6624b1ce48ba767d064295a9312101"
   },
-  "unresolved_digest_count": 11,
-  "qualification_note": "Null digests are mutable source tags. Resolve and scan the live imageID digest during the authorized disposable run; qualification fails closed until every required workload digest is accepted."
+  "unresolved_required_digest_count": 0,
+  "qualification_note": "The installer preserves raw source renders, replaces these ten exact mutable tags with reviewed linux/amd64 manifest digests, and omits the disabled unavailable kernel-cache agent before apply. Runtime imageID reconciliation and exact-digest scans still fail closed."
 }

@@ -52,7 +52,6 @@ REQUIRED_CONTROLLERS = {
     "kserve/kserve-controller-manager",
     "kserve/kserve-localmodel-controller-manager",
     "kserve/llmisvc-controller-manager",
-    "kserve/kserve-kernelcachenode-agent",
     "knative-serving/controller",
     "knative-serving/autoscaler",
     "knative-serving/activator",

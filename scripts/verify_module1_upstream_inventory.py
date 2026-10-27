@@ -38,8 +38,9 @@ def verify(documents: list[dict[str, Any]]) -> dict[str, Any]:
     relevant_crds = {name for name in crds if name in REQUIRED_CRDS}
     if relevant_crds != REQUIRED_CRDS:
         raise ValueError(f"required rendered CRDs are missing: {sorted(REQUIRED_CRDS - relevant_crds)}")
-    if "kserve/kserve-localmodelnode-agent" in workloads:
-        raise ValueError("disabled local-model node agent is unexpectedly rendered")
+    unexpected = workloads & {"kserve/kserve-localmodelnode-agent", "kserve/kserve-kernelcachenode-agent"}
+    if unexpected:
+        raise ValueError(f"disabled optional node agents are unexpectedly rendered: {sorted(unexpected)}")
     allow_policies = set()
     for document in documents:
         if document.get("kind") != "AuthorizationPolicy":

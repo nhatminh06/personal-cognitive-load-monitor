@@ -8,6 +8,7 @@ import yaml
 
 from scripts.module1_compatibility import REQUIRED_CONTROLLERS, REQUIRED_CRDS
 from scripts.module1_qualification_preflight import GIB, validate_resources
+from scripts.prepare_module1_manifests import IMAGE_DIGESTS, prepare
 from scripts.render_module1_inventory import build_inventory
 from scripts import verify_module1_upstream_inventory as upstream_inventory
 
@@ -43,6 +44,33 @@ def test_rendered_inventory_hashes_resources_and_records_kustomize(tmp_path: Pat
     ]
 
 
+def test_manifest_preparation_pins_images_and_omits_only_kernel_agent(tmp_path: Path) -> None:
+    source, output = tmp_path / "source", tmp_path / "output"
+    source.mkdir()
+    images = list(IMAGE_DIGESTS)
+    documents = [
+        {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": f"workload-{index}"},
+         "spec": {"template": {"spec": {"containers": [{"name": "main", "image": image}]}}}}
+        for index, image in enumerate(images)
+    ]
+    documents.append({"apiVersion": "apps/v1", "kind": "DaemonSet",
+                      "metadata": {"name": "kserve-kernelcachenode-agent", "namespace": "kserve"}})
+    for index, name in enumerate(("cert-manager.yaml", "istio-crds.yaml", "istio-namespace.yaml", "istio.yaml",
+                                  "knative-serving.yaml", "cluster-local-gateway.yaml", "kserve.yaml")):
+        (source / name).write_text(yaml.safe_dump_all(documents if index == 0 else []))
+    evidence = prepare(source, output)
+    rendered = "".join(path.read_text() for path in output.glob("*.yaml"))
+    assert all(f"@{digest}" in rendered for digest in IMAGE_DIGESTS.values())
+    assert "kserve-kernelcachenode-agent" not in rendered
+    assert evidence["excluded_resources"] == [
+        {"kind": "DaemonSet", "namespace": "kserve", "name": "kserve-kernelcachenode-agent"}
+    ]
+    first = next(iter(IMAGE_DIGESTS))
+    (source / "cert-manager.yaml").write_text((source / "cert-manager.yaml").read_text().replace(first, "missing:tag"))
+    with pytest.raises(ValueError, match="preparation mismatch"):
+        prepare(source, tmp_path / "invalid-output")
+
+
 def test_upstream_inventory_rejects_permissive_policy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(upstream_inventory, "REQUIRED_CONTROLLERS", set())
     monkeypatch.setattr(upstream_inventory, "REQUIRED_CRDS", set())
@@ -76,6 +104,8 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     capture = (ROOT / "scripts/capture_module1_runtime.sh").read_text()
     assert "--execute" in install and "kind get clusters" not in install
     assert "module1_qualification_preflight.py --execute" in install
+    assert "prepare_module1_manifests.py" in install
+    assert "python -m scripts.verify_module1_upstream_inventory" in install
     assert "kind delete" not in install + qualify
     assert 'kubectl --context "$context"' in install
     assert 'k=(kubectl --context "$context")' in qualify + capture
@@ -94,6 +124,7 @@ def test_pinned_inventory_matches_required_workloads_and_crd_count() -> None:
     assert set(inventory["rendered_controllers"]) == REQUIRED_CONTROLLERS
     assert inventory["required_crd_count"] == len(REQUIRED_CRDS) == 38
     assert "kserve/kserve-localmodelnode-agent" in inventory["disabled_or_omitted_workloads"]
+    assert "kserve/kserve-kernelcachenode-agent" in inventory["disabled_or_omitted_workloads"]
 
 
 def test_workflow_and_matrix_remain_parseable_blocked_and_standard_safe() -> None:

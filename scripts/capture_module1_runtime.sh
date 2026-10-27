@@ -21,7 +21,7 @@ k=(kubectl --context "$context")
 
 controllers=(
   kserve/kserve-controller-manager kserve/kserve-localmodel-controller-manager
-  kserve/llmisvc-controller-manager kserve/kserve-kernelcachenode-agent
+  kserve/llmisvc-controller-manager
   knative-serving/controller knative-serving/autoscaler knative-serving/activator
   knative-serving/webhook knative-serving/net-istio-controller knative-serving/net-istio-webhook
   istio-system/istiod istio-system/istio-ingressgateway kube-system/istio-cni-node
@@ -33,7 +33,7 @@ for identity in "${controllers[@]}"; do
   controller_namespace=${identity%/*}
   workload_name=${identity#*/}
   workload=deployment
-  [[ "$workload_name" == "istio-cni-node" || "$workload_name" == "kserve-kernelcachenode-agent" ]] && workload=daemonset
+  [[ "$workload_name" == "istio-cni-node" ]] && workload=daemonset
   workload_json=$("${k[@]}" get "$workload" "$workload_name" -n "$controller_namespace" -o json)
   selector=$(jq -er '.spec.selector.matchLabels | to_entries | map("\(.key)=\(.value)") | join(",") | select(length > 0)' <<<"$workload_json")
   images=$("${k[@]}" get pods -n "$controller_namespace" -l "$selector" -o json | jq -cer '

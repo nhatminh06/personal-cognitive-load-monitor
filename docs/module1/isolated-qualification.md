@@ -14,8 +14,8 @@ patch or GKE build is equivalent to this qualification.
 
 The pinned source contains Kustomize installations plus unused Helm sources for some
 components. This procedure installs Kustomize renders, not Helm releases. Qualification
-inventory includes four rendered KServe workloads (including the optional kernel-cache
-agent but excluding the patched-out local-model node agent), six Knative/net-istio
+inventory includes three required KServe workloads (excluding both disabled optional node
+agents), six Knative/net-istio
 controllers, Istiod, the Istio gateway and CNI, all three cert-manager controllers, all 38
 rendered serving CRDs, immutable render hashes, exact resource identities, and
 runtime-resolved image digests. The
@@ -95,7 +95,11 @@ disposable run, verify the context name after installation, and then:
    it. Do not commit generated model artifacts or credentials.
 
 The installer preserves the pinned checkout, exact rendered YAML, SHA-256 files, resource
-identity inventory and logs. Runtime capture re-hashes those local artifacts, checks each
+identity inventory and logs. It separately preserves the raw upstream renders, pins the ten
+required mutable source tags to reviewed linux/amd64 manifest digests, and records the exact
+removal of the disabled kernel-cache DaemonSet. Its published tag is inaccessible and kernel
+cache is disabled and unnecessary for CogniFlow inference. Runtime capture re-hashes the
+applied artifacts, checks each
 resource identity exists, records actual Pod `imageID` digests, verifies all workloads and
 CRDs are ready, and reads effective Knative autoscaler/default timeout ConfigMaps. The
 in-cluster provenance ConfigMap is corroborating metadata only, not independent proof.
