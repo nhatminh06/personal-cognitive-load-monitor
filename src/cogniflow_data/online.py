@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 from typing import Any, Protocol, cast
@@ -46,4 +47,8 @@ class RedisFeatureStore:
             value = cast(bytes | None, self.client.get(f"cogniflow:features:v1:{session_id}"))
         except self._redis_error as exc:
             raise ConnectionError("Redis unavailable") from exc
-        return OnlineFeatureRecord.model_validate_json(value) if value else None
+        if value is None:
+            return None
+        payload = json.loads(value)
+        public_fields = {name: payload[name] for name in OnlineFeatureRecord.model_fields if name in payload}
+        return OnlineFeatureRecord.model_validate(public_fields)

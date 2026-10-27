@@ -1,5 +1,68 @@
 # Module II verification evidence
 
+## PR #19 isolated end-to-end rehearsal — 2026-10-27
+
+Fresh runtime evidence was captured from Compose project
+`cogniflow-rehearsal-pr19-20261027a`. It used a unique network, dynamically
+selected loopback ports, fresh credentials, project-owned volumes and small
+synthetic fixtures. Spark and Flink were run sequentially. The existing local
+Kubernetes cluster, Terraform state, persistent Module II volumes and MLflow
+candidates were not read or modified. All rehearsal containers were stopped;
+the rehearsal volumes were preserved for inspection.
+
+- FastAPI returned three `202` responses only after Kafka acknowledgements.
+  Bronze stored/read back the same three events, replay resolved to the same
+  object, and SHA-256 `004bab33ed2ba36afefb5c8ee46c9b936beac87f88e58db903de684e3ddd9eb4`
+  covered the stored bytes.
+- Spark produced a true Delta table. Two direct runs returned exit 0 and its
+  history progressed from `WRITE` to `MERGE`; the later Airflow run performed
+  another idempotent merge. Trino returned 3 rows, 3 distinct event IDs and
+  Kafka offsets 0–2.
+- Two consecutive dbt builds passed 15/15, using incremental `MERGE` models.
+  Gold reconciliation returned three accepted Silver events and no stale rows.
+- Flink job `59e7d41f969486b4b4401c20935ebd01` ran all five tasks. Its deterministic
+  rolling window contained 10 unique events, 800 focus minutes and 410
+  distraction minutes. Three duplicate events did not change the oracle.
+  Redis rejected a stale write (`0`), and the authenticated feature API returned
+  `200` after projecting internal Flink window metadata out of the public model.
+- After a TaskManager restart the job returned to `RUNNING` from checkpoint 18;
+  the checkpoint API reported one restored checkpoint. One failed checkpoint
+  was expected during the deliberate interruption.
+- Airflow completed all six real tasks in about 181 seconds: source check,
+  validation, Spark, Silver verification, dbt and Gold verification. The DAG
+  run and every task state were `success`.
+
+The ignored evidence directory is
+`build/module2-rehearsal/pr19-20261027a/`. It contains redacted Compose output,
+machine-readable Airflow state, Trino counts, container/resource inventories
+and SHA-256 checksums. `.env.secrets` is mode `0600` and is intentionally not
+part of the report or Git history.
+
+Final source validation passed **325 Python tests in 44.61 seconds with 88.89%
+combined coverage**, Ruff, scoped MyPy and the full isolated Compose render.
+The first sandboxed Pytest attempt was stopped because its background-thread
+test could not progress under the syscall sandbox; the identical suite passed
+outside that restriction. Flink Maven/JUnit was attempted twice with local,
+network-disabled images but could not resolve the pinned Jackson 2.18.11
+artifacts from either disposable cache, so Java unit tests were not rerun.
+Actionlint, Trivy, Gitleaks and DVC were unavailable locally. Existing prior
+evidence for those checks is not relabeled as fresh PR #19 evidence.
+
+The final PR #19 source review also verified that `.env.secrets` is created
+once with exclusive-create semantics, mode `0600`, flush and filesystem sync;
+an existing path is rejected without changing its content. The isolated demo
+now has one project-pinned Compose command and a regression guard against the
+shared development project and Make targets.
+
+Fresh evidence supports the Kafka, object-storage-equivalent, Spark/Delta,
+Trino/dbt, Flink/Redis and Airflow local criteria: **60% before instructor
+judgment on SeaweedFS equivalence**. This run does not claim MinIO specifically,
+the >100 GB criterion, cloud deployments, HA/load acceptance or production
+readiness. The invalid and late streaming fixtures were published, but their
+dead-letter topic payloads were not independently consumed during this run.
+SEC-022 remains an accepted local-development exception through 2027-01-23,
+not a production approval.
+
 Runtime evidence captured 2026-10-24 and revalidated where stated on 2026-10-25:
 
 - Kafka: authenticated API accepted and broker acknowledged real events.

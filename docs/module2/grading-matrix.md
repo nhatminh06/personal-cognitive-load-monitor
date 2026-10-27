@@ -7,16 +7,16 @@ Statuses mean exactly: **implemented** (source exists), **statically validated**
 | Rubric criterion | Weight | Implementation | Exact evidence and tests | Missing requirement / acceptance condition |
 |---|---:|---|---|---|
 | MinIO object storage | 10% | Historical MinIO code; active SeaweedFS S3 in `infra/module2` | SeaweedFS bucket/write/checksum/read/restart/Spark evidence in `testing.md` | **Not completed as MinIO**: instructor equivalence or licensed maintained MinIO runtime required |
-| Trino serving/transformation | 10% | Trino 478 + dbt Gold | Locally runtime verified Silver queries and two 15/15 dbt builds | Re-run demonstration at final commit |
-| Delta Lake | 10% | Delta 3.3.2 Silver table | Locally runtime verified log/history/reopen/idempotent MERGE | Re-run demonstration at final commit |
-| Spark batch | 10% | Spark 3.5.5 Bronze→Silver | Locally runtime verified fixture and reconciliation | SEC-022 keeps this image isolated/local only |
-| Kafka broker | 10% | Kafka 3.9.2, versioned topic | Locally runtime verified broker acknowledgments and durable offsets | Re-run demonstration at final commit |
-| Flink streaming/windows | 10% | Flink 1.20.5 event-time sliding + tumbling windows | Locally runtime verified watermarks, lateness, dedup, checkpoint restoration, Redis freshness; JUnit fixtures | Re-run demonstration at final commit |
-| Airflow orchestration | 10% | Airflow 3.3.2 six-task DAG | Locally runtime verified 163.24-second successful DAG | Re-run demonstration at final commit |
+| Trino serving/transformation | 10% | Trino 478 + dbt Gold | PR #19 fresh Silver query and two 15/15 dbt builds | Cloud/scale acceptance remains deferred |
+| Delta Lake | 10% | Delta 3.3.2 Silver table | PR #19 fresh history/reopen/idempotent MERGE evidence | Cloud/scale acceptance remains deferred |
+| Spark batch | 10% | Spark 3.5.5 Bronze→Silver | PR #19 fresh three-event fixture and reconciliation | SEC-022 keeps this image isolated/local only |
+| Kafka broker | 10% | Kafka 3.9.2, versioned topic | PR #19 fresh broker acknowledgments and offsets 0–2 | Load/HA acceptance remains deferred |
+| Flink streaming/windows | 10% | Flink 1.20.5 event-time windows | PR #19 fresh dedup oracle, checkpoint restoration and Redis freshness | Dead-letter payload was not independently consumed |
+| Airflow orchestration | 10% | Airflow 3.3.2 six-task DAG | PR #19 fresh six-task success in about 181 seconds | Cloud scheduler acceptance remains deferred |
 | Four cloud deployments | 20% | GKE readiness patterns only | Statically validated where shared infrastructure applies | **Not completed**: four separately accepted runtime deployments required |
 | Dataset strictly >100 GB | 10% | Partitioned resumable generator + benchmark plan | Small fixtures validate exact bytes, resume integrity and safety gates | **Not completed** until >100,000,000,000 bytes are processed and reconciled |
 
-Current maximum supported score from existing runtime evidence is therefore
+Current maximum supported score from fresh PR #19 runtime evidence is therefore
 60/100 before instructor judgment on SeaweedFS equivalence; no cloud or 100 GB
 points are claimed.
 
