@@ -6,6 +6,14 @@ Module I deployment workflow and a fail-closed evidence validator. These are
 offline/static results until the authorization gates in `final-acceptance.md`
 are satisfied. Historical evidence below retains its original date and scope.
 
+The 2026-10-27 compatibility review found no supported, upstream-qualified
+serverless matrix. KServe 0.20.0 and 0.21.0 both pin EOL Knative 1.21.1 and
+Istio 1.27.1 plus upstream-EOL cert-manager 1.17.0. A supported-component
+candidate is recorded for a future isolated qualification, but is not selected.
+The protected deployment stops before OIDC while the matrix is `BLOCKED`.
+Offline tests cover missing controllers/CRDs, version drift, global scale-to-zero,
+routes, Revision annotations, digest-pinned images and finite timeout ordering.
+
 On 2026-10-27, **341 Python tests passed in 45.26 seconds with 88.89%
 coverage**. Ruff, scoped MyPy, Helm lint, Standard and Knative GKE renders,
 workflow YAML parsing and Terraform formatting passed. The 41 focused Module I

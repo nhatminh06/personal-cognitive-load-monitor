@@ -31,6 +31,8 @@ def validate_existing_release(
 ) -> dict[str, str]:
     if status.get("name") != RELEASE or status.get("namespace") != NAMESPACE:
         raise ValueError("existing Helm release name or namespace mismatch")
+    if status.get("info", {}).get("status") != "deployed":
+        raise ValueError("existing Helm release must be in deployed state")
     owner = values.get("deploymentOwner")
     mode = values.get("kserve", {}).get("deploymentMode")
     if owner not in OWNERS:

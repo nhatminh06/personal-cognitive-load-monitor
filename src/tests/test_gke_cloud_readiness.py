@@ -277,9 +277,13 @@ def test_module1_deploy_is_manual_protected_oidc_and_knative_only() -> None:
     assert "--atomic --timeout 10m" in workflow
     assert "replace_existing_release:" in workflow
     assert "scripts/module1_helm_guard.py" in workflow
+    assert "scripts/module1_compatibility.py" in workflow
+    assert "--require-qualified" in workflow
     assert "EXPECTED_GKE_CONTEXT" in workflow
     assert "helm get manifest cognitive-load-monitor" in workflow
     assert "enable-scale-to-zero" in workflow
+    assert "revision-response-start-timeout-seconds" in workflow
+    assert "revision-idle-timeout-seconds" in workflow
     assert "kpa.autoscaling.knative.dev" in workflow
     assert "kubectl get revision" in workflow
     assert "docker build" not in workflow
