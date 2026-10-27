@@ -126,7 +126,7 @@ def _expected_kserve_provenance() -> dict[str, str]:
     if any(not value for value in expected.values()):
         raise RuntimeError("KServe expected provenance is incomplete")
     if (
-        not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", expected["model_name"])
+        not re.fullmatch(r"[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?", expected["model_name"])
         or not re.fullmatch(r"[1-9][0-9]*", expected["model_version"])
         or any(
             not re.fullmatch(r"[a-f0-9]{64}", expected[name])

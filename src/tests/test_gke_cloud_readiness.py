@@ -62,6 +62,7 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "roles/container.clusterViewer" in terraform
     assert 'attribute.environment/production"' in terraform
     assert 'attribute.environment/production-release"' in terraform
+    assert 'attribute.environment/production-knative"' in terraform
     assert "github_actions_release.email" in terraform
 
 
@@ -112,6 +113,16 @@ def test_gke_helm_rejects_model_identity_and_broker_mismatches() -> None:
     assert "matching kserve.name" in model_mismatch.stderr
     assert broker_mismatch.returncode != 0
     assert "must match the configured Knative Broker" in broker_mismatch.stderr
+
+
+def test_gke_helm_rejects_kserve_incompatible_model_names() -> None:
+    for name in ("Uppercase", "has.dot", "has_underscore", "-leading", "trailing-", "a" * 64):
+        result = _render(
+            "--set-string", f"kserve.name={name}",
+            "--set-string", f"config.modelName={name}",
+        )
+        assert result.returncode != 0
+        assert "lowercase DNS label" in result.stderr
 
 
 def test_production_broker_destination_matches_versioned_manifests() -> None:
@@ -186,6 +197,22 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert "helm upgrade" not in workflow
     assert "GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER" in workflow
     assert "GCP_RELEASE_SERVICE_ACCOUNT" in workflow
+    assert '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' in workflow
+
+
+def test_knative_deploy_is_separately_gated_and_verifies_all_release_images() -> None:
+    workflow = (ROOT / ".github/workflows/deploy-knative.yaml").read_text()
+
+    assert "workflow_dispatch:" in workflow
+    assert "name: production-knative" in workflow
+    assert "id-token: write" in workflow
+    assert "github.ref == 'refs/heads/main'" in workflow
+    assert "scripts/render_production_knative.py" in workflow
+    assert "scripts/verify_cloud_release.sh" in workflow
+    for image in ("API_IMAGE", "KSERVE_IMAGE", "EVENT_CONSUMER_IMAGE", "ANOMALY_DETECTOR_IMAGE"):
+        assert f'"${image}"' in workflow
+    assert "docker build" not in workflow
+    assert "cosign sign" not in workflow
 
 
 def test_production_knative_render_replaces_all_development_images() -> None:

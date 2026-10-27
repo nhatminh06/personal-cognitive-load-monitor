@@ -1,4 +1,7 @@
 {{- if .Values.kserve.enabled }}
+{{- if or (gt (len .Values.kserve.name) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Values.kserve.name)) }}
+{{- fail "kserve.name must be a lowercase DNS label of at most 63 characters" }}
+{{- end }}
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:

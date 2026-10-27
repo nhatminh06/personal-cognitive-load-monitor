@@ -16,6 +16,8 @@ import yaml
 from cogniflow_data.training import sha256_tree
 from preprocessing_api.features import FEATURE_NAMES
 
+KSERVE_MODEL_NAME_RE = re.compile(r"[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?")
+
 
 def package_approved_model(
     model_name: str,
@@ -23,8 +25,10 @@ def package_approved_model(
     expected_artifact_digest: str,
     output_dir: Path,
 ) -> dict[str, object]:
-    if not model_name or not version.isdigit() or int(version) < 1:
-        raise ValueError("an exact model name and positive numeric version are required")
+    if not KSERVE_MODEL_NAME_RE.fullmatch(model_name):
+        raise ValueError("model name must be a lowercase DNS label of at most 63 characters")
+    if not version.isdigit() or int(version) < 1:
+        raise ValueError("a positive numeric model version is required")
     if not re.fullmatch(r"[0-9a-f]{64}", expected_artifact_digest):
         raise ValueError("expected artifact digest must be a lowercase SHA-256")
     if output_dir.exists():

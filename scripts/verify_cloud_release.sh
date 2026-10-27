@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 2 || -z "${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-}" ]]; then
-  echo "usage: COSIGN_CERTIFICATE_IDENTITY_REGEXP=... $0 API_IMAGE@sha256:... KSERVE_IMAGE@sha256:..." >&2
+if [[ $# -lt 1 || -z "${COSIGN_CERTIFICATE_IDENTITY_REGEXP:-}" ]]; then
+  echo "usage: COSIGN_CERTIFICATE_IDENTITY_REGEXP=... $0 IMAGE@sha256:... [IMAGE@sha256:...]" >&2
   exit 2
 fi
 

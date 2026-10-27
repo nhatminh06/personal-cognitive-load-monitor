@@ -85,6 +85,11 @@ deployer and bind each impersonation grant to its environment. On the dedicated
 deploy runner, `scripts/verify_cloud_release.sh` re-verifies the release identity
 and runs Trivy against the exact digests before Helm.
 
+The existing protected `deploy` job in `.github/workflows/ci-cd.yaml` installs
+only the Helm API/KServe chart and verifies only those two image digests. It
+does **not** install the rendered logging, dead-letter, anomaly-detector or
+alert-sink workloads and must not be cited as four-image deployment evidence.
+
 ```bash
 helm template cogniflow helm/cognitive-load-monitor \
   --namespace cogniflow -f helm/cognitive-load-monitor/values.gke.yaml \
@@ -106,7 +111,15 @@ intentionally contain local `:dev` images and `imagePullPolicy: Never`.
 accepts only the two released Artifact Registry digest references, replaces all
 four logging/dead-letter/detector/sink container occurrences, and fails if any
 mutable or development image remains. Apply its reviewed output only from the
-separate protected deployment action.
+separate manual `.github/workflows/deploy-knative.yaml` action. That workflow is
+main-only, uses the separately protected `production-knative` environment and
+the OIDC deployer identity, re-verifies all four released image digests, checks
+namespace-local authorization and restricted Pod Security admission, then
+applies the network policy, Broker, rendered workloads and Triggers. It neither
+builds nor publishes images. Before its first authorized run, a bootstrap
+administrator must create/label the namespace and apply
+`deploy/gke/eventing-deployer-rbac.yaml` with the reviewed project substitution;
+the workflow deliberately cannot grant itself access.
 
 ## 7. Final demo acceptance
 

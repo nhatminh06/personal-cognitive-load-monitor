@@ -1,0 +1,98 @@
+name: Deploy approved Knative workloads
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_image:
+        description: Exact released API Artifact Registry digest reference
+        required: true
+        type: string
+      kserve_image:
+        description: Exact released KServe Artifact Registry digest reference
+        required: true
+        type: string
+      event_consumer_image:
+        description: Exact released event-consumer Artifact Registry digest reference
+        required: true
+        type: string
+      anomaly_detector_image:
+        description: Exact released anomaly Artifact Registry digest reference
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-knative-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, cogniflow-gke-deploy]
+    environment:
+      name: production-knative
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout exact deployment commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER }}
+          location: ${{ secrets.GKE_LOCATION }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: false
+
+      - name: Install locked renderer dependency
+        run: uv sync --frozen
+
+      - name: Verify all four released image digests
+        env:
+          COSIGN_CERTIFICATE_IDENTITY_REGEXP: ${{ secrets.COSIGN_CERTIFICATE_IDENTITY_REGEXP }}
+          API_IMAGE: ${{ inputs.api_image }}
+          KSERVE_IMAGE: ${{ inputs.kserve_image }}
+          EVENT_CONSUMER_IMAGE: ${{ inputs.event_consumer_image }}
+          ANOMALY_DETECTOR_IMAGE: ${{ inputs.anomaly_detector_image }}
+        run: |
+          bash scripts/verify_cloud_release.sh \
+            "$API_IMAGE" "$KSERVE_IMAGE" "$EVENT_CONSUMER_IMAGE" "$ANOMALY_DETECTOR_IMAGE"
+
+      - name: Render and deploy production eventing workloads
+        env:
+          EVENT_CONSUMER_IMAGE: ${{ inputs.event_consumer_image }}
+          ANOMALY_DETECTOR_IMAGE: ${{ inputs.anomaly_detector_image }}
+        run: |
+          kubectl auth can-i create deployments.apps -n cogniflow-eventing | grep -qx yes
+          kubectl get namespace cogniflow-eventing \
+            -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}' | grep -qx restricted
+          uv run python scripts/render_production_knative.py \
+            --event-consumer "$EVENT_CONSUMER_IMAGE" \
+            --anomaly-detector "$ANOMALY_DETECTOR_IMAGE" \
+            > "${RUNNER_TEMP}/cogniflow-knative-production.yaml"
+          kubectl apply -f deploy/knative/networkpolicy.yaml
+          kubectl apply -f deploy/knative/broker.yaml
+          kubectl apply -f "${RUNNER_TEMP}/cogniflow-knative-production.yaml"
+          kubectl apply -f deploy/knative/trigger.yaml
+          kubectl apply -f deploy/knative/anomaly-trigger.yaml

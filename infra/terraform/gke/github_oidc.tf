@@ -29,7 +29,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 
   # Credentials are issued only from main through one of the two protected
   # environments; each service account binding below narrows this further.
-  attribute_condition = "assertion.repository == \"${var.github_repository}\" && assertion.ref == \"refs/heads/main\" && assertion.environment in [\"production\", \"production-release\"]"
+  attribute_condition = "assertion.repository == \"${var.github_repository}\" && assertion.ref == \"refs/heads/main\" && assertion.environment in [\"production\", \"production-release\", \"production-knative\"]"
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
@@ -56,6 +56,12 @@ resource "google_service_account_iam_member" "github_wif_binding" {
   service_account_id = google_service_account.github_actions.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.environment/production"
+}
+
+resource "google_service_account_iam_member" "github_knative_wif_binding" {
+  service_account_id = google_service_account.github_actions.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.environment/production-knative"
 }
 
 resource "google_service_account_iam_member" "github_release_wif_binding" {
