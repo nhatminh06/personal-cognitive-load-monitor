@@ -55,6 +55,11 @@ flowchart LR
 - **Rollback:** disable producer and delete only versioned PR-owned Trigger/consumer resources; preserve API serving.
 - **Downstream:** PR #16 subscribes to the same stable event contract.
 
+PR #14 is now synchronized with PRs #15 and #16. Combined regressions preserve
+all three inference modes and the CloudEvents/logging/anomaly paths. Its custom
+KServe runtime is implementation-complete; exact approved-model runtime
+acceptance remains a separate owner-gated milestone.
+
 ## PR #16 — real-time anomaly detection
 
 - **Prerequisites:** PR #15; versioned deterministic fixtures and agreed thresholds/SLO.

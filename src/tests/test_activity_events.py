@@ -173,6 +173,33 @@ def test_security_rejections_are_captured_as_sanitized_activity(
     assert "sensitive-marker" not in json.dumps(captured[0])
 
 
+@pytest.mark.parametrize(
+    ("headers", "payload", "expected_status"),
+    [
+        ({}, {"focus_minutes": 45, "distraction_minutes": 5, "tasks_due": 2,
+              "hours_to_deadline": 24}, 401),
+        ({"x-api-key": "test-api-key"}, {"focus_minutes": -1}, 422),
+    ],
+)
+def test_authentication_and_validation_failures_publish_activity(
+    monkeypatch, headers, payload, expected_status
+):
+    captured = []
+
+    async def capture(value):
+        captured.append(value)
+        return True
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("COGNIFLOW_API_KEY", "test-api-key")
+    monkeypatch.setenv("INFERENCE_MODE", "demo_rule")
+    monkeypatch.setattr(activity_events, "publish_activity_event", capture)
+    response = request(app, "POST", "/predict", headers=headers, json=payload)
+    assert response.status_code == expected_status
+    assert captured[0]["data"]["http_status"] == expected_status
+    assert captured[0]["data"]["failure_category"] in {"authentication", "validation"}
+
+
 def test_consumer_persists_once_and_survives_restart(tmp_path, monkeypatch):
     store = tmp_path / "events.sqlite3"
     monkeypatch.setenv("EVENT_STORE_PATH", str(store))

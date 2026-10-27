@@ -75,19 +75,18 @@ existingSecret: ""
 kserve:
   enabled: false
   name: cognitive-load-classifier
-  storageUri: gs://CHANGE_ME_BUCKET/models/cognitive-load-classifier
-  minScale: "0"
-  maxScale: "3"
+  image:
+    repository: ghcr.io/OWNER/REPO/cogniflow-kserve
+    digest: ""
+    pullPolicy: IfNotPresent
   predictor:
-    sklearn:
-      protocolVersion: v1
-      resources:
-        requests:
-          cpu: 250m
-          memory: 512Mi
-        limits:
-          cpu: "1"
-          memory: 1Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
 
 ingress:
   enabled: false

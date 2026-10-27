@@ -12,6 +12,7 @@ from cogniflow_data.api import router as event_router
 from preprocessing_api.model_client import (
     predict_with_kserve,
     predict_with_local_model,
+    verified_kserve_provenance,
     verified_local_model_provenance,
 )
 from preprocessing_api.activity_events import InferenceActivityMiddleware
@@ -68,8 +69,15 @@ async def ready():
         focus_minutes=1, distraction_minutes=0, tasks_due=0, hours_to_deadline=168
     )) is None:
         raise HTTPException(status_code=503, detail="Configured local model is unavailable")
-    if mode == "kserve" and not os.getenv("KSERVE_PREDICT_URL"):
-        raise HTTPException(status_code=503, detail="KServe endpoint is not configured")
+    if mode == "kserve":
+        try:
+            await verified_kserve_provenance()
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="KServe model timed out") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="KServe model returned invalid metadata") from exc
+        except (ConnectionError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail="KServe model is unavailable") from exc
     return {"status": "ready", "inference_mode": mode}
 
 
@@ -92,6 +100,28 @@ async def model_info():
         provenance = verified_local_model_provenance()
         if provenance is None:
             raise HTTPException(status_code=503, detail="Verified model provenance is unavailable")
+        result = {
+            "inference_mode": mode,
+            "model_version": provenance["model_version"],
+            "label_provenance": provenance["label_provenance"],
+            "model_name": provenance["model_name"],
+            "dataset_sha256": provenance["dataset_sha256"],
+            "feature_schema_version": provenance["feature_schema_version"],
+            "feature_names": provenance["feature_names"],
+            "registered_artifact_sha256": provenance["registered_artifact_sha256"],
+            "packaged_model_sha256": provenance["packaged_model_sha256"],
+            "run_id": provenance["run_id"],
+            "git_revision": provenance["git_revision"],
+        }
+    elif mode == "kserve":
+        try:
+            provenance = await verified_kserve_provenance()
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="Model provenance request timed out") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail="Model provenance is invalid") from exc
+        except (ConnectionError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail="Verified model provenance is unavailable") from exc
         result = {
             "inference_mode": mode,
             "model_version": provenance["model_version"],
@@ -143,7 +173,7 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
     else:
         source = "kserve"
         try:
-            cognitive_load_level = predict_with_kserve(request)
+            cognitive_load_level = await predict_with_kserve(request)
         except TimeoutError as exc:
             raise HTTPException(status_code=504, detail="Model server timed out") from exc
         except (ConnectionError, RuntimeError) as exc:

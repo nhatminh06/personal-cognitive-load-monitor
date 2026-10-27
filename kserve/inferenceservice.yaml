@@ -2,19 +2,43 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: cognitive-load-classifier
-  namespace: cognitive-load
-  annotations:
-    autoscaling.knative.dev/min-scale: "0"
-    autoscaling.knative.dev/max-scale: "3"
+  namespace: cognitive-load-kserve
 spec:
   predictor:
-    sklearn:
-      protocolVersion: "v1"
-      storageUri: gs://CHANGE_ME_BUCKET/models/cognitive-load-classifier
-      resources:
-        requests:
-          cpu: 250m
-          memory: 512Mi
-        limits:
-          cpu: "1"
-          memory: 1Gi
+    serviceAccountName: cognitive-load-kserve
+    containers:
+      - name: kserve-container
+        # Replace only after resolving the repository digest in the target runtime.
+        image: ghcr.io/OWNER/REPO/cogniflow-kserve@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        imagePullPolicy: IfNotPresent
+        args: ["--model_name", "cognitive-load-classifier", "--http_port", "8080", "--enable_grpc=false"]
+        ports:
+          - name: http1
+            containerPort: 8080
+        env:
+          # Values must match the approved model-package.json exactly.
+          - {name: MODEL_NAME, value: cognitive-load-classifier}
+          - {name: MODEL_VERSION, value: REPLACE}
+          - {name: MODEL_SHA256, value: REPLACE}
+          - {name: MODEL_ARTIFACT_SHA256, value: REPLACE}
+          - {name: MODEL_DATASET_SHA256, value: REPLACE}
+          - {name: MODEL_FEATURE_SCHEMA_VERSION, value: "1.0"}
+        readinessProbe:
+          httpGet: {path: /v1/models/cognitive-load-classifier, port: http1}
+        livenessProbe:
+          httpGet: {path: /, port: http1}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile: {type: RuntimeDefault}
+          capabilities: {drop: [ALL]}
+        resources:
+          requests: {cpu: 250m, memory: 512Mi}
+          limits: {cpu: "1", memory: 1Gi}
+        volumeMounts:
+          - {name: tmp, mountPath: /tmp}
+    volumes:
+      - name: tmp
+        emptyDir: {}

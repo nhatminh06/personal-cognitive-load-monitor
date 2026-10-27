@@ -73,6 +73,7 @@ def package_approved_model(
         packaged_digest = hashlib.sha256(packaged_model.read_bytes()).hexdigest()
         manifest: dict[str, object] = {
             "contract_version": "1.0",
+            "approval_status": "approved",
             "model_name": model_name,
             "model_version": version,
             "run_id": candidate.run_id,
