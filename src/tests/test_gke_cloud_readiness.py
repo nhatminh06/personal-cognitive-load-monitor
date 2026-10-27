@@ -82,6 +82,11 @@ def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_networ
     assert all("@sha256:" in image for image in images)
     assert inference["metadata"]["annotations"]["serving.kserve.io/deploymentMode"] == "Standard"
     assert inference["spec"]["predictor"]["serviceAccountName"] == "cogniflow-kserve"
+    assert inference["spec"]["predictor"]["volumes"][0]["emptyDir"]["sizeLimit"] == "64Mi"
+    deployment = next(document for document in documents if document["kind"] == "Deployment")
+    assert deployment["spec"]["template"]["spec"]["securityContext"]["seccompProfile"] == {
+        "type": "RuntimeDefault",
+    }
     ingress = next(document for document in documents if document["kind"] == "Ingress")
     assert ingress["spec"]["tls"][0]["secretName"] == "cogniflow-api-tls"
     assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-type"] == "basic"
