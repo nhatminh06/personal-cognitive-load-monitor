@@ -7,7 +7,7 @@ metadata:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
 spec:
   predictor:
-    serviceAccountName: {{ include "cognitive-load-monitor.serviceAccountName" . }}
+    serviceAccountName: {{ include "cognitive-load-monitor.kserveServiceAccountName" . }}
     containers:
       - name: kserve-container
         {{- if or (not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.kserve.image.digest)) (eq .Values.kserve.image.digest "sha256:0000000000000000000000000000000000000000000000000000000000000000") }}

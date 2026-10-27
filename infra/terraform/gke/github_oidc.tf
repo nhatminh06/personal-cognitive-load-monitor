@@ -55,3 +55,10 @@ resource "google_project_iam_member" "github_actions_gke_developer" {
   role    = "roles/container.developer"
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
+
+resource "google_artifact_registry_repository_iam_member" "github_actions_writer" {
+  location   = google_artifact_registry_repository.images.location
+  repository = google_artifact_registry_repository.images.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.github_actions.email}"
+}

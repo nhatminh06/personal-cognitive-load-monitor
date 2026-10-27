@@ -14,8 +14,23 @@ output "model_bucket" {
   value = google_storage_bucket.model_bucket.url
 }
 
+output "mlflow_google_service_account" {
+  description = "Annotate mlflow/mlflow with iam.gke.io/gcp-service-account."
+  value       = google_service_account.mlflow.email
+}
+
+output "kserve_google_service_account" {
+  description = "Annotate cogniflow/cogniflow-kserve with iam.gke.io/gcp-service-account."
+  value       = google_service_account.kserve.email
+}
+
+output "api_google_service_account" {
+  description = "Annotate cogniflow/cogniflow-api with iam.gke.io/gcp-service-account."
+  value       = google_service_account.api.email
+}
+
 output "artifact_registry_url" {
-  description = "Docker registry path for image.repository, e.g. REGION-docker.pkg.dev/PROJECT/cognitive-load-images"
+  description = "Docker registry path for image.repository, e.g. REGION-docker.pkg.dev/PROJECT/cogniflow-images"
   value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.images.repository_id}"
 }
 

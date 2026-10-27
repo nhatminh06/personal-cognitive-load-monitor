@@ -59,13 +59,13 @@ It is designed to demonstrate how independently developed data and machine learn
 | Knative anomaly detector | Persistent deterministic detector, alert outbox/sink and dashboard verified on isolated Knative runtime |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
-| GKE Terraform | Statically validated only |
-| GKE, GCS-backed MLflow and full demo video | Not deployed or recorded |
+| GKE/GCS cloud readiness | Private-node Terraform, least-privilege Workload Identity, private/versioned GCS and TLS/digest-pinned Helm are statically validated |
+| GKE, GCS-backed MLflow runtime and full demo video | Not deployed or recorded |
 | 100 GB performance benchmark | Not performed |
 
 ### Verification highlights
 
-- **284 Python tests passed**, with **88.76% combined coverage** across API, data, Eventing, anomaly and KServe packages against an 81% enforcement threshold.
+- **287 Python tests passed**, with **88.76% combined coverage** across API, data, Eventing, anomaly and KServe packages against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -91,7 +91,7 @@ The next training milestone is now verified on a disposable standalone KFP backe
 
 The [authoritative 2026 course rubric](docs/course-rubric-2026.md) separates the weighted assignment requirements from additional engineering goals and records the evidence needed for every point. The selected practical path is **GKE (35%) plus GCS-backed MLflow artifacts (5%)**; the alternative GCE score is not added.
 
-The remaining work is specified in the [final rubric architecture](docs/module3/final-rubric-architecture.md), [implementation roadmap](docs/module3/implementation-roadmap.md), [resource and cost plan](docs/module3/resource-and-cost-plan.md), and [full demonstration contract](docs/demo/full-rubric-demo.md). Knative Eventing logging and anomaly detection are verified on isolated local runtimes; approved-model KServe acceptance, GKE and GCS remain incomplete.
+The remaining work is specified in the [GKE/GCS readiness design](docs/module3/gke-gcs-readiness.md), [authorized cloud runbook](docs/cloud-deployment.md), [resource and cost plan](docs/module3/resource-and-cost-plan.md), and [full demonstration contract](docs/demo/full-rubric-demo.md). Knative Eventing logging and anomaly detection are verified on isolated local runtimes; approved-model KServe acceptance and authorized GKE/GCS runtime evidence remain incomplete.
 
 ---
 
@@ -542,7 +542,7 @@ helm template cognitive-load-monitor \
 
 The repository also includes Helm templates for KServe, ingress, HPA, monitoring and network policies, plus Terraform configuration for GKE.
 
-**These files are deployment definitions, not evidence of a functioning production Kubernetes platform.** Live GKE/KServe integration, workload identity, network policy enforcement, TLS, managed secrets and cloud operational behavior remain deployment-time requirements.
+**These files are deployment definitions, not evidence of a functioning production Kubernetes platform.** Their private-node, Workload Identity, storage, digest, TLS and API NetworkPolicy controls are offline-validated; actual GKE enforcement, secret synchronization and cloud operational behavior remain deployment-time gates.
 
 Provisioning GKE may incur cloud charges. No cloud deployment is required to reproduce the documented local results.
 

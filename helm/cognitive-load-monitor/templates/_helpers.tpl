@@ -2,6 +2,14 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "cognitive-load-monitor.kserveServiceAccountName" -}}
+{{- if .Values.kserve.serviceAccount.create -}}
+{{- default (printf "%s-kserve" (include "cognitive-load-monitor.fullname" .)) .Values.kserve.serviceAccount.name -}}
+{{- else -}}
+{{- default (include "cognitive-load-monitor.serviceAccountName" .) .Values.kserve.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "cognitive-load-monitor.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}

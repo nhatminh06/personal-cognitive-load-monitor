@@ -75,6 +75,10 @@ existingSecret: ""
 kserve:
   enabled: false
   name: cognitive-load-classifier
+  serviceAccount:
+    create: false
+    annotations: {}
+    name: ""
   image:
     repository: ghcr.io/OWNER/REPO/cogniflow-kserve
     digest: ""
@@ -107,3 +111,7 @@ serviceMonitor:
 
 networkPolicy:
   enabled: true
+  ingressNamespace: ingress-nginx
+  kserveNamespace: cogniflow
+  eventingNamespace: knative-eventing
+  observabilityNamespace: monitoring

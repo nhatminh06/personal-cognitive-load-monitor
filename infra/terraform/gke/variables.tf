@@ -6,7 +6,7 @@ variable "project_id" {
 variable "region" {
   description = "GCP region for the regional GKE cluster."
   type        = string
-  default     = "asia-southeast1"
+  default     = "us-central1"
 }
 
 variable "cluster_name" {
@@ -15,16 +15,82 @@ variable "cluster_name" {
   default     = "cognitive-load-gke"
 }
 
-variable "node_count" {
-  description = "Initial node count for the default node pool."
+variable "node_locations" {
+  description = "Two zones used by the regional node pool; keep this bounded for the demo."
+  type        = list(string)
+  default     = ["us-central1-a", "us-central1-b"]
+}
+
+variable "nodes_per_zone" {
+  description = "Fixed nodes in each node location."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "machine_type" {
   description = "GKE node machine type."
   type        = string
-  default     = "e2-standard-2"
+  default     = "e2-standard-4"
+}
+
+variable "nodes_ipv4_cidr" {
+  type        = string
+  description = "Primary node subnet CIDR."
+  default     = "10.10.0.0/20"
+}
+
+variable "pods_ipv4_cidr" {
+  type        = string
+  description = "Secondary pod CIDR."
+  default     = "10.20.0.0/16"
+}
+
+variable "services_ipv4_cidr" {
+  type        = string
+  description = "Secondary service CIDR."
+  default     = "10.30.0.0/20"
+}
+
+variable "control_plane_ipv4_cidr" {
+  type        = string
+  description = "Private GKE control-plane CIDR."
+  default     = "172.16.0.0/28"
+}
+
+variable "model_retention_seconds" {
+  type        = number
+  description = "Minimum retention for MLflow artifacts and approved model evidence."
+  default     = 2592000
+}
+
+variable "noncurrent_version_retention_days" {
+  type        = number
+  description = "Days to retain noncurrent object versions after retention permits deletion."
+  default     = 45
+}
+
+variable "billing_account_id" {
+  type        = string
+  description = "Billing account for optional budget alerts. Empty leaves the budget unapplied."
+  default     = ""
+  sensitive   = true
+}
+
+variable "project_number" {
+  type        = string
+  description = "Numeric GCP project number used to scope the optional budget."
+  default     = ""
+
+  validation {
+    condition     = var.billing_account_id == "" || can(regex("^[0-9]+$", var.project_number))
+    error_message = "project_number must be numeric when billing_account_id enables the budget."
+  }
+}
+
+variable "monthly_budget_usd" {
+  type        = number
+  description = "Demo budget alert amount; alerts do not cap spend."
+  default     = 100
 }
 
 variable "github_repository" {

@@ -15,7 +15,7 @@
 - [ ] One authorized GKE cluster running grading-relevant components — 35% selected alternative.
 - [ ] MLflow registry artifacts backed by verified GCS object storage — 5%.
 
-The unselected GCE-only 20% alternative is not additive. GKE Terraform and GCS resources are currently static definitions only; no cloud apply has occurred.
+The unselected GCE-only 20% alternative is not additive. Private-node GKE, private/versioned GCS, Workload Identity, Artifact Registry, budget and TLS/digest-pinned Helm resources are static definitions only; no cloud plan with credentials or apply has occurred.
 
 ## Required deliverables
 
@@ -64,3 +64,5 @@ terraform -chdir=infra/terraform/gke validate
 ```
 
 Do not run `terraform apply`, approve a model or deploy a workload merely to check this list. Follow [`module3/implementation-roadmap.md`](module3/implementation-roadmap.md) and obtain the required owner approvals.
+
+PR #17 offline readiness evidence belongs in [`module3/gke-gcs-readiness.md`](module3/gke-gcs-readiness.md); the exact authorized demo sequence and stop conditions are in [`cloud-deployment.md`](cloud-deployment.md).

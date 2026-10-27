@@ -16,13 +16,13 @@
 | 10 | Centralized logging | Verified locally, historical | Structured API logs observed in Loki 2026-10-23 |
 | 11 | FastAPI preprocessing API | Verified locally and in CI | Stable health/readiness/predict/model-info/events/features/metrics contracts |
 | 12 | HPA | Statically validated | Helm `autoscaling/v2` resource renders; no load test |
-| 13 | KServe | Statically validated only | Client and manifests exist; no real `InferenceService` runtime |
+| 13 | KServe | Local controller/runtime contract verified; cloud blocked | Phase 5 evidence covers KServe 0.20 locally; no approved model or GKE `InferenceService` runtime |
 | 14 | KServe scale-to-zero | Not verified | `min-scale: 0` is intent only; must observe zero replicas, cold activation and successful response |
 | 15 | NGINX ingress | Local auth runtime verified; cloud static | Local NGINX auth tested; GKE ingress not deployed |
 | 16 | Gateway authentication | Local runtime verified | Disposable local test returned 401/200; production credentials/TLS remain cloud-deferred |
-| 17 | Kubernetes IaC | Local runtime + GKE static | Terraform-managed kind/Helm release verified; GKE Terraform validated but not applied |
+| 17 | Kubernetes IaC | Local runtime + hardened GKE static | Terraform-managed kind/Helm release verified; private-node GKE, GCS/IAM and exact-digest/TLS Helm configuration validate but were not applied |
 | 18 | Cloud Kubernetes | Blocked by authorization/cost | GKE selected, never provisioned |
-| 19 | MLflow tracking/registry | Verified locally and in CI | Exact candidate version and artifact-tree digest verified; no cloud artifact store |
+| 19 | MLflow tracking/registry | Verified locally; cloud IaC static | Exact candidate version and artifact-tree digest verified; private versioned GCS and Workload Identity are defined but no cloud round trip occurred |
 | 20 | DVC data/pipeline | Verified locally | Pipeline reports up to date; deterministic historical fixture tracked |
 | 21 | Model retrieval for image | Historical CI path verified | General CI trains/downloads an ephemeral model; Phase 3 secure packaging remains approval-bound |
 | 22 | Helm deployment | Verified in local kind | Demo-rule release runtime verified; Phase 3 model and KServe releases are not deployed |
