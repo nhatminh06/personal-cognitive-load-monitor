@@ -67,6 +67,28 @@ REQUIRED_CONTROLLERS = {
     "cert-manager/cert-manager-cainjector",
 }
 DIGEST_IMAGE = re.compile(r"[^\s]+@sha256:[a-f0-9]{64}")
+KUBERNETES_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-+].+)?$")
+
+
+def kubernetes_version_matches(policy: dict[str, Any], actual: str) -> bool:
+    """Match exact patches, or an explicitly bounded patch range."""
+    match = KUBERNETES_VERSION.fullmatch(actual)
+    if not match or ("-gke." in actual and policy.get("gke_accepted") is not True):
+        return False
+    actual_core = tuple(map(int, match.groups()))
+    if policy.get("policy") == "exact":
+        return actual == policy.get("version")
+    if policy.get("policy") == "patch_range":
+        if "-gke." in actual:
+            return False
+        minimum = KUBERNETES_VERSION.fullmatch(str(policy.get("minimum", "")))
+        maximum = KUBERNETES_VERSION.fullmatch(str(policy.get("maximum", "")))
+        return bool(
+            minimum
+            and maximum
+            and tuple(map(int, minimum.groups())) <= actual_core <= tuple(map(int, maximum.groups()))
+        )
+    return False
 
 
 def validate_matrix(matrix: dict[str, Any], *, require_qualified: bool = False) -> None:
@@ -86,6 +108,15 @@ def validate_matrix(matrix: dict[str, Any], *, require_qualified: bool = False) 
             not str(url).startswith("https://") for url in candidate["evidence"]
         ):
             raise ValueError(f"compatibility candidate is incomplete: {candidate.get('id', 'unknown')}")
+        kubernetes = candidate["kubernetes"]
+        if not isinstance(kubernetes, dict) or not any(
+            kubernetes_version_matches(kubernetes, version)
+            for version in (
+                str(kubernetes.get("version", "")),
+                str(kubernetes.get("minimum", "")),
+            )
+        ):
+            raise ValueError(f"Kubernetes qualification policy is invalid: {candidate['id']}")
     selected = matrix.get("selected_candidate")
     selected_rows = [candidate for candidate in candidates if candidate["id"] == selected]
     inventory = selected_rows[0].get("approved_inventory", {}) if selected_rows else {}
@@ -97,8 +128,14 @@ def validate_matrix(matrix: dict[str, Any], *, require_qualified: bool = False) 
         and re.fullmatch(r"[a-f0-9]{40}", selected_rows[0]["source"].get("commit", "")) is not None
         and set(inventory.get("crds", [])) == REQUIRED_CRDS
         and set(inventory.get("controllers", {})) == REQUIRED_CONTROLLERS
-        and all(DIGEST_IMAGE.fullmatch(image) for image in inventory.get("controllers", {}).values())
-        and inventory.get("charts")
+        and all(
+            isinstance(images, list)
+            and images
+            and all(DIGEST_IMAGE.fullmatch(image) for image in images)
+            for images in inventory.get("controllers", {}).values()
+        )
+        and inventory.get("installation", {}).get("method") == "kustomize"
+        and inventory.get("configuration")
     )
     if matrix["qualification_status"] == "QUALIFIED" and not qualified:
         raise ValueError("QUALIFIED requires one suitable selected candidate")
@@ -107,37 +144,33 @@ def validate_matrix(matrix: dict[str, Any], *, require_qualified: bool = False) 
 
 
 def validate_control_plane_snapshot(snapshot: dict[str, Any], candidate: dict[str, Any]) -> None:
-    if snapshot.get("source_commit") != candidate.get("source", {}).get("commit"):
-        raise ValueError("serving source commit does not match the approved matrix")
     expected = {
         "kserve": candidate["kserve"],
         "knative_serving": candidate["knative_serving"],
-        "kubernetes": candidate["kubernetes"],
         "networking": candidate["networking"],
         "cert_manager": candidate["cert_manager"],
     }
     if any(snapshot.get(key) != value for key, value in expected.items()):
         raise ValueError("runtime versions do not match the qualified matrix")
+    if not kubernetes_version_matches(candidate["kubernetes"], str(snapshot.get("kubernetes", ""))):
+        raise ValueError("Kubernetes patch does not match the qualified policy")
     approved = candidate.get("approved_inventory", {})
     if set(snapshot.get("crds", [])) != set(approved.get("crds", [])):
         raise ValueError("required KServe/Knative CRD inventory does not match")
     controllers = snapshot.get("controllers", {})
-    actual_images = {name: value.get("image") for name, value in controllers.items()}
+    actual_images = {name: value.get("images") for name, value in controllers.items()}
     if set(controllers) != REQUIRED_CONTROLLERS or any(value.get("available") is not True for value in controllers.values()):
         raise ValueError("controller inventory must be complete, available and digest-pinned")
     if actual_images != approved.get("controllers"):
         raise ValueError("controller image inventory does not match the approved matrix")
-    if snapshot.get("charts") != approved.get("charts"):
-        raise ValueError("installed chart inventory does not match the approved matrix")
-    autoscaler = snapshot.get("autoscaler", {})
-    if autoscaler != {
-        "enable-scale-to-zero": "true", "stable-window": "60s", "scale-to-zero-grace-period": "30s"
-    }:
-        raise ValueError("global Knative scale-to-zero settings do not match")
+    if snapshot.get("configuration") != approved.get("configuration"):
+        raise ValueError("effective serving configuration does not match the approved matrix")
 
 
 def validate_runtime_snapshot(snapshot: dict[str, Any], candidate: dict[str, Any]) -> None:
     validate_control_plane_snapshot(snapshot, candidate)
+    if snapshot.get("installation") != candidate.get("approved_inventory", {}).get("installation"):
+        raise ValueError("rendered installation evidence does not match the approved matrix")
     revision = snapshot.get("revision_annotations", {})
     if revision != {
         "autoscaling.knative.dev/class": "kpa.autoscaling.knative.dev",
@@ -156,12 +189,22 @@ def validate_runtime_snapshot(snapshot: dict[str, Any], candidate: dict[str, Any
         "metadata": f"{origin}/v1/models/{model}/metadata",
     }:
         raise ValueError("KServe predictor routes do not match the internal service contract")
-    timeouts = snapshot.get("timeouts", {})
-    if timeouts != {
-        "api_seconds": 30, "ingress_seconds": 35, "revision_seconds": 35,
-        "response_start_seconds": 35, "idle_seconds": 35,
-    }:
-        raise ValueError("cold-start timeout chain must be finite and ordered")
+    acceptance = snapshot.get("acceptance", {})
+    expected_states = [
+        "READY",
+        "INITIAL_INFERENCE",
+        "SCALED_TO_ZERO",
+        "COLD_ACTIVATION_READY",
+        "POST_ACTIVATION_INFERENCE",
+    ]
+    if (
+        acceptance.get("status") != "PASS"
+        or acceptance.get("states") != expected_states
+        or not isinstance(acceptance.get("cold_activation_seconds"), int)
+        or acceptance["cold_activation_seconds"] < 0
+        or acceptance["cold_activation_seconds"] > acceptance.get("cold_activation_deadline_seconds", -1)
+    ):
+        raise ValueError("scale-to-zero acceptance sequence is incomplete or exceeded its deadline")
 
 
 def main() -> None:

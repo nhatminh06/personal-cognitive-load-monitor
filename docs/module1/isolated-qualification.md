@@ -9,11 +9,16 @@ The candidate is Kubeflow Community Distribution commit
 not mutable `master`. Its manifests declare KServe 0.21.0, Knative Serving 1.23.0,
 Istio 1.31.3 and cert-manager 1.21.2. The disposable cluster is separately pinned to
 Kubernetes 1.34.11 by the kind node image digest in `qualification/module1/install.sh`.
+The matrix policy is exact-patch and explicitly sets `gke_accepted: false`; no other kind
+patch or GKE build is equivalent to this qualification.
 
-The pinned source contains Kustomize installations plus Helm sources for cert-manager,
-Knative and KServe. Qualification inventory must include all three KServe controllers,
-six Knative/net-istio controllers, Istiod, all three cert-manager controllers, the three
-required serving CRDs, chart/source versions, and runtime-resolved image digests. The
+The pinned source contains Kustomize installations plus unused Helm sources for some
+components. This procedure installs Kustomize renders, not Helm releases. Qualification
+inventory includes four rendered KServe workloads (including the optional kernel-cache
+agent but excluding the patched-out local-model node agent), six Knative/net-istio
+controllers, Istiod, the Istio gateway and CNI, all three cert-manager controllers, all 38
+rendered serving CRDs, immutable render hashes, exact resource identities, and
+runtime-resolved image digests. The
 protected preflight rejects a missing controller, mutable or different image, missing CRD,
 chart mismatch, source-commit mismatch, version drift, or autoscaler drift.
 
@@ -50,7 +55,10 @@ Istio CNI writes CNI configuration on nodes and therefore remains a privileged
 cluster component even though the rendered container does not set
 `securityContext.privileged`; KServe's local-model hostPath node-agent is not installed.
 Cluster-scoped CRDs, webhooks and RBAC remain high-impact and are confined to a disposable
-cluster. The high-severity
+cluster. Seven allow-all policies rendered upstream are limited to named Istio/Knative
+control-plane selectors and are inventoried for review; the verifier rejects any additional
+allow-all policy, and no such policy is created for the qualification namespace or predictor.
+The high-severity
 [`GHSA-v824-8gxh-pgjw`](https://github.com/kubeflow/community-distribution/security/advisories/GHSA-v824-8gxh-pgjw)
 depends on Kubeflow editor/profile permissions to create Istio routing resources. This
 minimal procedure installs neither those roles nor profiles, and its qualification service
@@ -63,20 +71,34 @@ runtime-resolved digest.
 Do not run these commands against an existing context. A reviewer must authorize the
 disposable run, verify the context name after installation, and then:
 
-1. Run `qualification/module1/install.sh`.
+1. Authorize installation separately, then run
+   `qualification/module1/install.sh --execute --evidence-dir NEW_PRIVATE_DIRECTORY`.
+   Preflight refuses an existing cluster/context and requires at least 10 GiB available RAM,
+   10 GiB Docker memory, 4 CPUs and 30 GiB free disk. Expected peak RAM is 12 GiB, within
+   the 16 GiB local budget. Every `kubectl` operation is bound to
+   `kind-cogniflow-module1-qualification`.
 2. Generate `build/model-package` with
    `PYTHONPATH=src uv run python scripts/generate_qualification_model.py build/model-package`; build the
    KServe image locally, load it into kind or a disposable loopback registry, and set
    `KSERVE_IMAGE` to its immutable digest. Do not publish it.
-3. Run `qualification/module1/qualify.sh`. It requires strict readiness, prediction,
+3. Authorize qualification separately, then run
+   `qualification/module1/qualify.sh --execute --evidence-dir INSTALL_EVIDENCE_DIRECTORY`.
+   It requires strict readiness, HTTP 200 prediction,
    metadata, internal service routing, observed 1→0→1 KPA behavior, cold activation and a
    successful post-cold prediction, then captures resources, RBAC and the live inventory.
 4. Run `qualification/module1/negative-tests.sh` only against a reviewer-prepared
    qualified matrix copy and the captured snapshot. It proves version, image, CRD,
    autoscaling and route drift fail closed.
 5. Scan every captured image digest; record tool/database versions and raw reports.
-6. Delete the disposable kind cluster after evidence is copied to an immutable review
-   location. Do not commit generated model artifacts or credentials.
+6. After evidence is copied to an immutable review location, request a third, explicit
+   authorization before deleting the exact disposable cluster. No supplied script deletes
+   it. Do not commit generated model artifacts or credentials.
+
+The installer preserves the pinned checkout, exact rendered YAML, SHA-256 files, resource
+identity inventory and logs. Runtime capture re-hashes those local artifacts, checks each
+resource identity exists, records actual Pod `imageID` digests, verifies all workloads and
+CRDs are ready, and reads effective Knative autoscaler/default timeout ConfigMaps. The
+in-cluster provenance ConfigMap is corroborating metadata only, not independent proof.
 
 Only an independent human reviewer may copy accepted digests/charts/CRDs into
 `approved_inventory`, set the selected candidate suitable/qualified, and change the matrix

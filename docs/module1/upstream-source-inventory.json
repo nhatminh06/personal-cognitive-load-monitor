@@ -1,5 +1,6 @@
 {
   "source_commit": "f121d4bdf99e0afa87ecaf3a06289a03a73f3ee0",
+  "installation_method": "kustomize",
   "rendered_controllers": [
     "cert-manager/cert-manager",
     "cert-manager/cert-manager-cainjector",
@@ -18,7 +19,7 @@
     "kserve/llmisvc-controller-manager",
     "kube-system/istio-cni-node"
   ],
-  "charts": {
+  "declared_chart_sources_not_installed_by_this_procedure": {
     "cert-manager": "1.21.2",
     "istio-base": "1.31.3",
     "istiod": "1.31.3",
@@ -26,6 +27,27 @@
     "kserve-crd": "0.21.0",
     "kserve-resources": "0.21.0"
   },
+  "disabled_or_omitted_workloads": [
+    "kserve/kserve-localmodelnode-agent",
+    "kserve/kserve-models-web-application"
+  ],
+  "security_sensitive_workloads": {
+    "kube-system/istio-cni-node": {
+      "privileged_container": false,
+      "host_paths": ["/opt/cni/bin", "/proc", "/etc/cni/net.d", "/var/run/istio-cni", "/var/run/netns"]
+    }
+  },
+  "upstream_control_plane_allow_all_policies": [
+    "istio-system/cluster-local-gateway",
+    "istio-system/istio-ingressgateway",
+    "knative-serving/activator-service",
+    "knative-serving/autoscaler",
+    "knative-serving/controller",
+    "knative-serving/istio-webhook",
+    "knative-serving/webhook"
+  ],
+  "required_crd_count": 38,
+  "required_crd_inventory": "scripts/module1_compatibility.py:REQUIRED_CRDS",
   "rendered_images": {
     "docker.io/istio/install-cni:1.31.3": null,
     "docker.io/istio/pilot:1.31.3": null,
