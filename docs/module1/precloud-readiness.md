@@ -25,7 +25,7 @@ The branch order is:
 GitHub reported both drafts open, mergeable and `CLEAN` on 2026-10-27. PR #21's
 test and GitGuardian checks passed; its build and deploy jobs were skipped. PR
 #22's test and GitGuardian checks passed; its build and deploy jobs were also
-skipped. PR #22's hosted test job reported 386 passed, 4 warnings and 88.89%
+skipped. PR #22's hosted test job reported 387 passed, 4 warnings and 88.89%
 coverage. The combined `main...PR #22` diff is Module I-scoped except for the
 required README and submission-status references.
 
@@ -52,7 +52,7 @@ not proof produced by this pass.
 
 | Requirement | Status | Evidence and remaining work |
 |---|---|---|
-| Pytest and coverage strictly above 80% | PASS_OFFLINE | PR #22 hosted CI: 386 passed, 88.89%; workflow enforces `--cov-fail-under=81`. Re-run on the final rebased commit. |
+| Pytest and coverage strictly above 80% | PASS_OFFLINE | PR #22 hosted CI: 387 passed, 88.89%; workflow enforces `--cov-fail-under=81`. Re-run on the final rebased commit. |
 | CI test before build | PASS_OFFLINE | `build.needs: test`; publication is main-push only. Draft-PR build was skipped. |
 | Manual protected deployment | NEEDS_HUMAN_APPROVAL | Dispatch-only, main-only, OIDC and `module1-production` environment are source-defined. Reviewers, runner, variables and secrets require owner verification; no dispatch occurred. |
 | FastAPI preprocessing/postprocessing | PASS_OFFLINE | Bounded schemas, six-feature transformation, explicit provenance and failure mapping are tested. `demo_rule`, `local_model` and `kserve` are explicit modes and do not silently fall back. |
@@ -234,7 +234,7 @@ terraform -chdir=infra/terraform/gke fmt -check
 
 Other results:
 
-- hosted PR #22 CI at reviewed head: 386 passed, 4 warnings, 88.89% coverage;
+- hosted PR #22 CI after the focused correction: 387 passed, 4 warnings, 88.89% coverage;
 - focused read-only sandbox regression: 60 passed in 3.04 seconds;
 - the full local suite stalled after 45 tests in the restricted sandbox and was
   stopped; it is `NOT_RUN` to completion, not a pass or product failure;
