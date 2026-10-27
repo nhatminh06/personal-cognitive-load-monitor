@@ -52,6 +52,12 @@ Before any authorized run, independently confirm:
 10. namespace Pod Security, RBAC, quotas, NetworkPolicies, logging retention,
     rollback owner and teardown owner.
 
+The Knative `config-autoscaler` must explicitly set
+`enable-scale-to-zero: "true"`, `stable-window: "60s"` and
+`scale-to-zero-grace-period: "30s"`. The stable window smooths the concurrency
+signal; only after it is inactive can the 30-second grace period complete the
+scale-down. Treat different cluster-wide values as a new reviewed change.
+
 The repository does not install the cloud observability control plane, NGINX,
 cert-manager or Knative dependencies. Their exact pinned charts/manifests,
 storage classes, retention, controller image digests and ownership must be
@@ -98,6 +104,23 @@ digest references and the approved model lineage. The workflow checks OIDC,
 control-plane readiness, signatures and immutable inputs before an atomic Helm
 upgrade. It does not approve a model or build an image.
 
+The workflow first compares the exact Kubernetes context and inspects any
+`cognitive-load-monitor` release in `cogniflow`. An existing release must have a
+recognized ownership label and matching Standard/Knative mode. Its current
+revision and SHA-256 of `helm get manifest` must match the separately entered
+approval values. Replacing a Module III `module3-standard` release additionally
+requires the protected `replace_existing_release` authorization; otherwise the
+workflow stops before Helm can mutate it. Do not create another cluster to
+avoid this check.
+
+Standard mode retains the three-second KServe client timeout. Module I alone
+sets a bounded 30-second cold-start timeout; NGINX connect/read/send ceilings
+are 35 seconds. The protected preflight requires the reviewed Knative global
+60-second stable window and 30-second scale-to-zero grace period. The Knative
+Revision/request and activator queues must allow at least 35 seconds but remain
+finite; this external control-plane setting is a runtime prerequisite, not
+installed by this repository.
+
 Immediately record identity before testing:
 
 ```bash
@@ -115,7 +138,9 @@ not match the approved change record.
 ## Independent KServe scale-to-zero acceptance
 
 1. Wait for `InferenceService` condition `Ready=True`; capture the condition,
-   URL, revision and digest-pinned predictor image.
+   URL, revision and digest-pinned predictor image. Confirm the effective
+   Revision carries KPA class, concurrency target `1`, minimum `0` and maximum
+   `3`; the protected workflow fails when these annotations do not propagate.
 2. Send one authenticated six-feature request through FastAPI. Capture only
    status, response contract, trace ID and `/model-info`; confirm exact approved
    model/version/artifact/dataset digests and `is_fallback=false`.
@@ -161,16 +186,27 @@ Populate a JSON file conforming to `evidence-schema.json`, then validate it:
 ```bash
 uv run python scripts/module1_acceptance.py evidence/module1.json \
   --expected-context EXPECTED_GKE_CONTEXT \
+  --artifact-root evidence/artifacts \
   --report evidence/module1-report.md \
   --require-cloud-acceptance
 ```
 
-The report is created once with mode `0600`; existing reports are never
-overwritten. A failed gate remains `blocked` with its evidence link—never
-rewritten as verified.
+Each check must reference a distinct, relative, non-symlink JSON artifact below
+the artifact root and declare its SHA-256. The validator rejects missing,
+changed, duplicate, oversized, escaping or secret-bearing artifacts. Schema
+validation and checksum verification establish bundle integrity only: status
+strings are self-declared and the generated report always says independent
+runtime review is required. A human reviewer must compare the sanitized
+artifacts to the exact cluster, namespace, commit, model and image identities
+before acceptance. Never record credentials or private environment values.
 
-Use `helm history` and the previously verified digest for a scoped Helm
-rollback. Teardown is a different owner-approved operation: first export
+The report is created once with mode `0600`; existing reports are never
+overwritten. A failed gate remains `blocked`—never rewritten as verified.
+
+Use `helm history` only for diagnosis. A rollback must name
+`cognitive-load-monitor`, namespace `cogniflow`, and the exact revision and
+manifest identity approved during the pre-deployment inspection; never target
+another release or an unreviewed revision. Teardown is a different owner-approved operation: first export
 non-secret evidence and costs, then review retained GCS objects/PostgreSQL
 backups, load balancers, addresses, NAT and deletion protection. Never run
 Terraform destroy or delete retained data as part of acceptance.

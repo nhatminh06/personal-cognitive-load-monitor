@@ -1,4 +1,5 @@
 replicaCount: 2
+deploymentOwner: module3-standard
 
 image:
   repository: ghcr.io/OWNER/REPO/cognitive-load-api

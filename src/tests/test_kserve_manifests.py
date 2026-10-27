@@ -80,6 +80,25 @@ def test_module1_knative_mode_renders_explicit_scale_to_zero_contract():
     assert 'autoscaling.knative.dev/min-scale: "0"' in rendered
     assert 'autoscaling.knative.dev/max-scale: "3"' in rendered
     assert 'autoscaling.knative.dev/target: "1"' in rendered
+    assert 'KSERVE_TIMEOUT_SECONDS: "30"' in rendered
+    assert 'nginx.ingress.kubernetes.io/proxy-read-timeout: "35"' in rendered
+
+
+def test_standard_mode_keeps_short_kserve_timeout():
+    rendered = subprocess.run(
+        [
+            "helm", "template", "standard", str(CHART), "--namespace", "cogniflow",
+            "-f", str(CHART / "values.gke.yaml"),
+            "--set-string", "config.modelName=cognitive-load-classifier",
+            "--set-string", "config.modelVersion=1",
+            *VALID_VALUES,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert 'serving.kserve.io/deploymentMode: "Standard"' in rendered
+    assert 'KSERVE_TIMEOUT_SECONDS: "3"' in rendered
 
 
 @pytest.mark.parametrize(

@@ -50,7 +50,15 @@
           "required": ["status", "evidence"],
           "properties": {
             "status": {"enum": ["implemented", "statically_verified", "locally_runtime_verified", "ci_verified", "cloud_runtime_verified", "blocked"]},
-            "evidence": {"type": "string", "minLength": 1}
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "sha256"],
+              "properties": {
+                "path": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*\\.json$"},
+                "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+              }
+            }
           }
         }
       }
@@ -58,10 +66,12 @@
     "replicas": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kserve_idle", "kserve_cold_start", "hpa_initial", "hpa_peak", "hpa_final"],
+      "required": ["kserve_idle", "kserve_cold_start", "kserve_cold_start_seconds", "kserve_prediction_succeeded", "hpa_initial", "hpa_peak", "hpa_final"],
       "properties": {
         "kserve_idle": {"type": "integer", "minimum": 0},
         "kserve_cold_start": {"type": "integer", "minimum": 0},
+        "kserve_cold_start_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 30},
+        "kserve_prediction_succeeded": {"const": true},
         "hpa_initial": {"type": "integer", "minimum": 0},
         "hpa_peak": {"type": "integer", "minimum": 0},
         "hpa_final": {"type": "integer", "minimum": 0}
