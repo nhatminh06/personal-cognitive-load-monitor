@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -12,6 +13,7 @@ from scripts.module2_e2e_rehearsal import (
     Evidence,
     Ports,
     SPARK_IMAGE_ID,
+    create_secret_file,
     validate_isolation,
     validate_project,
     validate_resolved_config,
@@ -87,3 +89,28 @@ def test_evidence_redacts_secrets_and_hashes_captured_output(tmp_path: Path) -> 
     summary = json.loads((tmp_path / "run/summary.json").read_text())
     assert captured.read_text() == "token=[REDACTED]\n"
     assert summary["commands"][0]["sha256"] == hashlib.sha256(captured.read_bytes()).hexdigest()
+
+
+def test_secret_file_is_created_exclusively_with_private_permissions(tmp_path: Path) -> None:
+    path = tmp_path / ".env.secrets"
+    create_secret_file(path, "TOKEN=secret\n")
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert path.read_text() == "TOKEN=secret\n"
+
+
+def test_secret_file_rejects_existing_path_without_changing_it(tmp_path: Path) -> None:
+    path = tmp_path / ".env.secrets"
+    path.write_text("preserve-me\n")
+    with pytest.raises(FileExistsError):
+        create_secret_file(path, "TOKEN=must-not-appear\n")
+    assert path.read_text() == "preserve-me\n"
+
+
+def test_isolated_demo_cannot_target_shared_module2_project() -> None:
+    guide = (Path(__file__).parents[2] / "docs/module2/demo-script.md").read_text()
+    assert "make module2-" not in guide
+    assert "cogniflow-module2" not in guide
+    assert guide.count("docker compose") == 1
+    assert "-p cogniflow-rehearsal-YYYYMMDDa" in guide
+    assert "-f infra/module2/docker-compose.yml" in guide
+    assert "-f infra/module2/docker-compose.rehearsal.yml" in guide

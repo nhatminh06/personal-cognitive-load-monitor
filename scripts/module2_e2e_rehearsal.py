@@ -112,6 +112,20 @@ def redact(text: str, secret_values: list[str]) -> str:
     return text
 
 
+def create_secret_file(path: Path, content: str) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w") as stream:
+            descriptor = -1
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 class Evidence:
     def __init__(self, directory: Path, secrets_to_redact: list[str]) -> None:
         self.directory = directory
@@ -236,10 +250,14 @@ def main() -> None:
             "MINIO_LAKEHOUSE_BUCKET": "cogniflow-lakehouse",
         }
     )
+    secret_values = [
+        env[key]
+        for key in ("MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "REDIS_PASSWORD", "JOB_RUNNER_TOKEN", "COGNIFLOW_API_KEY")
+    ]
     resolved_command = compose_command(["ingestion", "lake", "batch", "analytics", "streaming", "orchestration", "orchestration-dev"], "config", "--format", "json")
     resolved = run(resolved_command, env=env)
     if resolved.returncode:
-        raise RuntimeError(resolved.stderr.strip())
+        raise RuntimeError(redact(resolved.stderr.strip(), secret_values))
     validate_resolved_config(json.loads(resolved.stdout), project, ports)
     if not args.execute:
         print(json.dumps({"status": "dry-run", "project": project, "ports": asdict(ports), "sec022": "passed"}, sort_keys=True))
@@ -255,12 +273,8 @@ def main() -> None:
         "MINIO_LAKEHOUSE_BUCKET", "REDIS_PASSWORD", "JOB_RUNNER_TOKEN",
         "COGNIFLOW_API_KEY",
     )
-    evidence = Evidence(
-        run_dir,
-        [env[key] for key in ("MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD", "REDIS_PASSWORD", "JOB_RUNNER_TOKEN", "COGNIFLOW_API_KEY")],
-    )
-    secret_file.write_text("\n".join(f"{key}={env[key]}" for key in secret_keys) + "\n")
-    secret_file.chmod(0o600)
+    evidence = Evidence(run_dir, secret_values)
+    create_secret_file(secret_file, "\n".join(f"{key}={env[key]}" for key in secret_keys) + "\n")
     config_result = subprocess.CompletedProcess(resolved.args, resolved.returncode, redact(resolved.stdout, evidence.secrets), redact(resolved.stderr, evidence.secrets))
     evidence.record("compose-config", resolved_command, config_result)
     evidence.finish(

@@ -38,7 +38,7 @@ machine-readable Airflow state, Trino counts, container/resource inventories
 and SHA-256 checksums. `.env.secrets` is mode `0600` and is intentionally not
 part of the report or Git history.
 
-Final source validation passed **322 Python tests in 47.05 seconds with 88.89%
+Final source validation passed **325 Python tests in 44.61 seconds with 88.89%
 combined coverage**, Ruff, scoped MyPy and the full isolated Compose render.
 The first sandboxed Pytest attempt was stopped because its background-thread
 test could not progress under the syscall sandbox; the identical suite passed
@@ -47,6 +47,12 @@ network-disabled images but could not resolve the pinned Jackson 2.18.11
 artifacts from either disposable cache, so Java unit tests were not rerun.
 Actionlint, Trivy, Gitleaks and DVC were unavailable locally. Existing prior
 evidence for those checks is not relabeled as fresh PR #19 evidence.
+
+The final PR #19 source review also verified that `.env.secrets` is created
+once with exclusive-create semantics, mode `0600`, flush and filesystem sync;
+an existing path is rejected without changing its content. The isolated demo
+now has one project-pinned Compose command and a regression guard against the
+shared development project and Make targets.
 
 Fresh evidence supports the Kafka, object-storage-equivalent, Spark/Delta,
 Trino/dbt, Flink/Redis and Airflow local criteria: **60% before instructor
