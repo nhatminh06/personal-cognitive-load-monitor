@@ -14,6 +14,7 @@ from preprocessing_api.model_client import (
     predict_with_local_model,
     verified_local_model_provenance,
 )
+from preprocessing_api.activity_events import InferenceActivityMiddleware
 from preprocessing_api.observability import (
     CONTENT_TYPE_LATEST,
     MetricsMiddleware,
@@ -43,6 +44,7 @@ app = FastAPI(
 configure_tracing(app)
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(SecurityMiddleware)
+app.add_middleware(InferenceActivityMiddleware)
 app.include_router(event_router)
 
 

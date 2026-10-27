@@ -1,0 +1,6 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cogniflow-eventing
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.34.0

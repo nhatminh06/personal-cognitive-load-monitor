@@ -59,7 +59,7 @@ pythonpath = ["src"]
 testpaths = ["src/tests"]
 
 [tool.coverage.run]
-source = ["src/preprocessing_api", "src/cogniflow_data"]
+source = ["src/preprocessing_api", "src/cogniflow_data", "src/cogniflow_eventing"]
 
 [tool.ruff]
 line-length = 100

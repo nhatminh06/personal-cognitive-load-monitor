@@ -55,7 +55,7 @@ It is designed to demonstrate how independently developed data and machine learn
 | Course API layer | Implemented; KServe end-to-end remains outstanding |
 | Kubeflow Pipelines | Six-component KFP v2 workflow verified on an isolated local backend |
 | KServe runtime | Manifests/client statically validated; no real `InferenceService` run |
-| Knative log Eventing | Not implemented |
+| Knative log Eventing | Real local Broker/Trigger delivery, durable dedupe, retries and DLQ verified |
 | Knative anomaly detector | Not implemented |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
@@ -89,7 +89,7 @@ The next training milestone is now verified on a disposable standalone KFP backe
 
 The [authoritative 2026 course rubric](docs/course-rubric-2026.md) separates the weighted assignment requirements from additional engineering goals and records the evidence needed for every point. The selected practical path is **GKE (35%) plus GCS-backed MLflow artifacts (5%)**; the alternative GCE score is not added.
 
-The remaining work is specified in the [final rubric architecture](docs/module3/final-rubric-architecture.md), [implementation roadmap](docs/module3/implementation-roadmap.md), [resource and cost plan](docs/module3/resource-and-cost-plan.md), and [full demonstration contract](docs/demo/full-rubric-demo.md). KServe, Knative, GKE and GCS remain plans rather than runtime claims.
+The remaining work is specified in the [final rubric architecture](docs/module3/final-rubric-architecture.md), [implementation roadmap](docs/module3/implementation-roadmap.md), [resource and cost plan](docs/module3/resource-and-cost-plan.md), and [full demonstration contract](docs/demo/full-rubric-demo.md). Knative Eventing log capture is now [verified on an isolated local backend](docs/module3/phase6-knative-eventing.md); KServe, anomaly detection, GKE and GCS remain incomplete.
 
 ---
 
@@ -746,7 +746,7 @@ Kafka ingestion, SeaweedFS Bronze storage, Spark/Delta Silver processing, Trino/
 
 ### In progress: Module III — ML Platform Integration
 
-Phases 1–3 provide historical feature contracts, reproducible local training with candidate-only MLflow registration, and approval-bound local serving machinery. The local Kubeflow Pipelines training runtime is also verified. The remaining weighted gaps are KServe runtime, Knative log Eventing, Knative-based anomaly detection, authorized GKE/GCS integration and the real demonstration video.
+Phases 1–3 provide historical feature contracts, reproducible local training with candidate-only MLflow registration, and approval-bound local serving machinery. The local Kubeflow Pipelines training runtime and isolated Knative Eventing log capture are verified. The remaining weighted gaps are KServe runtime, Knative-based anomaly detection, authorized GKE/GCS integration and the real demonstration video.
 
 Planned work includes:
 
