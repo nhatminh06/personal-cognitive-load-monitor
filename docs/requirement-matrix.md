@@ -34,4 +34,4 @@
 
 ## Current course-relevant gaps
 
-Kubeflow Pipelines, live KServe, Knative logging, Knative anomaly detection, GKE/GCS runtime and the final video remain incomplete. Their dependencies and pass/fail tests are in [`module3/implementation-roadmap.md`](module3/implementation-roadmap.md). Historical local evidence is intentionally retained with dates and is not relabeled as current cloud evidence.
+Live KServe, Knative anomaly runtime verification, GKE/GCS runtime and the final video remain incomplete. Kubeflow Pipelines and Knative logging have isolated local runtime evidence. Their dependencies and pass/fail tests are in [`module3/implementation-roadmap.md`](module3/implementation-roadmap.md). Historical local evidence is intentionally retained with dates and is not relabeled as current cloud evidence.

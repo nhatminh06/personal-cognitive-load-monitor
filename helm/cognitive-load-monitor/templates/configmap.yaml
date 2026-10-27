@@ -16,6 +16,9 @@ data:
   KSERVE_TIMEOUT_SECONDS: {{ .Values.config.kserveTimeoutSeconds | quote }}
   INFERENCE_MODE: {{ .Values.config.inferenceMode | quote }}
   MODEL_VERSION: {{ .Values.config.modelVersion | quote }}
+  INFERENCE_ACTIVITY_ENABLED: {{ .Values.config.inferenceActivityEnabled | quote }}
+  INFERENCE_ACTIVITY_DESTINATION: {{ .Values.config.inferenceActivityDestination | quote }}
+  INFERENCE_ACTIVITY_TIMEOUT_SECONDS: {{ .Values.config.inferenceActivityTimeoutSeconds | quote }}
   {{- if eq .Values.config.inferenceMode "local_model" }}
   {{- if not (regexMatch "^[1-9][0-9]*$" (.Values.config.modelVersion | toString)) }}
   {{- fail "config.modelVersion must be a positive numeric version in local_model mode" }}

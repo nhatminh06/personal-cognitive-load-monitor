@@ -46,7 +46,7 @@ flowchart LR
 
 ## PR #15 — Knative log eventing
 
-- **Prerequisites:** PR #14; Knative Eventing installed with pinned manifests; privacy review of event v1.
+- **Prerequisites:** pinned compatible Knative Eventing manifests and privacy review of event v1. The isolated `demo_rule` proof does not require PR #14 or model approval; KServe correlation is a later integration check.
 - **Deliver:** sanitized CloudEvent producer, Broker, logging Trigger/consumer, bounded retries, deduplication and dead-letter sink.
 - **Pass:** one prediction yields one correlated sanitized event at the consumer; redelivery does not duplicate side effects; forced consumer failure retries then reaches the dead-letter sink; no prohibited field appears.
 - **Fail:** direct logs bypass the Broker, payloads contain raw inputs/credentials, delivery retries forever, or failures are invisible.

@@ -1,0 +1,17 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {"type": "timeseries", "title": "Activity event outcomes", "targets": [{"expr": "sum by (result) (rate(cogniflow_anomaly_events_total[5m]))", "legendFormat": "{{result}}"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}},
+    {"type": "timeseries", "title": "Generated and suppressed alerts", "targets": [{"expr": "sum by (result, rule) (increase(cogniflow_anomaly_alerts_total[5m]))", "legendFormat": "{{rule}} {{result}}"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}},
+    {"type": "stat", "title": "Outbox backlog", "targets": [{"expr": "cogniflow_anomaly_outbox_backlog"}], "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8}},
+    {"type": "timeseries", "title": "Detection latency p95", "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(cogniflow_anomaly_detection_latency_seconds_bucket[5m])))"}], "gridPos": {"h": 6, "w": 18, "x": 6, "y": 8}}
+  ],
+  "schemaVersion": 39,
+  "tags": ["cogniflow", "knative", "anomaly"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "CogniFlow Anomaly Detection",
+  "uid": "cogniflow-anomaly-v1",
+  "version": 1
+}
