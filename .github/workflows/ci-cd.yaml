@@ -154,7 +154,7 @@ jobs:
   deploy:
     name: Manual deploy to Kubernetes with Helm
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, cogniflow-gke-deploy]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -186,6 +186,7 @@ jobs:
       - name: Deploy chart
         env:
           DEPLOY_NAMESPACE: ${{ inputs.namespace }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           API_IMAGE_REPOSITORY: ${{ secrets.API_IMAGE_REPOSITORY }}
           API_IMAGE_DIGEST: ${{ secrets.API_IMAGE_DIGEST }}
           KSERVE_IMAGE_REPOSITORY: ${{ secrets.KSERVE_IMAGE_REPOSITORY }}
@@ -197,11 +198,13 @@ jobs:
           MODEL_SHA256: ${{ secrets.APPROVED_MODEL_SHA256 }}
           MODEL_ARTIFACT_SHA256: ${{ secrets.APPROVED_MODEL_ARTIFACT_SHA256 }}
           MODEL_DATASET_SHA256: ${{ secrets.APPROVED_MODEL_DATASET_SHA256 }}
+          COSIGN_CERTIFICATE_IDENTITY_REGEXP: ${{ secrets.COSIGN_CERTIFICATE_IDENTITY_REGEXP }}
           APP_HOST: ${{ secrets.APP_HOST }}
         run: |
           NAMESPACE="$DEPLOY_NAMESPACE"
           [[ "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || { echo "Invalid namespace" >&2; exit 1; }
           [[ "$NAMESPACE" == "cogniflow" ]] || { echo "Workload Identity is bound to the cogniflow namespace" >&2; exit 1; }
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
           [[ "$API_IMAGE_REPOSITORY" == *-docker.pkg.dev/*/cogniflow-images/* ]] || { echo "Invalid API Artifact Registry repository" >&2; exit 1; }
           [[ "$KSERVE_IMAGE_REPOSITORY" == *-docker.pkg.dev/*/cogniflow-images/* ]] || { echo "Invalid KServe Artifact Registry repository" >&2; exit 1; }
           [[ "$API_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid API image digest" >&2; exit 1; }
@@ -212,6 +215,10 @@ jobs:
           for digest in "$MODEL_SHA256" "$MODEL_ARTIFACT_SHA256" "$MODEL_DATASET_SHA256"; do
             [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid model lineage digest" >&2; exit 1; }
           done
+          bash scripts/verify_cloud_release.sh \
+            "${API_IMAGE_REPOSITORY}@${API_IMAGE_DIGEST}" \
+            "${KSERVE_IMAGE_REPOSITORY}@${KSERVE_IMAGE_DIGEST}"
+          sed "s/SET_PROJECT/${GCP_PROJECT_ID}/g" deploy/gke/external-secret.yaml | kubectl apply -f -
           helm upgrade --install "$HELM_RELEASE" ./helm/cognitive-load-monitor \
             --namespace "$NAMESPACE" --create-namespace \
             --values ./helm/cognitive-load-monitor/values.gke.yaml \
@@ -219,6 +226,7 @@ jobs:
             --set-string "image.digest=${API_IMAGE_DIGEST}" \
             --set-string "kserve.image.repository=${KSERVE_IMAGE_REPOSITORY}" \
             --set-string "kserve.image.digest=${KSERVE_IMAGE_DIGEST}" \
+            --set-string "kserve.name=${MODEL_NAME}" \
             --set-string "serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${API_GOOGLE_SERVICE_ACCOUNT}" \
             --set-string "kserve.serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${KSERVE_GOOGLE_SERVICE_ACCOUNT}" \
             --set-string "config.modelName=${MODEL_NAME}" \

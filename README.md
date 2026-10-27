@@ -65,7 +65,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ### Verification highlights
 
-- **287 Python tests passed**, with **88.76% combined coverage** across API, data, Eventing, anomaly and KServe packages against an 81% enforcement threshold.
+- **291 Python tests passed**, with **88.76% combined coverage** across API, data, Eventing, anomaly and KServe packages against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.

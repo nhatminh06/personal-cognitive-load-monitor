@@ -71,19 +71,16 @@ variable "noncurrent_version_retention_days" {
 
 variable "billing_account_id" {
   type        = string
-  description = "Billing account for optional budget alerts. Empty leaves the budget unapplied."
-  default     = ""
+  description = "Owner-approved billing account for mandatory pre-deployment budget alerts."
   sensitive   = true
 }
 
 variable "project_number" {
   type        = string
   description = "Numeric GCP project number used to scope the optional budget."
-  default     = ""
-
   validation {
-    condition     = var.billing_account_id == "" || can(regex("^[0-9]+$", var.project_number))
-    error_message = "project_number must be numeric when billing_account_id enables the budget."
+    condition     = can(regex("^[0-9]+$", var.project_number))
+    error_message = "project_number must be numeric so the mandatory budget is project-scoped."
   }
 }
 
@@ -99,15 +96,18 @@ variable "github_repository" {
 }
 
 variable "master_authorized_networks" {
-  description = "CIDRs allowed to reach the GKE control plane. Use narrow operator/VPN ranges."
+  description = "Fixed IPv4 /32 addresses allowed to reach the GKE control plane (operator/VPN and deployment-runner NAT only)."
   type = list(object({
     cidr_block   = string
     display_name = string
   }))
 
   validation {
-    condition     = length(var.master_authorized_networks) > 0 && alltrue([for network in var.master_authorized_networks : can(cidrnetmask(network.cidr_block))])
-    error_message = "Provide at least one valid authorized control-plane CIDR."
+    condition = length(var.master_authorized_networks) > 0 && alltrue([
+      for network in var.master_authorized_networks :
+      can(cidrnetmask(network.cidr_block)) && can(regex("^[0-9.]+/32$", network.cidr_block))
+    ])
+    error_message = "Provide only fixed IPv4 /32 control-plane CIDRs; unrestricted or dynamic ranges are forbidden."
   }
 }
 

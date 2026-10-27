@@ -115,3 +115,7 @@ networkPolicy:
   kserveNamespace: cogniflow
   eventingNamespace: knative-eventing
   observabilityNamespace: monitoring
+
+eventing:
+  brokerNamespace: cogniflow-eventing
+  brokerName: cogniflow-v1

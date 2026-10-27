@@ -12,7 +12,7 @@ config:
   appEnv: production
   inferenceMode: kserve
   inferenceActivityEnabled: "true"
-  inferenceActivityDestination: http://broker-ingress.knative-eventing.svc.cluster.local/cogniflow/default
+  inferenceActivityDestination: http://broker-ingress.knative-eventing.svc.cluster.local/cogniflow-eventing/cogniflow-v1
   modelName: SET_APPROVED_MODEL_NAME
   modelVersion: SET_APPROVED_MODEL_VERSION
   modelSha256: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -54,3 +54,7 @@ networkPolicy:
   kserveNamespace: cogniflow
   eventingNamespace: knative-eventing
   observabilityNamespace: monitoring
+
+eventing:
+  brokerNamespace: cogniflow-eventing
+  brokerName: cogniflow-v1

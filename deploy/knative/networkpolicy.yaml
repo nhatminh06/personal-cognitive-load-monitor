@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: cogniflow-eventing}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-knative-delivery, namespace: cogniflow-eventing}
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [activity-consumer, activity-dead-letter, anomaly-detector]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: knative-eventing}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-anomaly-sink, namespace: cogniflow-eventing}
+spec:
+  podSelector: {matchLabels: {app: anomaly-alert-sink}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: anomaly-detector}}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-workload-egress, namespace: cogniflow-eventing}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        - podSelector: {matchLabels: {app: anomaly-alert-sink}}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-monitoring, namespace: cogniflow-eventing}
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [anomaly-detector, anomaly-alert-sink]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+      ports: [{protocol: TCP, port: 8080}]

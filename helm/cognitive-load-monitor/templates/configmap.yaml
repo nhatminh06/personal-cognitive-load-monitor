@@ -19,6 +19,12 @@ data:
   INFERENCE_ACTIVITY_ENABLED: {{ .Values.config.inferenceActivityEnabled | quote }}
   INFERENCE_ACTIVITY_DESTINATION: {{ .Values.config.inferenceActivityDestination | quote }}
   INFERENCE_ACTIVITY_TIMEOUT_SECONDS: {{ .Values.config.inferenceActivityTimeoutSeconds | quote }}
+  {{- if and (eq .Values.config.appEnv "production") (eq (.Values.config.inferenceActivityEnabled | toString) "true") }}
+  {{- $brokerDestination := printf "http://broker-ingress.knative-eventing.svc.cluster.local/%s/%s" .Values.eventing.brokerNamespace .Values.eventing.brokerName }}
+  {{- if or (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Values.eventing.brokerNamespace)) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" .Values.eventing.brokerName)) (ne .Values.config.inferenceActivityDestination $brokerDestination) }}
+  {{- fail "production inference activity destination must match the configured Knative Broker" }}
+  {{- end }}
+  {{- end }}
   {{- if eq .Values.config.inferenceMode "local_model" }}
   {{- if not (regexMatch "^[1-9][0-9]*$" (.Values.config.modelVersion | toString)) }}
   {{- fail "config.modelVersion must be a positive numeric version in local_model mode" }}

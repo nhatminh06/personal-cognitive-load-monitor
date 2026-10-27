@@ -15,7 +15,7 @@ The Terraform default is one regional Standard cluster with one `e2-standard-4` 
 | event logging + anomaly detector/sink | 0.5–1 vCPU, 1–2 GiB |
 | system/restart headroom | at least 1 vCPU, 4 GiB |
 
-These are planning envelopes, not measured GKE minima. The preflight must render all requests and prove they schedule while preserving headroom. If they do not, omit optional dashboards or obtain approval for a larger node pool. Do not silently enable autoscaling or add nodes. SEC-022 Spark is prohibited in GKE.
+`deploy/gke/resource-budget.yaml` is the offline gate: total required requests must fit within 80% of two-node capacity. The current plan reserves 20% for GKE/system/restarts, serializes the training run and excludes optional dashboards. This arithmetic is not scheduler proof; before apply, render every pinned add-on and replace estimates with summed requests. If the gate fails, omit optional components or obtain approval for a larger node pool. Do not silently enable autoscaling or add nodes. SEC-022 Spark is prohibited in GKE.
 
 ## Current price basis
 
@@ -39,8 +39,8 @@ The directly priced base is about `$0.376/hour` before disks, load balancing, st
 | Three-day contingency | 72 hours | **$45–$90** |
 | Accidental full month | 730 hours | **$300–$375+** |
 
-Use the Terraform `$100` budget with alerts at 25/50/75/90/100%, but understand that budgets do not stop spend. Owner approval covers only the initial eight-hour window. Set an independent calendar expiry and check billing after each phase. The plan must use bounded fixtures, short log retention/exclusions, same-region data, repository cleanup rules reviewed against evidence retention, and no 100 GB benchmark.
+The Terraform `$100` project-scoped budget with alerts at 25/50/75/90/100% is a mandatory approved plan input, but budgets do not stop spend. Owner approval covers only the initial eight-hour window. Set an independent calendar expiry and check billing after each phase. The plan must use bounded fixtures, short log retention/exclusions, same-region data, repository cleanup rules reviewed against evidence retention, and no 100 GB benchmark.
 
 ## Teardown boundary
 
-Export non-secret evidence first. Teardown needs a new reviewed plan and explicit approval. Remove releases and billable load balancers/IPs/NAT, then the cluster. Preserve state and protected model evidence according to retention; the bucket has `force_destroy=false` and the cluster has deletion protection. Confirm the billing console shows no unintended cluster, disks, IPs, load balancers or NAT. Never recursively delete a bucket or touch the local Terraform state trees.
+Export non-secret evidence first. Teardown needs a new reviewed plan and explicit approval. Remove releases and billable load balancers/IPs/NAT, then the cluster. Preserve state and protected model evidence according to retention; the bucket has `force_destroy=false` and the cluster has deletion protection. Versioned objects under the 30-day retention lock cannot be deleted early, so record the earliest eligible deletion date and continue reporting GCS residual cost until an owner-approved follow-up removes them. Confirm the billing console shows no unintended cluster, disks, IPs, load balancers or NAT. Never recursively delete a bucket or touch the local Terraform state trees.

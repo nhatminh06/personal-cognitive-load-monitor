@@ -216,9 +216,6 @@ resource "google_container_cluster" "primary" {
       }
     }
   }
-  network_policy {
-    enabled = true
-  }
   logging_config {
     enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
   }
@@ -271,7 +268,6 @@ resource "google_container_node_pool" "primary_nodes" {
 }
 
 resource "google_billing_budget" "demo" {
-  count           = var.billing_account_id == "" ? 0 : 1
   billing_account = var.billing_account_id
   display_name    = "CogniFlow demo review threshold"
   budget_filter {

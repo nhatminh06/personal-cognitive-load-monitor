@@ -13,8 +13,10 @@ Required immutable inputs:
 - API, KServe, event consumer and anomaly images in Artifact Registry by registry digest;
 - candidate lineage and approved package digests, only if an authorized owner has separately approved a model;
 - operator/VPN `/32`, owned hostname, certificate issuer and Secret Manager/Kubernetes secret-sync procedure.
+- fixed `/32` egress for the dedicated self-hosted deployment runner; GitHub-hosted runners are forbidden because their changing source ranges do not fit master-authorized networks;
+- approved project-scoped budget alerts, PostgreSQL/backup digests and a passing two-node resource-budget check.
 
-Stop if GitHub `main` is not branch-protected, the deploy environment lacks required reviewers, any image uses a tag without a digest, a manifest renders `:master`, capacity does not fit, or a Terraform target differs from the approved project.
+Stop if GitHub `main` is not branch-protected, the deploy environment lacks required reviewers, the fixed runner cannot reach the authorized endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
 ## 2. State and static preflight
 
@@ -32,9 +34,11 @@ mypy src/preprocessing_api src/cogniflow_data src/cogniflow_anomaly src/cogniflo
 
 Compile KFP, parse every Kubernetes YAML, run DVC status, Gitleaks and High/Critical configuration/image scans. These commands are validation, not authority to create cloud resources.
 
+Run `pytest -q src/tests/test_gke_cloud_readiness.py::test_cloud_guardrails_and_two_node_budget_are_enforceable` as the two-node arithmetic gate. Then render all pinned controllers and replace every estimate in `deploy/gke/resource-budget.yaml` with the summed requests. Offline arithmetic cannot prove that GKE's scheduler will accept the topology.
+
 ## 3. Reviewed plan (still no apply)
 
-Create an untracked tfvars file from the example. Set the project, two zones in the same region, operator CIDR and GitHub repository. Set billing account/project number only after budget-alert approval.
+Create an untracked tfvars file from the example. Set the project, two zones in the same region, operator and dedicated-runner `/32` addresses, GitHub repository, owner-approved billing account and numeric project number. Terraform intentionally refuses a plan without the budget inputs.
 
 ```bash
 terraform -chdir=infra/terraform/gke plan -out=PR17-REVIEW-ONLY.tfplan
@@ -45,11 +49,11 @@ Review resource count, region, IAM members, private nodes, authorized networks, 
 
 ## 4. Authorized provisioning and cluster gates
 
-Only an authorized operator may apply the exact reviewed plan. Immediately confirm two private nodes, Workload Identity, Dataplane V2, Cloud Logging/Managed Prometheus, authorized control-plane networks, budget alerts and Artifact Registry/GCS public-access prevention. Apply namespace labels, `restricted` Pod Security Admission, default-deny policies, quotas and limit ranges before workloads.
+Only an authorized operator may apply the exact reviewed plan. Immediately confirm two private nodes, Workload Identity, Dataplane V2, Cloud Logging/Managed Prometheus, only reviewed `/32` control-plane networks, budget alerts and Artifact Registry/GCS public-access prevention. Dataplane V2 already enables policy enforcement; do not add the incompatible GKE `network_policy` switch. A bootstrap cluster administrator substitutes the reviewed project ID and applies `deploy/gke/cogniflow-guardrails.yaml`; the deployment identity then has namespace admin only. Apply the eventing namespace/policy before its workloads.
 
 Install pinned cert-manager, ingress-nginx, Knative Serving/Eventing, KServe Standard and standalone KFP in compatibility order. Resolve every deployed image ID and compare it with the evidence ledger. Reject mutable `master`, `latest` or SHA-shaped tags.
 
-Deploy an encrypted PostgreSQL metadata service and MLflow privately. Bind `mlflow/mlflow` to the Terraform MLflow Google service account. Prove a write/read round trip to `gs://<model_bucket>/candidates/...`, take a metadata backup and perform a bounded restore rehearsal before training.
+Deploy the reviewed PostgreSQL 17.6 design and MLflow 3.17.2 privately by exact digest. Bind `mlflow/mlflow` to the Terraform MLflow Google service account. Prove a write/read round trip to `gs://<model_bucket>/candidates/...`, run the daily custom-format backup, and restore it into an isolated validation database before training. Install External Secrets Operator chart 2.13.0 by reviewed digest. Apply `deploy/gke/external-secret.yaml` before Helm; it can reconcile after Helm creates `cogniflow-api`. Verify only the expected Secret keys, without printing values.
 
 ## 5. Candidate training and explicit promotion
 
@@ -61,11 +65,14 @@ Pause for independent human review. If and only if the authorized owner approves
 
 An approved operator creates the Secret Manager secret version and the external Kubernetes Secrets without printing values. Render first; the checked-in sentinels must fail closed.
 
+The protected release workflow builds once, resolves each Artifact Registry digest, emits an SBOM/provenance attestation, and uses Cosign 3.1.4 keyless signing with GitHub OIDC. Record the workflow identity, issuer, digest and bundle. On the dedicated deploy runner, `scripts/verify_cloud_release.sh` re-verifies that identity and runs Trivy 0.76.1 against the same digest; a signature, identity, digest or fixable High/Critical failure stops before Helm.
+
 ```bash
 helm template cogniflow helm/cognitive-load-monitor \
   --namespace cogniflow -f helm/cognitive-load-monitor/values.gke.yaml \
   --set-string image.digest=sha256:<API_DIGEST> \
   --set-string kserve.image.digest=sha256:<KSERVE_DIGEST> \
+  --set-string kserve.name=<APPROVED_NAME> \
   --set-string config.modelName=<APPROVED_NAME> \
   --set-string config.modelVersion=<APPROVED_VERSION> \
   --set-string config.modelSha256=<MODEL_SHA256> \
@@ -93,4 +100,4 @@ If monitoring does not fit after required workloads, retain GKE Managed Promethe
 
 ## 8. Failure, teardown and evidence
 
-Do not destroy on test failure. First export non-secret logs, rendered manifests, KFP/MLflow lineage, alert evidence, image digests, utilization and cost. Teardown needs a separately reviewed plan and explicit owner approval. Remove releases, external load balancers/IPs and NAT, then the cluster. Preserve protected GCS artifacts and Terraform state according to retention; `force_destroy=false` and cluster deletion protection deliberately require conscious changes. Confirm the billing console has no unintended cluster, disk, IP, NAT or load balancer.
+Do not destroy on test failure. First export non-secret logs, rendered manifests, KFP/MLflow lineage, alert evidence, image digests, utilization and cost. Teardown needs a separately reviewed plan and explicit owner approval. Remove releases, external load balancers/IPs and NAT, then the cluster. A GCS retention policy cannot be shortened and protected object versions can outlive compute teardown; keep the bucket/state, record its earliest deletion date and residual storage/operation cost, and schedule an owner-approved follow-up. `force_destroy=false` and cluster deletion protection deliberately require conscious changes. Confirm the billing console has no unintended cluster, disk, IP, NAT or load balancer and keep budget alerts active until all retained resources are gone.

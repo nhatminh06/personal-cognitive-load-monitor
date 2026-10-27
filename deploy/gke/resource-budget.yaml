@@ -1,0 +1,16 @@
+node_pool:
+  nodes: 2
+  machine_type: e2-standard-4
+  capacity:
+    cpu_millicores: 8000
+    memory_mib: 32768
+  system_reserve_percent: 20
+required_requests:
+  gke_kfp_kserve_knative_controllers: {cpu_millicores: 2100, memory_mib: 7168}
+  fastapi_and_predictor: {cpu_millicores: 700, memory_mib: 3072}
+  mlflow_and_postgresql: {cpu_millicores: 700, memory_mib: 4096}
+  event_consumers: {cpu_millicores: 400, memory_mib: 1536}
+  serialized_training_run: {cpu_millicores: 1400, memory_mib: 5120}
+  managed_monitoring_agents: {cpu_millicores: 300, memory_mib: 1024}
+# Gate: required requests must fit after the 20% system reserve. Optional
+# dashboards are excluded and must not be installed without a new budget.

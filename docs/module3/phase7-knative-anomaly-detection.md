@@ -42,6 +42,8 @@ SQLite calls and synchronous HTTP publication run in worker threads, not on Fast
 
 The development Broker still uses `InMemoryChannel`; queued activity events may be lost with its dispatcher or node. Production requires a persistent supported channel, authenticated workload-to-workload transport, production thresholds, retention review and an externally durable database.
 
+The production activity destination is exactly `http://broker-ingress.knative-eventing.svc.cluster.local/cogniflow-eventing/cogniflow-v1`, matching the checked-in versioned Broker and both Triggers. Helm rejects any different namespace/name or placeholder destination in production; `test_production_broker_destination_matches_versioned_manifests` guards the cross-component contract.
+
 ## Local deployment and verification
 
 Use only a separately owned disposable `cogniflow-eventing` kind cluster. Do not target `cogniflow-local`.
