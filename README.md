@@ -65,7 +65,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ### Verification highlights
 
-- **152 Python tests passed**, with **89.41% combined coverage** against an 81% enforcement threshold.
+- **284 Python tests passed**, with **88.76% combined coverage** across API, data, Eventing, anomaly and KServe packages against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -82,6 +82,8 @@ Module III Phase 1 adds a version-pinned, point-in-time historical feature contr
 Phase 2 adds chronological synthetic-proxy model comparison, lineage manifests, explicit MLflow candidate registration, and a separate approval boundary. See the [Phase 2 training guide](docs/module3/phase2-ml-training.md).
 
 Phase 3 adds approval-bound MLflow artifact packaging, verified local `skops` loading, and an isolated kind/Helm serving path. The current candidate remains undeployed. See the [Phase 3 serving guide](docs/module3/phase3-model-serving.md).
+
+The synchronized PR #14 branch provides the custom KServe 0.20 runtime and strict async API integration without removing Knative logging or anomaly detection. A newly recreated local MLflow candidate (`cognitive-load-classifier-pr14` version `1`, artifact-tree SHA-256 `3c46d07c58f733119581b3fbb08fcd4c2080a7d74ac2ecddd1903f1514d1c20a`) is available for separate owner review and remains explicitly unapproved.
 
 The next training milestone is now verified on a disposable standalone KFP backend with explicit object-store artifacts and candidate-only MLflow registration. See the [Kubeflow training integration guide](docs/module3/phase4-kubeflow-training.md). This local development proof does not authorize model deployment or claim production Kubeflow security.
 
@@ -754,8 +756,8 @@ Planned work includes:
 - Offline/online feature consistency and freshness validation.
 - Automated ML pipelines with reproducible dataset, code and image lineage.
 - MLflow model promotion and artifact verification.
-- KServe serving integration and runtime validation.
-- Event-driven workflows with Knative Eventing.
+- Approved-model KServe runtime acceptance.
+- Authorized GKE/GCS integration of the verified local components.
 - Operational SLOs for feature freshness, processing latency and inference availability.
 
 The Module III plan is a design target, not an already implemented feature set.

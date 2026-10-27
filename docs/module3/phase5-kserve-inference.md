@@ -1,6 +1,6 @@
 # Phase 5: KServe inference
 
-**Status (2026-10-26): implementation and static/local protocol verification complete; approved-model deployment blocked.**
+**Status (2026-10-26): implementation and combined Knative regression verification complete; approved-model deployment blocked.**
 
 ### Recorded local evidence
 
@@ -46,9 +46,36 @@ scale-to-zero. Only cert-manager and the pinned KServe controller/CRDs are
 controller prerequisites.
 
 The KFP demonstration registry was deleted with its disposable cluster. Its
-candidate artifacts are evidence only and cannot be reused. No currently
-available model package is both explicitly approved and reproducibly retrievable,
-so this phase does not build or deploy a model image.
+candidate artifacts remain historical evidence only and are not represented as
+retrievable. A new candidate was recreated with the smaller existing local
+training workflow described below. It is reproducibly retrievable in this local
+workspace but is not approved, packaged or deployable.
+
+## Candidate inspection report
+
+Local training reused the deterministic 180-row synthetic fixture and did not
+rerun KFP. This is local training evidence; it does not replace the recorded KFP
+runtime evidence.
+
+| Field | Observed value |
+|---|---|
+| Tracking URI | `sqlite:///pr14-candidate.mlflow.db` (ignored local artifact) |
+| Registered model/version | `cognitive-load-classifier-pr14` / `1` |
+| Approval status | `candidate`; no `approved_by` or `approved_at` tags |
+| MLflow run | `ad5c8cb2ae864ffe828da259719148bc` |
+| Registered source | `models:/m-5e7433e740334edda26a63caebd8f669` |
+| Dataset | `cogniflow-module3-training-synthetic-v1`, 180 rows |
+| Chronological split | 108 train / 36 validation / 36 held-out test |
+| Six-feature schema | `focus_minutes`, `distraction_minutes`, `tasks_due`, `hours_to_deadline`, `focus_ratio`, `distraction_ratio` |
+| Dataset SHA-256 | `6679e9edb87451ee968e21c0aef5280226b2cf609554e048ec365378c3aca80f` |
+| Registered artifact-tree SHA-256 | `3c46d07c58f733119581b3fbb08fcd4c2080a7d74ac2ecddd1903f1514d1c20a` |
+| Source Git revision | `4b9ccec5a1c7a11cee8736aca7e73ab7933f588a` |
+
+An independent download recomputed the artifact-tree digest and matched the
+version tag and training report. The selected random forest scored 1.0 macro F1
+on the deliberately separable synthetic validation and held-out sets; this is
+workflow evidence, not real-world model quality. The candidate is eligible for
+separate owner inspection only. Do not infer approval from this report.
 
 ## Trust boundary
 
@@ -157,6 +184,44 @@ predictions and matching provenance through the public API. It also includes cor
 or missing artifact rejection, backend failure without fallback, pod restart recovery,
 exact image/model digests, conditions, logs and resource inventory. None of those
 model-runtime outcomes may be inferred from successful manifest rendering.
+
+The approval-bound sequence is: owner selects this exact version and digest;
+the approval command independently downloads and verifies it; the packager
+rechecks approval and lineage; both API and KServe images are built and resolved
+to repository digests; only then may the isolated Standard-mode acceptance run
+begin. Until that explicit approval, all twelve model-runtime acceptance checks
+remain pending.
+
+## Combined verification after merging PRs #15 and #16
+
+The integrated application retains `demo_rule`, verified `local_model`, and
+strict async `kserve` modes alongside sanitized CloudEvents, persistent logging
+and anomaly detection. The outer activity middleware observes successful
+predictions plus authentication, validation and security-layer rejections.
+KServe retains a bounded 30-second maximum timeout, rejects redirects and
+untrusted origins, validates exact output/provenance, and never falls back.
+
+Observed locally: 284 tests passed at 88.76% combined coverage, including 38
+activity/Knative tests, 26 anomaly tests and 30 KServe predictor/server/manifest
+tests. Ruff, scoped MyPy, KFP compilation, Helm lint, normal rendering and KServe
+rendering with non-placeholder test digests passed. DVC was up to date before
+candidate preparation; the post-training dry run correctly identified the local
+manifest's newer Git revision as the only Phase 2 reproduction change. The
+checked-in sentinel KServe values correctly failed closed.
+
+Actionlint passed. Trivy reported zero fixable High/Critical findings in the
+locked Python runtime dependencies; a broader repository scan was inconclusive
+because Maven Central rate-limited Spark metadata. Gitleaks reported the same
+three historical `curl-auth-user` findings in documentation commands that use
+the prompted `${BASIC_AUTH_PASSWORD}` variable, not literal credentials.
+
+Metadata-only review found three ignored, untracked local Terraform state files
+with mode `0644`. Their contents were not opened, copied, changed or deleted.
+The previously reported private-key/state risk therefore remains: none of these
+files may enter PR #17 inputs, and cloud preparation must use separately reviewed
+state handling and credential rotation where applicable. SEC-022 remains an
+accepted local-development-only risk through 2027-01-23 and does not authorize
+Spark on Kubernetes, GKE or any production path.
 
 ## Rollback and scoped cleanup
 
