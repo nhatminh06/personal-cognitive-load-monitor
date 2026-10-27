@@ -135,6 +135,14 @@ jobs:
           [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-response-start-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative response-start timeout" >&2; exit 1; }
           [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-idle-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative idle timeout" >&2; exit 1; }
 
+      - name: Match the live control plane to the approved inventory
+        run: |
+          scripts/capture_module1_runtime.sh "$RUNNER_TEMP/module1-control-plane.json" -
+          python scripts/module1_compatibility.py \
+            --matrix docs/module1/compatibility-matrix.json \
+            --require-qualified \
+            --control-plane-snapshot "$RUNNER_TEMP/module1-control-plane.json"
+
       - name: Inspect and authorize the exact shared Helm release
         env:
           EXPECTED_GKE_CONTEXT: ${{ secrets.EXPECTED_GKE_CONTEXT }}

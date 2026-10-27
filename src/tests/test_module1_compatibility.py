@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.module1_compatibility import validate_matrix, validate_runtime_snapshot
+from scripts.module1_compatibility import REQUIRED_CONTROLLERS, REQUIRED_CRDS, validate_matrix, validate_runtime_snapshot
 
 
 ROOT = Path(__file__).parents[2]
@@ -19,6 +19,15 @@ def qualified() -> tuple[dict, dict]:
     candidate["support_status"] = "qualified"
     candidate["integration_evidence"] = "isolated exact-matrix acceptance evidence"
     candidate["suitable"] = True
+    digest = "a" * 64
+    candidate["approved_inventory"] = {
+        "crds": sorted(REQUIRED_CRDS),
+        "controllers": {
+            name: f"registry.example/{name.replace('/', '-')}@sha256:{digest}"
+            for name in REQUIRED_CONTROLLERS
+        },
+        "charts": {"kserve-crd": "0.21.0", "kserve-resources": "0.21.0"},
+    }
     matrix["qualification_status"] = "QUALIFIED"
     matrix["selected_candidate"] = candidate["id"]
     return matrix, candidate
@@ -28,20 +37,18 @@ def snapshot(candidate: dict) -> dict:
     digest = "a" * 64
     controllers = {
         name: {"available": True, "image": f"registry.example/{name.replace('/', '-')}@sha256:{digest}"}
-        for name in (
-            "kserve/kserve-controller-manager", "knative-serving/controller",
-            "knative-serving/autoscaler", "knative-serving/activator",
-            "knative-serving/webhook", "cert-manager/cert-manager",
-        )
+        for name in REQUIRED_CONTROLLERS
     }
     origin = "http://cognitive-load-classifier-predictor.cogniflow.svc.cluster.local"
     return {
+        "source_commit": candidate["source"]["commit"],
         "kserve": candidate["kserve"], "knative_serving": candidate["knative_serving"],
         "kubernetes": candidate["kubernetes"], "networking": candidate["networking"],
         "cert_manager": candidate["cert_manager"], "namespace": "cogniflow",
         "model_name": "cognitive-load-classifier",
-        "crds": ["inferenceservices.serving.kserve.io", "configurations.serving.knative.dev", "revisions.serving.knative.dev"],
+        "crds": candidate["approved_inventory"]["crds"],
         "controllers": controllers,
+        "charts": dict(candidate["approved_inventory"]["charts"]),
         "autoscaler": {"enable-scale-to-zero": "true", "stable-window": "60s", "scale-to-zero-grace-period": "30s"},
         "revision_annotations": {
             "autoscaling.knative.dev/class": "kpa.autoscaling.knative.dev",
@@ -71,6 +78,8 @@ def test_exact_qualified_runtime_snapshot_is_accepted() -> None:
     ("mutation", "message"),
     (
         (lambda value: value["controllers"].pop("knative-serving/activator"), "controller inventory"),
+        (lambda value: value.__setitem__("source_commit", "b" * 40), "source commit"),
+        (lambda value: value["charts"].__setitem__("kserve-crd", "0.20.0"), "chart inventory"),
         (lambda value: value.__setitem__("knative_serving", "1.21.1"), "runtime versions"),
         (lambda value: value["routes"].__setitem__("predict", "http://wrong/predict"), "predictor routes"),
         (lambda value: value["revision_annotations"].__setitem__("autoscaling.knative.dev/class", "hpa.autoscaling.knative.dev"), "Revision"),
