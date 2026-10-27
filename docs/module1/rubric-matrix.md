@@ -1,27 +1,28 @@
-# Module I grading matrix
+# Module I rubric matrix
 
-| Requirement | Actual evidence | Status |
-|---|---|---|
-| Reproducible Python/data pipeline | seeded data, locked dependencies, DVC twice cached | verified locally |
-| Four executable notebooks | all cells executed, no error outputs | verified locally |
-| Honest evaluation | chronological split, dummy/model/rule comparison, synthetic-proxy warning | verified locally |
-| MLflow registry | version 4 READY, exact run `f701a0a…`, deployment parity | verified locally |
-| Shared feature contract | `FEATURE_NAMES` + `feature_vector` used by training/serving/notebooks | verified locally |
-| FastAPI/provenance | bounded schemas, `/model-info`, explicit backend and version | verified locally |
-| No silent production fallback | failure tests return 5xx; responses state `is_fallback=false` | verified locally |
-| Pytest >80% | 42 passed, 88.41% | verified locally |
-| Ruff / type checks | both passed | verified locally |
-| Docker | image `39143ed8c76f`, demo and real-model smoke tests | verified locally |
-| Prometheus/Grafana | live scrape plus provisioned metric/log/trace dashboard | verified locally |
-| Loki structured logging | live JSON `/predict` ingestion query | verified locally |
-| Tempo tracing | live service trace search returned trace IDs | verified locally |
-| NGINX authentication | local runtime: unauthenticated 401, authenticated 200 | verified locally |
-| Evidently drift | genuine DVC-produced HTML report | verified locally |
-| Helm/manifests | lint, three renders, YAML parse | static verified |
-| Terraform | fmt and validate | static verified; no apply |
-| KServe/HPA/scale-to-zero | manifests render; no safe local cluster capacity | runtime unavailable |
-| CI test → build → manual deploy | dependency/gate review only | remote deferred |
-| GKE/cloud deployment | prohibited for this task | cloud deferred |
-| UI accessibility/responsiveness | semantic markup and states reviewed; no browser engine | partial/manual QA pending |
-| Graphify | 281 nodes, 419 edges, 24 communities and impact traversal | code graph verified; semantic labels unavailable |
-| Credential hygiene | scan clean; auth secret external | verified locally |
+Statuses are evidence levels, not implementation guesses. A rendered manifest
+is never runtime proof.
+
+| Requirement | Status | Exact evidence | Remaining acceptance |
+|---|---|---|---|
+| Python, FastAPI preprocessing/postprocessing | Locally runtime verified + CI verified | authenticated six-feature `/predict`, bounded schemas, explicit backend/provenance, fail-closed tests | Repeat through the cloud gateway and approved KServe backend |
+| Pytest strictly above 80% | CI verified | repository coverage gate is `--cov-fail-under=81` | Preserve the required check on the merge commit |
+| Test-success automatic image build | CI verified | main-push `build` needs `test`; immutable commit tag published to GHCR | Educational image only; not an approved production release |
+| Manual deployment | Statically verified | dispatch-only protected `production` and `module1-production` jobs, OIDC, main-only guards | Configure environment reviewers/runner and execute only with authorization |
+| Helm on cloud Kubernetes | Statically verified | digest-pinned GKE render, private GKE Terraform and scoped identities | Authorized plan/apply, install, rollback and teardown evidence |
+| FastAPI HPA | Statically verified | autoscaling/v2 targets the API Deployment; requests, limits and explicit bounded behavior render | Metrics Server plus observed 2→N→2 scaling under bounded load |
+| KServe custom `.skops` runtime | Locally runtime verified + statically verified | KServe 0.20 server contract, six features, immutable image/model lineage and fail-closed loader | Approved model and cloud `InferenceService Ready=True` |
+| KServe scale-to-zero | Ready for cloud verification | separate Knative overlay sets KPA concurrency and min-scale 0; Standard remains default | Resolve the supported-version blocker, then observe 1→0→1 and cold-start prediction |
+| NGINX gateway authentication/TLS | Locally runtime verified + statically verified | local 401/200 proof; production Ingress requires Basic Auth Secret and TLS | Cloud certificate, 401/200 and backend-bypass checks |
+| Prometheus/Grafana | Locally runtime verified | live scrape and provisioned dashboard evidence | Hosted target and dashboard capture |
+| Loki logging | Locally runtime verified | structured request log queried without payload/credential fields | Hosted request/log correlation and redaction evidence |
+| Tempo tracing | Locally runtime verified | API trace IDs returned by Tempo search | Hosted request-to-trace correlation |
+| Evidently drift | Locally runtime verified | DVC-produced `reports/evidently/data_drift.html` | Record exact reference/current dataset metadata for final run |
+| MLflow + DVC provenance | Locally runtime verified | exact candidate version/tree digest, dataset digest and `.skops` packaging gates | Candidate is still unapproved; GCS/registry round trip is pending |
+| Four notebooks | Locally runtime verified | EDA, processing, modeling and deployment-preparation notebooks executed | Clean-environment replay for final submission |
+| Detailed README/evidence guide | Implemented | README plus `final-acceptance.md` and evidence schema | Fill only from an authorized cloud run |
+
+Module I is source-ready, not runtime-complete. Cloud Kubernetes, protected
+manual deployment, live HPA, Knative scale-to-zero and approved-model serving
+remain blocked pending explicit authorization and the compatibility decision in
+[`final-acceptance.md`](final-acceptance.md).

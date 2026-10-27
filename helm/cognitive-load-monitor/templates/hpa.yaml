@@ -1,4 +1,10 @@
 {{- if .Values.autoscaling.enabled }}
+{{- if or (lt (int .Values.autoscaling.minReplicas) 1) (lt (int .Values.autoscaling.maxReplicas) (int .Values.autoscaling.minReplicas)) }}
+{{- fail "autoscaling requires minReplicas >= 1 and maxReplicas >= minReplicas" }}
+{{- end }}
+{{- if or (lt (int .Values.autoscaling.targetCPUUtilizationPercentage) 1) (gt (int .Values.autoscaling.targetCPUUtilizationPercentage) 100) }}
+{{- fail "autoscaling.targetCPUUtilizationPercentage must be between 1 and 100" }}
+{{- end }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -19,4 +25,19 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.behavior.scaleUp.stabilizationWindowSeconds }}
+      policies:
+        - type: Percent
+          value: {{ .Values.autoscaling.behavior.scaleUp.percent }}
+          periodSeconds: {{ .Values.autoscaling.behavior.scaleUp.periodSeconds }}
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.behavior.scaleDown.stabilizationWindowSeconds }}
+      policies:
+        - type: Percent
+          value: {{ .Values.autoscaling.behavior.scaleDown.percent }}
+          periodSeconds: {{ .Values.autoscaling.behavior.scaleDown.periodSeconds }}
+      selectPolicy: Max
 {{- end }}

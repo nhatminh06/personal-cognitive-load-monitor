@@ -29,6 +29,7 @@ app.kubernetes.io/name: {{ include "cognitive-load-monitor.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+cogniflow.io/deployment-owner: {{ .Values.deploymentOwner | quote }}
 {{- end -}}
 
 {{- define "cognitive-load-monitor.selectorLabels" -}}

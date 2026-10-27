@@ -1,0 +1,25 @@
+# Explicit Module I override. Apply after values.gke.yaml only on a cluster with
+# the pinned KServe/Knative Serving/networking/cert-manager stack documented in
+# docs/module1/final-acceptance.md.
+deploymentOwner: module1-knative
+
+kserve:
+  deploymentMode: Knative
+  knativeAutoscaling:
+    minScale: 0
+    maxScale: 3
+    targetConcurrency: 1
+    scaleDownDelay: 0s
+    scaleToZeroPodRetentionPeriod: 0s
+
+config:
+  # Bounded allowance for an authorized Knative cold start. Standard mode stays at 3s.
+  kserveTimeoutSeconds: "30"
+  inferenceActivityEnabled: "false"
+  inferenceActivityDestination: ""
+
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "35"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "35"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "35"

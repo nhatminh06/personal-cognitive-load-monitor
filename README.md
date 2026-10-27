@@ -219,6 +219,15 @@ Then open http://127.0.0.1:18000. Host port 8000 remains reserved for PersonalOS
 
 Module I establishes the application, experiment, and model lifecycle.
 
+Module I now has separate KServe deployment contracts: Standard mode remains
+the default used by Module III, while
+[`values.module1-knative.yaml`](helm/cognitive-load-monitor/values.module1-knative.yaml)
+explicitly selects Knative/KPA scale-to-zero for the final Module I acceptance.
+The latter is source-ready but not runtime-accepted: live GKE, protected manual
+deployment, FastAPI HPA behavior, approved-model serving and predictor 1→0→1
+evidence remain pending. See the [rubric matrix](docs/module1/rubric-matrix.md)
+and [final acceptance guide](docs/module1/final-acceptance.md).
+
 ### Model development
 
 The model workflow includes exploratory analysis, data preparation, training, evaluation, and deployment preparation.

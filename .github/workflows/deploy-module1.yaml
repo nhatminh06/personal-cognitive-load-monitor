@@ -1,0 +1,211 @@
+name: Deploy Module I Knative acceptance release
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_image:
+        description: Exact signed API Artifact Registry digest reference
+        required: true
+        type: string
+      kserve_image:
+        description: Exact signed KServe Artifact Registry digest reference
+        required: true
+        type: string
+      model_name:
+        description: Independently approved model DNS label
+        required: true
+        type: string
+      model_version:
+        description: Independently approved positive MLflow model version
+        required: true
+        type: string
+      model_sha256:
+        description: Packaged model SHA-256
+        required: true
+        type: string
+      artifact_sha256:
+        description: Registered artifact-tree SHA-256
+        required: true
+        type: string
+      dataset_sha256:
+        description: Training dataset SHA-256
+        required: true
+        type: string
+      replace_existing_release:
+        description: Separately authorize replacement of the exact inspected Module III release
+        required: true
+        default: false
+        type: boolean
+      approved_existing_revision:
+        description: Exact existing Helm revision approved for replacement (required when a release exists)
+        required: false
+        type: string
+      approved_existing_identity:
+        description: SHA-256 of existing helm get manifest output (required when a release exists)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: module1-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, cogniflow-gke-deploy]
+    environment:
+      name: module1-production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout exact deployment commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate immutable release inputs
+        env:
+          API_IMAGE: ${{ inputs.api_image }}
+          KSERVE_IMAGE: ${{ inputs.kserve_image }}
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_SHA256: ${{ inputs.model_sha256 }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          DATASET_SHA256: ${{ inputs.dataset_sha256 }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+        run: |
+          image_pattern='^[a-z0-9-]+-docker\.pkg\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/[a-z0-9-]+/[a-z0-9-]+@sha256:[a-f0-9]{64}$'
+          [[ "$API_IMAGE" =~ $image_pattern ]] || { echo "Invalid API image digest reference" >&2; exit 1; }
+          [[ "$KSERVE_IMAGE" =~ $image_pattern ]] || { echo "Invalid KServe image digest reference" >&2; exit 1; }
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
+          [[ "$GAR_LOCATION" =~ ^[a-z]+-[a-z]+[0-9]$ ]] || { echo "Invalid Artifact Registry location" >&2; exit 1; }
+          registry="${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/cogniflow-images/"
+          [[ "$API_IMAGE" == "$registry"* ]] || { echo "API image is outside the approved registry" >&2; exit 1; }
+          [[ "$KSERVE_IMAGE" == "$registry"* ]] || { echo "KServe image is outside the approved registry" >&2; exit 1; }
+          [[ "$MODEL_NAME" =~ ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$ ]] || { echo "Invalid model DNS label" >&2; exit 1; }
+          [[ "$MODEL_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid model version" >&2; exit 1; }
+          for digest in "$MODEL_SHA256" "$ARTIFACT_SHA256" "$DATASET_SHA256"; do
+            [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid model lineage digest" >&2; exit 1; }
+          done
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Get exact GKE context
+        uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER }}
+          location: ${{ secrets.GKE_LOCATION }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+
+      - name: Set up Python for release guard
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Require pre-installed serving control planes
+        run: |
+          kubectl wait --for=condition=Established crd/inferenceservices.serving.kserve.io --timeout=30s
+          kubectl wait --for=condition=Available deployment/kserve-controller-manager -n kserve --timeout=60s
+          kubectl wait --for=condition=Available deployment/controller -n knative-serving --timeout=60s
+          kubectl wait --for=condition=Available deployment/autoscaler -n knative-serving --timeout=60s
+          kubectl wait --for=condition=Available deployment/webhook -n knative-serving --timeout=60s
+          kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=60s
+          [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.enable-scale-to-zero}')" == "true" ]] || { echo "Knative global scale-to-zero must be explicitly enabled" >&2; exit 1; }
+          [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.stable-window}')" == "60s" ]] || { echo "Unexpected Knative stable window" >&2; exit 1; }
+          [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.scale-to-zero-grace-period}')" == "30s" ]] || { echo "Unexpected Knative scale-to-zero grace period" >&2; exit 1; }
+
+      - name: Inspect and authorize the exact shared Helm release
+        env:
+          EXPECTED_GKE_CONTEXT: ${{ secrets.EXPECTED_GKE_CONTEXT }}
+          REPLACE_EXISTING_RELEASE: ${{ inputs.replace_existing_release }}
+          APPROVED_EXISTING_REVISION: ${{ inputs.approved_existing_revision }}
+          APPROVED_EXISTING_IDENTITY: ${{ inputs.approved_existing_identity }}
+        run: |
+          set -euo pipefail
+          actual_context="$(kubectl config current-context)"
+          release_count="$(helm list --namespace cogniflow --filter '^cognitive-load-monitor$' --output json | jq 'length')"
+          [[ "$release_count" == "0" || "$release_count" == "1" ]] || { echo "Ambiguous existing Helm release" >&2; exit 1; }
+          guard=(python scripts/module1_helm_guard.py --actual-context "$actual_context" --expected-context "$EXPECTED_GKE_CONTEXT" --namespace cogniflow)
+          if [[ "$release_count" == "1" ]]; then
+            helm status cognitive-load-monitor --namespace cogniflow --output json >"$RUNNER_TEMP/module1-status.json"
+            helm get values cognitive-load-monitor --namespace cogniflow --all --output json >"$RUNNER_TEMP/module1-values.json"
+            helm get manifest cognitive-load-monitor --namespace cogniflow >"$RUNNER_TEMP/module1-manifest.yaml"
+            guard+=(--status "$RUNNER_TEMP/module1-status.json" --values "$RUNNER_TEMP/module1-values.json" --manifest "$RUNNER_TEMP/module1-manifest.yaml" --approved-revision "$APPROVED_EXISTING_REVISION" --approved-identity "$APPROVED_EXISTING_IDENTITY")
+            if [[ "$REPLACE_EXISTING_RELEASE" == "true" ]]; then
+              guard+=(--allow-standard-replacement)
+            fi
+          fi
+          "${guard[@]}"
+
+      - name: Verify exact signed releases
+        env:
+          COSIGN_CERTIFICATE_IDENTITY_REGEXP: ${{ secrets.COSIGN_CERTIFICATE_IDENTITY_REGEXP }}
+          API_IMAGE: ${{ inputs.api_image }}
+          KSERVE_IMAGE: ${{ inputs.kserve_image }}
+        run: bash scripts/verify_cloud_release.sh "$API_IMAGE" "$KSERVE_IMAGE"
+
+      - name: Deploy explicit Module I Knative mode
+        env:
+          API_IMAGE: ${{ inputs.api_image }}
+          KSERVE_IMAGE: ${{ inputs.kserve_image }}
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_SHA256: ${{ inputs.model_sha256 }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          DATASET_SHA256: ${{ inputs.dataset_sha256 }}
+          APP_HOST: ${{ secrets.APP_HOST }}
+          API_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.API_GOOGLE_SERVICE_ACCOUNT }}
+          KSERVE_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.KSERVE_GOOGLE_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          [[ "$APP_HOST" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])$ ]] || { echo "Invalid application host" >&2; exit 1; }
+          [[ "$API_GOOGLE_SERVICE_ACCOUNT" == "cogniflow-api@${GCP_PROJECT_ID}.iam.gserviceaccount.com" ]] || { echo "Invalid API service account" >&2; exit 1; }
+          [[ "$KSERVE_GOOGLE_SERVICE_ACCOUNT" == "cogniflow-kserve@${GCP_PROJECT_ID}.iam.gserviceaccount.com" ]] || { echo "Invalid KServe service account" >&2; exit 1; }
+          API_REPOSITORY="${API_IMAGE%@*}"
+          API_DIGEST="${API_IMAGE##*@}"
+          KSERVE_REPOSITORY="${KSERVE_IMAGE%@*}"
+          KSERVE_DIGEST="${KSERVE_IMAGE##*@}"
+          helm upgrade --install cognitive-load-monitor ./helm/cognitive-load-monitor \
+            --namespace cogniflow --create-namespace --atomic --timeout 10m \
+            --values ./helm/cognitive-load-monitor/values.gke.yaml \
+            --values ./helm/cognitive-load-monitor/values.module1-knative.yaml \
+            --set-string "image.repository=${API_REPOSITORY}" \
+            --set-string "image.digest=${API_DIGEST}" \
+            --set-string "kserve.image.repository=${KSERVE_REPOSITORY}" \
+            --set-string "kserve.image.digest=${KSERVE_DIGEST}" \
+            --set-string "kserve.name=${MODEL_NAME}" \
+            --set-string "serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${API_GOOGLE_SERVICE_ACCOUNT}" \
+            --set-string "kserve.serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${KSERVE_GOOGLE_SERVICE_ACCOUNT}" \
+            --set-string "config.modelName=${MODEL_NAME}" \
+            --set-string "config.modelVersion=${MODEL_VERSION}" \
+            --set-string "config.modelSha256=${MODEL_SHA256}" \
+            --set-string "config.modelArtifactSha256=${ARTIFACT_SHA256}" \
+            --set-string "config.modelDatasetSha256=${DATASET_SHA256}" \
+            --set-string "ingress.hosts[0].host=${APP_HOST}" \
+            --set-string "ingress.tls[0].hosts[0]=${APP_HOST}"
+
+      - name: Verify effective Knative Revision autoscaling
+        env:
+          MODEL_NAME: ${{ inputs.model_name }}
+        run: |
+          set -euo pipefail
+          kubectl wait --for=condition=Ready "inferenceservice/${MODEL_NAME}" --namespace cogniflow --timeout=10m
+          revision="$(kubectl get configuration "${MODEL_NAME}-predictor" --namespace cogniflow --output jsonpath='{.status.latestReadyRevisionName}')"
+          [[ -n "$revision" ]] || { echo "KServe did not publish a ready Knative Revision" >&2; exit 1; }
+          annotations="$(kubectl get revision "$revision" --namespace cogniflow --output json)"
+          [[ "$(jq -r '.metadata.annotations["autoscaling.knative.dev/class"]' <<<"$annotations")" == "kpa.autoscaling.knative.dev" ]]
+          [[ "$(jq -r '.metadata.annotations["autoscaling.knative.dev/min-scale"]' <<<"$annotations")" == "0" ]]
+          [[ "$(jq -r '.metadata.annotations["autoscaling.knative.dev/max-scale"]' <<<"$annotations")" == "3" ]]
+          [[ "$(jq -r '.metadata.annotations["autoscaling.knative.dev/target"]' <<<"$annotations")" == "1" ]]

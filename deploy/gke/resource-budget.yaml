@@ -6,7 +6,8 @@ node_pool:
     memory_mib: 32768
   system_reserve_percent: 20
 required_requests:
-  gke_kfp_kserve_knative_controllers: {cpu_millicores: 2100, memory_mib: 7168}
+  gke_kfp_kserve_controllers: {cpu_millicores: 1400, memory_mib: 5120}
+  knative_serving_networking_autoscaler: {cpu_millicores: 700, memory_mib: 2048}
   fastapi_and_predictor: {cpu_millicores: 700, memory_mib: 3072}
   mlflow_and_postgresql: {cpu_millicores: 700, memory_mib: 4096}
   event_consumers: {cpu_millicores: 400, memory_mib: 1536}

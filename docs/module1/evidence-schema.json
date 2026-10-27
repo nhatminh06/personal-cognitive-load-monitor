@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CogniFlow Module I acceptance evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "identity", "release", "checks", "replicas"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["git_commit", "kubernetes_context", "cluster_uid", "namespace", "namespace_uid"],
+      "properties": {
+        "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "kubernetes_context": {"type": "string", "minLength": 1},
+        "cluster_uid": {"type": "string", "minLength": 1},
+        "namespace": {"const": "cogniflow"},
+        "namespace_uid": {"type": "string", "minLength": 1}
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["api_image", "kserve_image", "model"],
+      "properties": {
+        "api_image": {"type": "string"},
+        "kserve_image": {"type": "string"},
+        "model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version", "model_sha256", "artifact_sha256", "dataset_sha256"],
+          "properties": {
+            "name": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"},
+            "version": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+            "model_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "artifact_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "dataset_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ci_cd", "metrics", "tracing", "logging", "drift", "gateway", "fastapi_hpa", "kserve_scale_to_zero", "kubernetes_iac", "model_provenance", "rollback_teardown"],
+      "patternProperties": {
+        "^(ci_cd|metrics|tracing|logging|drift|gateway|fastapi_hpa|kserve_scale_to_zero|kubernetes_iac|model_provenance|rollback_teardown)$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "evidence"],
+          "properties": {
+            "status": {"enum": ["implemented", "statically_verified", "locally_runtime_verified", "ci_verified", "cloud_runtime_verified", "blocked"]},
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "sha256"],
+              "properties": {
+                "path": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*\\.json$"},
+                "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "replicas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kserve_idle", "kserve_cold_start", "kserve_cold_start_seconds", "kserve_prediction_succeeded", "hpa_initial", "hpa_peak", "hpa_final"],
+      "properties": {
+        "kserve_idle": {"type": "integer", "minimum": 0},
+        "kserve_cold_start": {"type": "integer", "minimum": 0},
+        "kserve_cold_start_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 30},
+        "kserve_prediction_succeeded": {"const": true},
+        "hpa_initial": {"type": "integer", "minimum": 0},
+        "hpa_peak": {"type": "integer", "minimum": 0},
+        "hpa_final": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

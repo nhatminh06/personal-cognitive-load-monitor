@@ -1,4 +1,5 @@
 replicaCount: 2
+deploymentOwner: module3-standard
 
 image:
   repository: ghcr.io/OWNER/REPO/cognitive-load-api
@@ -49,6 +50,15 @@ autoscaling:
   minReplicas: 2
   maxReplicas: 5
   targetCPUUtilizationPercentage: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      percent: 100
+      periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      percent: 50
+      periodSeconds: 60
 
 config:
   appEnv: production
@@ -74,6 +84,7 @@ existingSecret: ""
 
 kserve:
   enabled: false
+  deploymentMode: Standard
   name: cognitive-load-classifier
   serviceAccount:
     create: false
@@ -91,6 +102,12 @@ kserve:
       limits:
         cpu: "1"
         memory: 1Gi
+  knativeAutoscaling:
+    minScale: 0
+    maxScale: 3
+    targetConcurrency: 1
+    scaleDownDelay: 0s
+    scaleToZeroPodRetentionPeriod: 0s
 
 ingress:
   enabled: false
@@ -115,6 +132,7 @@ networkPolicy:
   kserveNamespace: cogniflow
   eventingNamespace: knative-eventing
   observabilityNamespace: monitoring
+  knativeServingNamespace: knative-serving
 
 eventing:
   brokerNamespace: cogniflow-eventing
