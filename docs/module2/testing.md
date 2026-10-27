@@ -43,12 +43,15 @@ SEC-022 exception validation on 2026-10-25 used only new disposable volumes. Six
 
 ## Rubric-compliance source review
 
-On 2026-10-27 America/Chicago, the benchmark-recovery source review passed
-**314 Python tests** in 18.33 seconds with **88.76% combined coverage** against
-the 81% gate; Ruff passed. The 12 focused recovery tests cover crashes after
+On 2026-10-27 America/Chicago, the benchmark scalability source review passed
+**316 Python tests** in 46.45 seconds with **88.76% combined coverage** against
+the 81% gate; Ruff and scoped MyPy passed. The 14 focused recovery tests cover crashes after
 partition synchronization, partition publication, manifest synchronization
 and manifest replacement, plus incomplete manifest writes, untrusted counters,
-missing/tampered partitions, concurrent generators and no-overwrite behavior.
+missing/tampered partitions, concurrent generators, no-overwrite behavior and
+instrumented linear partition verification. Eight 5,000-byte partitions caused
+eight normal-path verification calls; a resume scanned all 40,000 committed
+bytes once.
 The 12,345-byte fixture produced three exact-size partitions and reconciled
 physical bytes, manifest totals, event counts, unique event IDs and next-index
 progression. Earlier GitHub evidence for commit `8bf85aa` remains recorded as

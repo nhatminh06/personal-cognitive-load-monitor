@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.generate_module2_benchmark as benchmark
 from scripts.generate_module2_benchmark import Config, directory_lock, generate, sha256
 
 
@@ -54,6 +55,35 @@ def test_benchmark_generator_writes_exact_partitioned_evidence(tmp_path: Path) -
     run(tmp_path, current)
     assert_complete(tmp_path, current)
     assert len(json.loads((tmp_path / "manifest.json").read_text())["partitions"]) == 3
+
+
+def test_normal_generation_verifies_each_partition_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    verified = []
+    original = benchmark._verify_partition
+
+    def track(path: Path, current: Config, start_index: int):
+        verified.append(path.name)
+        return original(path, current, start_index)
+
+    monkeypatch.setattr(benchmark, "_verify_partition", track)
+    run(tmp_path, config(target_bytes=40_000, max_bytes=40_000))
+    assert verified == [f"part-{number:06d}.jsonl" for number in range(8)]
+
+
+def test_resume_scans_every_committed_partition_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    current = config(target_bytes=40_000, max_bytes=40_000)
+    run(tmp_path, current)
+    scanned_bytes = 0
+    original = benchmark._verify_partition
+
+    def track(path: Path, resumed: Config, start_index: int):
+        nonlocal scanned_bytes
+        scanned_bytes += path.stat().st_size
+        return original(path, resumed, start_index)
+
+    monkeypatch.setattr(benchmark, "_verify_partition", track)
+    run(tmp_path, current, resume=True)
+    assert scanned_bytes == current.target_bytes
 
 
 @pytest.mark.parametrize("stage", ["after_partition_temp_fsync", "after_partition_publish", "after_manifest_temp_fsync", "after_manifest_replace"])

@@ -318,8 +318,23 @@ def generate(output: Path, config: Config, *, execute: bool, allow_over_100gb: b
             if shutil.disk_usage(output).free - intended < config.min_free_bytes:
                 raise RuntimeError("minimum free disk reserve would be violated")
             partitions = cast(list[dict[str, object]], manifest["partitions"])
-            _write_partition(output, config, len(partitions), cast(int, manifest["next_index"]), intended, fault)
-            manifest = _reconcile(output, config, manifest)
+            number = len(partitions)
+            next_index = cast(int, manifest["next_index"])
+            _write_partition(output, config, number, next_index, intended, fault)
+            actual = _verify_partition(output / f"part-{number:06d}.jsonl", config, next_index)
+            if actual["bytes"] != intended:
+                raise ValueError(f"published partition has unexpected size: {actual['file']}")
+            expected_files = {cast(str, item["file"]) for item in partitions} | {cast(str, actual["file"])}
+            unexpected = sorted(path.name for path in output.glob("part-*.jsonl") if path.name not in expected_files)
+            if unexpected:
+                raise ValueError(f"unexpected partitions require inspection: {', '.join(unexpected)}")
+            manifest = {
+                **manifest,
+                "committed_bytes": written + cast(int, actual["bytes"]),
+                "committed_rows": cast(int, manifest["committed_rows"]) + cast(int, actual["rows"]),
+                "next_index": actual["next_index"],
+                "partitions": [*partitions, actual],
+            }
             _write_manifest(output, manifest, fault)
         return _write_report(output, config, manifest)
 
