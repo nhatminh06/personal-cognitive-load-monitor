@@ -83,7 +83,7 @@ verification, and final teardown.
 
 ## Observed offline verification
 
-GitHub Actions on 2026-10-27 America/Chicago at commit `6890508` passed **294 Pytest tests** in 36.66 seconds with **88.76% combined coverage** against the 81% gate; both push and pull-request runs passed Ruff and the coverage job, and their GHCR build and deployment jobs were skipped. The follow-up DNS-label and separately gated Knative changes passed 23 focused tests, Ruff, Terraform formatting, Helm lint/render and workflow YAML parsing locally before the next CI run.
+GitHub Actions on 2026-10-27 America/Chicago at commit `6890508` passed **294 Pytest tests** in 36.66 seconds with **88.76% combined coverage** against the 81% gate. After the final DNS-label and separately gated Knative regressions were added, commit `8dbd2e1` passed **302 tests** in 33.06 seconds with the same **88.76% coverage**; both push and pull-request runs passed Ruff and the coverage job, and their GHCR build and deployment jobs were skipped. Focused local validation also passed 23 tests, scoped MyPy over 27 files, KFP compilation, Terraform formatting/validation, Helm lint/render and workflow YAML parsing.
 
 The final local review did **not** execute Actionlint, provider-backed Terraform validation, DVC status, Trivy or Gitleaks because those binaries/provider/cache operations were unavailable in the restricted workspace. Earlier evidence remains historical evidence for its exact commit, not a rerun claim. No protected workflow, Kubernetes API-aware dry run, release image scan or cloud-runtime check was executed locally.
 
