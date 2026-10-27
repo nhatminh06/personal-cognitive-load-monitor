@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: anomaly-detector, namespace: cogniflow-eventing}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: anomaly-alert-sink, namespace: cogniflow-eventing}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: anomaly-state, namespace: cogniflow-eventing}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 256Mi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: anomaly-alerts, namespace: cogniflow-eventing}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 256Mi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: anomaly-detector, namespace: cogniflow-eventing}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: anomaly-detector}}
+  template:
+    metadata:
+      labels: {app: anomaly-detector}
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "8080", prometheus.io/path: /metrics}
+    spec:
+      serviceAccountName: anomaly-detector
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: detector
+          image: cogniflow-anomaly-detector:dev
+          imagePullPolicy: Never
+          env:
+            - {name: ANOMALY_STORE_PATH, value: /data/anomalies.sqlite3}
+            - {name: ANOMALY_ALERT_DESTINATION, value: http://anomaly-alert-sink.cogniflow-eventing.svc.cluster.local/}
+          ports: [{name: http, containerPort: 8080}]
+          livenessProbe: {httpGet: {path: /health, port: http}}
+          readinessProbe: {httpGet: {path: /ready, port: http}}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 250m, memory: 192Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: data, mountPath: /data}, {name: tmp, mountPath: /tmp}]
+      volumes: [{name: data, persistentVolumeClaim: {claimName: anomaly-state}}, {name: tmp, emptyDir: {sizeLimit: 32Mi}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: anomaly-detector, namespace: cogniflow-eventing}
+spec:
+  type: ClusterIP
+  selector: {app: anomaly-detector}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: anomaly-alert-sink, namespace: cogniflow-eventing}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: anomaly-alert-sink}}
+  template:
+    metadata:
+      labels: {app: anomaly-alert-sink}
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "8080", prometheus.io/path: /metrics}
+    spec:
+      serviceAccountName: anomaly-alert-sink
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: sink
+          image: cogniflow-anomaly-detector:dev
+          imagePullPolicy: Never
+          command: [uvicorn]
+          args: ["cogniflow_anomaly.sink:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
+          env: [{name: ALERT_STORE_PATH, value: /data/alerts.sqlite3}]
+          ports: [{name: http, containerPort: 8080}]
+          livenessProbe: {httpGet: {path: /health, port: http}}
+          readinessProbe: {httpGet: {path: /ready, port: http}}
+          resources:
+            requests: {cpu: 25m, memory: 48Mi}
+            limits: {cpu: 150m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: data, mountPath: /data}, {name: tmp, mountPath: /tmp}]
+      volumes: [{name: data, persistentVolumeClaim: {claimName: anomaly-alerts}}, {name: tmp, emptyDir: {sizeLimit: 32Mi}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: anomaly-alert-sink, namespace: cogniflow-eventing}
+spec:
+  type: ClusterIP
+  selector: {app: anomaly-alert-sink}
+  ports: [{name: http, port: 80, targetPort: http}]

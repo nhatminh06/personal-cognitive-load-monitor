@@ -22,6 +22,8 @@ flowchart TB
     API --> Activity[Sanitized activity CloudEvent]
     Activity --> Broker[Knative Eventing Broker]
     Broker --> EventLog[SQLite log consumer]
+    Broker --> Detector[SQLite anomaly detector]
+    Detector --> AlertSink[SQLite anomaly alert sink]
     Broker -->|exhausted retry| EventDLQ[SQLite dead-letter sink]
 ```
 
@@ -33,6 +35,7 @@ flowchart TB
 - Prometheus/Grafana metrics, Loki structured logs and Tempo traces in dated Module I/II verification runs.
 - Terraform-managed local kind cluster and Helm demo-rule release on loopback port `18000`.
 - Isolated Knative Eventing 1.23 Broker/Trigger delivery from a real `demo_rule` prediction, durable SQLite deduplication, restart recovery, finite retries and dead-letter routing.
+- Isolated Knative anomaly detection for error, latency and rate signals, including durable windows, idempotent alerts, outbox recovery and live Prometheus/Grafana evidence.
 - Six-component Kubeflow Pipelines v2 training run on a disposable local backend.
 
 ## Implemented but not runtime-verified
@@ -44,7 +47,6 @@ flowchart TB
 ## Not implemented
 
 - A runtime-verified custom KServe deployment that loads an explicitly approved `.skops` package.
-- Knative-based real-time anomaly detector.
 - Authorized GKE/GCS runtime and full demonstration video.
 
 ## Stable serving contract
