@@ -20,6 +20,7 @@ evidence=$3
 python scripts/module1_qualification_preflight.py --execute --cluster "$cluster" \
   --context "$context" --workspace .
 mkdir -m 0700 "$evidence"
+export KUBECONFIG="$evidence/kubeconfig"
 exec > >(tee "$evidence/install.log") 2>&1
 failed() { jq -n --arg timestamp "$(date --iso-8601=ns)" '{status:"FAIL",finished_at:$timestamp}' >"$evidence/install-result.json"; }
 trap failed ERR
@@ -31,13 +32,13 @@ actual_commit=$(git -C "$evidence/upstream" rev-parse HEAD)
 
 mkdir -m 0700 "$evidence/raw-rendered"
 cd "$evidence/upstream"
-kustomize build common/cert-manager/base >../raw-rendered/cert-manager.yaml
-kustomize build common/istio/istio-crds/base >../raw-rendered/istio-crds.yaml
-kustomize build common/istio/istio-namespace/base >../raw-rendered/istio-namespace.yaml
-kustomize build common/istio/istio-install/base >../raw-rendered/istio.yaml
-kustomize build common/knative/knative-serving/overlays/gateways >../raw-rendered/knative-serving.yaml
-kustomize build common/istio/cluster-local-gateway/base >../raw-rendered/cluster-local-gateway.yaml
-kustomize build applications/kserve/kserve >../raw-rendered/kserve.yaml
+kubectl kustomize common/cert-manager/base >../raw-rendered/cert-manager.yaml
+kubectl kustomize common/istio/istio-crds/base >../raw-rendered/istio-crds.yaml
+kubectl kustomize common/istio/istio-namespace/base >../raw-rendered/istio-namespace.yaml
+kubectl kustomize common/istio/istio-install/base >../raw-rendered/istio.yaml
+kubectl kustomize common/knative/knative-serving/overlays/gateways >../raw-rendered/knative-serving.yaml
+kubectl kustomize common/istio/cluster-local-gateway/base >../raw-rendered/cluster-local-gateway.yaml
+kubectl kustomize applications/kserve/kserve >../raw-rendered/kserve.yaml
 cd - >/dev/null
 
 python scripts/prepare_module1_manifests.py --input-dir "$evidence/raw-rendered" \
@@ -64,6 +65,7 @@ chmod 0444 "$evidence"/raw-rendered/*.yaml "$evidence"/rendered/*.yaml \
 
 kind create cluster --name "$cluster" --image "$node_image" --wait 120s
 [[ "$(kubectl config current-context)" == "$context" ]] || { echo "unexpected current context" >&2; exit 1; }
+chmod 0600 "$KUBECONFIG"
 kubectl --context "$context" cluster-info >"$evidence/cluster-info.txt"
 
 for manifest in cert-manager istio-crds istio-namespace istio knative-serving cluster-local-gateway; do

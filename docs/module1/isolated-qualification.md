@@ -76,11 +76,37 @@ disposable run, verify the context name after installation, and then:
    Preflight refuses an existing cluster/context and requires at least 10 GiB available RAM,
    10 GiB Docker memory, 4 CPUs and 30 GiB free disk. Expected peak RAM is 12 GiB, within
    the 16 GiB local budget. Every `kubectl` operation is bound to
-   `kind-cogniflow-module1-qualification`.
+   `kind-cogniflow-module1-qualification`; kind writes only to the private
+   `NEW_PRIVATE_DIRECTORY/kubeconfig`, never the user's default kubeconfig.
 2. Generate `build/model-package` with
    `PYTHONPATH=src uv run python scripts/generate_qualification_model.py build/model-package`; build the
-   KServe image locally, load it into kind or a disposable loopback registry, and set
-   `KSERVE_IMAGE` to its immutable digest. Do not publish it.
+   KServe image locally, load it into kind, and set `KSERVE_IMAGE` to its immutable
+   manifest digest. Do not publish it. The separately authorized commands are:
+
+   ```bash
+   EVIDENCE=/absolute/path/to/the/existing/install-evidence
+   PYTHONPATH=src UV_CACHE_DIR=/tmp/cogniflow-qualification-uv \
+     uv run --offline python scripts/generate_qualification_model.py build/model-package
+   docker buildx build --platform linux/amd64 --load \
+     --metadata-file "$EVIDENCE/qualification-image-metadata.json" \
+     --file Dockerfile.kserve --tag cogniflow-kserve:qualification .
+   KUBECONFIG="$EVIDENCE/kubeconfig" kind load docker-image \
+     --name cogniflow-module1-qualification cogniflow-kserve:qualification
+   export KSERVE_IMAGE="docker.io/library/cogniflow-kserve@$(
+     jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' \
+       "$EVIDENCE/qualification-image-metadata.json"
+   )"
+   ```
+
+   Stop if BuildKit does not report one linux/amd64 manifest digest or the image cannot
+   be loaded into the exact named cluster. The ten control-plane substitutions and their
+   exact digests are the complete `rendered_images` map in
+   `docs/module1/upstream-source-inventory.json`; changing any one requires new source
+   review and authorization.
+
+   Docker Buildx is a prerequisite for this exact image command. It was not installed on
+   the reviewed host and must be supplied and version-recorded on the separately approved
+   disposable host; do not replace the immutable-digest step with a tag-only build.
 3. Authorize qualification separately, then run
    `qualification/module1/qualify.sh --execute --evidence-dir INSTALL_EVIDENCE_DIRECTORY`.
    It requires strict readiness, HTTP 200 prediction,
@@ -92,7 +118,17 @@ disposable run, verify the context name after installation, and then:
 5. Scan every captured image digest; record tool/database versions and raw reports.
 6. After evidence is copied to an immutable review location, request a third, explicit
    authorization before deleting the exact disposable cluster. No supplied script deletes
-   it. Do not commit generated model artifacts or credentials.
+   it. The reviewed cleanup command is
+   `KUBECONFIG=INSTALL_EVIDENCE_DIRECTORY/kubeconfig kind delete cluster --name cogniflow-module1-qualification`.
+   Preserve the evidence directory and its private kubeconfig until deletion is independently
+   confirmed; deletion is not a recovery mechanism for a failed qualification. Do not commit
+   generated model artifacts, kubeconfig credentials or other evidence secrets.
+
+On any failure, stop issuing cluster commands, preserve the new evidence directory, record
+the failing command and `install-result.json` or `qualification-result.json`, and request
+review. Never rerun into the same directory. Recovery is either a reviewed continuation
+against the exact private kubeconfig or separately authorized deletion followed by a new
+evidence directory and a fresh installation authorization.
 
 The installer preserves the pinned checkout, exact rendered YAML, SHA-256 files, resource
 identity inventory and logs. It separately preserves the raw upstream renders, pins the ten

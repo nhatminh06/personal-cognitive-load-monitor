@@ -1,8 +1,8 @@
 # Module I pre-cloud readiness
 
 **Decision date:** 2026-10-27 (America/Chicago)  
-**Reviewed source:** PR #22 head `83968725dc6bc1c0fb619a61f8914e48d810b95f`
-plus the focused manifest-preparation correction recorded with this report
+**Reviewed source:** PR #22 head `9dd2409573d7f63fafb2f74f02df6725b46c6305`
+plus the focused dedicated-kubeconfig correction recorded with this report
 **Decision:** **NO-GO for cloud deployment.** Offline preparation is complete
 enough to request a separately authorized disposable qualification, but the
 compatibility matrix remains `BLOCKED` and no Kubernetes or GCP runtime proof
@@ -20,7 +20,7 @@ The branch order is:
 2. draft PR #21, `feature/cogniflow-module1-compatibility` at
    `059b49b0badaaef9795a69c4613d994ed4df2554`, based on `main`;
 3. draft PR #22, `feature/cogniflow-module1-isolated-qualification` at reviewed
-   head `d3f97c317b951c911cdb3be9cda4db406413b135`, based on PR #21.
+   head `9dd2409573d7f63fafb2f74f02df6725b46c6305`, based on PR #21.
 
 GitHub reported both drafts open, mergeable and `CLEAN` on 2026-10-27. PR #21's
 test and GitGuardian checks passed; its build and deploy jobs were skipped. PR
@@ -103,10 +103,17 @@ The qualification scripts require `--execute`, a new absolute evidence path
 outside the repository, a nonexistent cluster/context, exact context binding,
 at least 10 GiB free host and Docker memory, 4 CPUs and 30 GiB free disk. Their
 expected peak is 12 GiB, so a 16 GiB laptop has only a 4 GiB nominal margin.
-At review time only 7.3 GiB was available, so installation is currently blocked
+The installer and qualifier use only a mode-0600 kubeconfig inside that external
+evidence directory; they do not add the disposable context to the user's default
+kubeconfig.
+At final review time only 7.49 GiB was available, so installation is currently blocked
 even with authorization. Close other workloads and stop if preflight fails. Installation, qualification
-and deletion each require separate authorization; no deletion command is
-supplied.
+and deletion each require separate authorization; the documentation records a cleanup
+command, but no script invokes it automatically.
+Use a disposable linux/amd64 host with at least 16 GiB actually available to Docker,
+at least 4 CPUs, 30 GiB free disk, and a version-recorded Docker Buildx installation.
+The reviewed host lacks Buildx, so it cannot execute the documented immutable local-image
+packet even after memory is freed.
 
 The acceptance contract is strict HTTP 200 prediction and metadata over the
 cluster-local route, Ready replicas 1→0→1, a single non-retried cold request
@@ -156,7 +163,7 @@ October 2026 security updates. cert-manager 1.21 lists Kubernetes 1.33–1.36 as
 supported/tested. Those component facts do not establish integration or GKE
 compatibility. GKE qualification remains separate.
 
-Unavailable tools were not credited: ShellCheck, actionlint, Gitleaks, Bandit,
+Unavailable tools were not credited: Docker Buildx, ShellCheck, actionlint, Gitleaks, Bandit,
 pip-audit, Checkov, Trivy, Syft, Grype and Cosign were not installed. GitGuardian
 passed on both draft PRs, but it is not a substitute for the missing scans.
 
@@ -236,6 +243,7 @@ Other results:
 
 - hosted PR #22 CI after the focused correction: 387 passed, 4 warnings, 88.89% coverage;
 - focused read-only sandbox regression: 60 passed in 3.04 seconds;
+- final isolated source-review regression: 49 passed in 1.72 seconds;
 - the full local suite stalled after 45 tests in the restricted sandbox and was
   stopped; it is `NOT_RUN` to completion, not a pass or product failure;
 - `dvc status`: known manifest drift described above;

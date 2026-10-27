@@ -106,6 +106,11 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "module1_qualification_preflight.py --execute" in install
     assert "prepare_module1_manifests.py" in install
     assert "python -m scripts.verify_module1_upstream_inventory" in install
+    assert install.count("kubectl kustomize ") == 7
+    assert "kustomize build" not in install
+    assert 'export KUBECONFIG="$evidence/kubeconfig"' in install + qualify
+    assert 'chmod 0600 "$KUBECONFIG"' in install
+    assert 'dedicated qualification kubeconfig is missing' in qualify
     assert "kind delete" not in install + qualify
     assert 'kubectl --context "$context"' in install
     assert 'k=(kubectl --context "$context")' in qualify + capture

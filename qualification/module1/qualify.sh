@@ -9,6 +9,8 @@ image=${KSERVE_IMAGE:?set KSERVE_IMAGE to the locally built qualification image@
 [[ "$image" =~ @sha256:[a-f0-9]{64}$ ]] || { echo "KSERVE_IMAGE must be immutable" >&2; exit 1; }
 evidence=$3
 [[ -f "$evidence/installation.json" && -d "$evidence/rendered" ]] || { echo "installation evidence is missing" >&2; exit 1; }
+[[ -f "$evidence/kubeconfig" ]] || { echo "dedicated qualification kubeconfig is missing" >&2; exit 1; }
+export KUBECONFIG="$evidence/kubeconfig"
 context=kind-cogniflow-module1-qualification
 model=qualification-model
 namespace=cogniflow-qualification
