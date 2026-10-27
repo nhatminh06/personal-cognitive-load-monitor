@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import math
 import os
 import sqlite3
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,9 +30,18 @@ ALERT_SOURCE = "urn:cogniflow:anomaly-detector"
 ALERT_SCHEMA_VERSION = "1.0"
 MAX_STATE_EVENTS = 10_000
 MAX_ALERTS = 10_000
+MAX_OUTBOX_BACKLOG = 10_000
+MAX_DEDUP_EVENTS = 100_000
 OUTBOX_BATCH_SIZE = 4
 RETENTION_SECONDS = 3_600
+DEDUP_RETENTION_SECONDS = 7 * 24 * 3_600
 LATENESS_SECONDS = 10
+OUTBOX_RETRY_MIN_SECONDS = 0.25
+OUTBOX_RETRY_MAX_SECONDS = 30.0
+OUTBOX_IDLE_SECONDS = 1.0
+MAX_CONCURRENT_REQUESTS = 8
+
+_database_lock = threading.RLock()
 
 
 @dataclass(frozen=True)
@@ -57,7 +70,27 @@ OUTBOX_BACKLOG = Gauge("cogniflow_anomaly_outbox_backlog", "Unpublished anomaly 
 DETECTION_LATENCY = Histogram(
     "cogniflow_anomaly_detection_latency_seconds", "Activity event time to alert decision."
 )
-app = FastAPI(title="CogniFlow anomaly detector", docs_url=None, redoc_url=None)
+
+class OutboxFullError(RuntimeError):
+    """The durable publication backlog has reached its explicit limit."""
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    stop = asyncio.Event()
+    wake = asyncio.Event()
+    app.state.outbox_wake = wake
+    app.state.request_slots = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+    task = asyncio.create_task(_outbox_worker(stop, wake))
+    try:
+        yield
+    finally:
+        stop.set()
+        wake.set()
+        await task
+
+
+app = FastAPI(title="CogniFlow anomaly detector", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 def configured_rules() -> tuple[Rule, ...]:
@@ -83,30 +116,43 @@ def _path() -> Path:
     return Path(os.getenv("ANOMALY_STORE_PATH", "/data/anomalies.sqlite3"))
 
 
-def _connect() -> sqlite3.Connection:
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path, timeout=5)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA synchronous=FULL")
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS events (
-          source TEXT NOT NULL, id TEXT NOT NULL, event_time TEXT NOT NULL,
-          backend TEXT NOT NULL, failed INTEGER NOT NULL, latency_ms REAL NOT NULL,
-          PRIMARY KEY (source, id));
-        CREATE INDEX IF NOT EXISTS events_window ON events(backend, event_time);
-        CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS alerts (
-          id TEXT PRIMARY KEY, rule_id TEXT NOT NULL, rule_version TEXT NOT NULL, backend TEXT NOT NULL,
-          detected_at TEXT NOT NULL, event_json TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS outbox (
-          id TEXT PRIMARY KEY REFERENCES alerts(id), event_json TEXT NOT NULL,
-          attempts INTEGER NOT NULL DEFAULT 0, published_at TEXT);
-        """
-    )
-    return connection
+    try:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA synchronous=FULL")
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS events (
+              source TEXT NOT NULL, id TEXT NOT NULL, event_time TEXT NOT NULL,
+              backend TEXT NOT NULL, failed INTEGER NOT NULL, latency_ms REAL NOT NULL,
+              PRIMARY KEY (source, id));
+            CREATE INDEX IF NOT EXISTS events_window ON events(backend, event_time);
+            CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS deliveries (
+              source TEXT NOT NULL, id TEXT NOT NULL, seen_at TEXT NOT NULL,
+              PRIMARY KEY (source, id));
+            CREATE INDEX IF NOT EXISTS deliveries_retention ON deliveries(seen_at);
+            INSERT OR IGNORE INTO deliveries
+              SELECT source, id, datetime('now') FROM events
+              WHERE NOT EXISTS (SELECT 1 FROM metadata WHERE key='dedup_migrated');
+            INSERT OR IGNORE INTO metadata VALUES ('dedup_migrated', '1');
+            CREATE TABLE IF NOT EXISTS alerts (
+              id TEXT PRIMARY KEY, rule_id TEXT NOT NULL, rule_version TEXT NOT NULL, backend TEXT NOT NULL,
+              detected_at TEXT NOT NULL, event_json TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS outbox (
+              id TEXT PRIMARY KEY REFERENCES alerts(id), event_json TEXT NOT NULL,
+              attempts INTEGER NOT NULL DEFAULT 0, published_at TEXT);
+            """
+        )
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
 def _utc(value: str) -> datetime:
@@ -163,21 +209,43 @@ def process_event(event: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     event_time = _utc(event["time"])
     backend = event["data"]["inference_backend"]
     generated: list[dict[str, Any]] = []
-    with _connect() as connection:
+    with _database_lock, _connect() as connection:
+        duplicate = connection.execute(
+            "SELECT 1 FROM deliveries WHERE source=? AND id=?", (event["source"], event["id"])
+        ).fetchone()
+        if duplicate:
+            EVENTS.labels("duplicate").inc()
+            return "duplicate", []
+        backlog = connection.execute(
+            "SELECT count(*) FROM outbox WHERE published_at IS NULL"
+        ).fetchone()[0]
+        if backlog >= MAX_OUTBOX_BACKLOG:
+            raise OutboxFullError("outbox backlog limit reached")
+        now = datetime.now(UTC)
+        connection.execute(
+            "DELETE FROM deliveries WHERE seen_at < ?",
+            ((now - timedelta(seconds=DEDUP_RETENTION_SECONDS)).isoformat(),),
+        )
+        excess = connection.execute("SELECT count(*) - ? FROM deliveries", (MAX_DEDUP_EVENTS - 1,)).fetchone()[0]
+        if excess > 0:
+            connection.execute(
+                "DELETE FROM deliveries WHERE rowid IN (SELECT rowid FROM deliveries ORDER BY seen_at LIMIT ?)",
+                (excess,),
+            )
+        connection.execute(
+            "INSERT INTO deliveries VALUES (?, ?, ?)", (event["source"], event["id"], now.isoformat())
+        )
         previous = connection.execute("SELECT value FROM metadata WHERE key='max_event_time'").fetchone()
         maximum = _utc(previous[0]) if previous else event_time
         if event_time < maximum - timedelta(seconds=LATENESS_SECONDS):
             EVENTS.labels("late").inc()
             return "late", []
         maximum = max(maximum, event_time)
-        inserted = connection.execute(
+        connection.execute(
             "INSERT OR IGNORE INTO events VALUES (?, ?, ?, ?, ?, ?)",
             (event["source"], event["id"], event_time.isoformat(), backend,
              int(event["data"]["outcome"] == "failure"), float(event["data"]["latency_ms"])),
-        ).rowcount
-        if not inserted:
-            EVENTS.labels("duplicate").inc()
-            return "duplicate", []
+        )
         connection.execute(
             "INSERT INTO metadata VALUES ('max_event_time', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (maximum.isoformat(),),
@@ -238,7 +306,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def flush_outbox() -> bool:
     destination = _destination()
-    with _connect() as connection:
+    with _database_lock, _connect() as connection:
         pending = connection.execute(
             "SELECT id, event_json FROM outbox WHERE published_at IS NULL ORDER BY rowid LIMIT ?",
             (OUTBOX_BATCH_SIZE,),
@@ -252,13 +320,13 @@ def flush_outbox() -> bool:
                 if not 200 <= response.status < 300:
                     raise OSError("alert sink rejected event")
         except (OSError, urllib.error.URLError):
-            with _connect() as connection:
+            with _database_lock, _connect() as connection:
                 connection.execute("UPDATE outbox SET attempts=attempts+1 WHERE id=?", (row["id"],))
             ALERTS.labels("publication_failed", "all").inc()
             return False
-        with _connect() as connection:
+        with _database_lock, _connect() as connection:
             connection.execute("UPDATE outbox SET published_at=? WHERE id=?", (datetime.now(UTC).isoformat(), row["id"]))
-    with _connect() as connection:
+    with _database_lock, _connect() as connection:
         remaining = connection.execute("SELECT count(*) FROM outbox WHERE published_at IS NULL").fetchone()[0]
         excess = connection.execute("SELECT count(*) - ? FROM alerts", (MAX_ALERTS,)).fetchone()[0]
         if excess > 0:
@@ -272,6 +340,46 @@ def flush_outbox() -> bool:
     return remaining == 0
 
 
+async def _outbox_worker(stop: asyncio.Event, wake: asyncio.Event) -> None:
+    delay = OUTBOX_RETRY_MIN_SECONDS
+    while not stop.is_set():
+        previous = 0
+        try:
+            previous = await asyncio.to_thread(_outbox_count)
+            drained = await asyncio.to_thread(flush_outbox)
+            remaining = await asyncio.to_thread(_outbox_count)
+        except (KeyError, ValueError, sqlite3.Error):
+            drained = False
+            remaining = previous
+        timeout = OUTBOX_IDLE_SECONDS if drained else delay
+        delay = (
+            OUTBOX_RETRY_MIN_SECONDS
+            if drained or remaining < previous
+            else min(delay * 2, OUTBOX_RETRY_MAX_SECONDS)
+        )
+        try:
+            await asyncio.wait_for(wake.wait(), timeout=timeout)
+            wake.clear()
+        except TimeoutError:
+            pass
+
+
+def _outbox_count() -> int:
+    with _database_lock, _connect() as connection:
+        return connection.execute(
+            "SELECT count(*) FROM outbox WHERE published_at IS NULL"
+        ).fetchone()[0]
+
+
+async def _process_event(event: dict[str, Any]) -> None:
+    task = asyncio.create_task(asyncio.to_thread(process_event, event))
+    try:
+        await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await task
+        raise
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "healthy"}
@@ -282,7 +390,7 @@ async def ready() -> dict[str, str]:
     try:
         configured_rules()
         _destination()
-        with _connect() as connection:
+        with _database_lock, _connect() as connection:
             connection.execute("SELECT 1")
     except (KeyError, ValueError, sqlite3.Error) as exc:
         raise HTTPException(503, "detector store unavailable") from exc
@@ -307,15 +415,19 @@ async def consume(request: Request) -> Response:
     except (ValueError, TypeError, json.JSONDecodeError):
         EVENTS.labels("invalid").inc()
         raise HTTPException(400, "invalid activity event") from None
+    slots = getattr(request.app.state, "request_slots", None)
+    if slots is None:
+        slots = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
     try:
-        process_event(event)
+        async with slots:
+            await _process_event(event)
+    except OutboxFullError:
+        EVENTS.labels("overloaded").inc()
+        raise HTTPException(503, "durable alert backlog full") from None
     except (ValueError, sqlite3.Error):
         EVENTS.labels("failed").inc()
         raise HTTPException(503, "anomaly detector unavailable") from None
-    try:
-        published = flush_outbox()
-    except (KeyError, ValueError):
-        published = False
-    if not published:
-        raise HTTPException(503, "alert publication pending")
+    wake = getattr(request.app.state, "outbox_wake", None)
+    if wake is not None:
+        wake.set()
     return Response(status_code=204)
