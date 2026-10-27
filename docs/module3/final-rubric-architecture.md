@@ -79,14 +79,14 @@ Kafka, Flink and Loki remain useful supporting services; none substitutes for th
 ```mermaid
 flowchart LR
     Broker[Knative Broker] --> Trigger[Anomaly Trigger]
-    Trigger --> Detector[Deterministic window detector]
+    Trigger --> Detector[Persistent sliding-window detector]
     Detector -->|normal| Metrics[Metrics / dashboard]
     Detector -->|threshold crossed| Alert[Versioned anomaly CloudEvent]
     Alert --> AlertSink[Alert log / dashboard]
     Detector -->|delivery failure| DLS[Dead-letter sink]
 ```
 
-The first implementation uses deterministic, configuration-versioned thresholds over event-time tumbling windows; EWMA is added only if deterministic fixtures show a useful advantage. Initial objective signals are inference error ratio, p95 latency, request rate and stale-feature ratio. Each rule defines minimum sample count, threshold, window, cooldown and recovery condition. The alert key is `rule_version + rule_id + window_start`; this makes redelivery idempotent and suppresses repeated alerts during cooldown.
+The first implementation uses deterministic, configuration-versioned thresholds over event-time sliding windows. Initial objective signals are inference error ratio, mean latency and request rate. Feature staleness is excluded because activity schema `1.0` has no validated freshness timestamp. Each rule defines minimum sample count, threshold, window and cooldown. The alert key binds rule version, rule ID, backend and triggering event ID; durable input deduplication and cooldown suppress redelivery storms.
 
 Acceptance fixtures include quiet traffic, a boundary case and one injected anomaly per rule. Measured detection latency runs from the anomalous event time to accepted alert time. These are service-health anomalies, not medical cognitive-load anomalies.
 

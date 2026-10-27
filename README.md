@@ -56,7 +56,7 @@ It is designed to demonstrate how independently developed data and machine learn
 | Kubeflow Pipelines | Six-component KFP v2 workflow verified on an isolated local backend |
 | KServe runtime | Manifests/client statically validated; no real `InferenceService` run |
 | Knative log Eventing | Real local Broker/Trigger delivery, durable dedupe, retries and DLQ verified |
-| Knative anomaly detector | Not implemented |
+| Knative anomaly detector | Persistent deterministic detector, alert outbox/sink and dashboard verified on isolated Knative runtime |
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
 | GKE Terraform | Statically validated only |

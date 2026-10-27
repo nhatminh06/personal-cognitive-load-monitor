@@ -1,0 +1,18 @@
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: inference-anomaly-v1
+  namespace: cogniflow-eventing
+spec:
+  broker: cogniflow-v1
+  filter:
+    attributes:
+      type: org.cogniflow.inference.activity.v1
+  subscriber:
+    ref: {apiVersion: v1, kind: Service, name: anomaly-detector}
+  delivery:
+    retry: 3
+    backoffPolicy: exponential
+    backoffDelay: PT1S
+    deadLetterSink:
+      ref: {apiVersion: v1, kind: Service, name: activity-dead-letter}
