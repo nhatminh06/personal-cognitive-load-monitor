@@ -31,4 +31,4 @@ du -sh data .dvc-storage 2>/dev/null
 
 The 100GB+ profile will enforce a configured byte ceiling and free-space reserve. Merely implementing it will not be reported as execution evidence.
 
-The generator now enforces both controls (`--max-bytes`, default 100 MB; `--min-free-bytes`, default 1 GB) and writes an atomic resume state after each source event. See `benchmark-plan.md`; no 100GB run was performed.
+The generator enforces both controls (`--max-bytes`, default 100 MB; `--min-free-bytes`, default 1 GB) and durably commits verified partition progress to one authoritative manifest. See `benchmark-plan.md`; no 100GB run was performed.

@@ -32,7 +32,7 @@ points are claimed.
 | Online feature adapter | Unit + runtime verified | Explicit missing/stale/unavailable responses |
 | Regression / coverage | Verified | 59 passed; 87.79% combined Python coverage; Ruff/MyPy green |
 | DVC / notebooks / Docker | Verified | Cached reproducibility; four notebooks; both inference modes |
-| Synthetic generator | Verified locally | Deterministic Kafka/file output, duplicate/invalid/late injection, atomic resume state, byte/free-space guards; 100GB execution deferred |
+| Synthetic generator | Verified locally | Deterministic Kafka/file output, duplicate/invalid/late injection, authoritative-manifest reconciliation, byte/free-space guards; 100GB execution deferred |
 | Graphify | Structural only | 497 nodes/838 edges/35 communities; semantic, SQL and HCL extraction unavailable |
 | Rolling/tumbling stream windows | Runtime verified | Deterministic event-time window, late policy, dedup, checkpoint restore and Redis stale-write evidence |
 | Cross-language feature parity | Runtime verified | Shared JSON contract consumed by Python/JUnit; real Spark 3.5.5 fixture run passed all six ordered fields |

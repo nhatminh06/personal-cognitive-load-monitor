@@ -43,17 +43,27 @@ SEC-022 exception validation on 2026-10-25 used only new disposable volumes. Six
 
 ## Rubric-compliance source review
 
-On 2026-10-27 America/Chicago, GitHub Actions for commit `8bf85aa`
-passed **306 Python tests** in 30.35 seconds with **88.76% combined coverage**
-against the 81% gate; Ruff and GitGuardian passed, while GHCR publication and
-deployment jobs were skipped. Local focused checks passed 12 tests, scoped
-MyPy, Compose rendering, Terraform format/validate, Helm lint and DVC status.
-The 12,345-byte benchmark fixture produced three exact-size partitions and 13
-valid JSON rows with manifest/checkpoint/report evidence.
+On 2026-10-27 America/Chicago, the benchmark-recovery source review passed
+**314 Python tests** in 18.33 seconds with **88.76% combined coverage** against
+the 81% gate; Ruff passed. The 12 focused recovery tests cover crashes after
+partition synchronization, partition publication, manifest synchronization
+and manifest replacement, plus incomplete manifest writes, untrusted counters,
+missing/tampered partitions, concurrent generators and no-overwrite behavior.
+The 12,345-byte fixture produced three exact-size partitions and reconciled
+physical bytes, manifest totals, event counts, unique event IDs and next-index
+progression. Earlier GitHub evidence for commit `8bf85aa` remains recorded as
+306 tests with Ruff and GitGuardian passing; it does not describe this commit.
 
-Maven/Flink JUnit, Spark, dbt, Airflow, Actionlint, Trivy and Gitleaks were not
-rerun locally because their tools/services were unavailable or starting them
-could touch preserved development volumes. No >100 GB run, MinIO/AIStor
-runtime, cloud operation or Kubernetes deployment occurred. Historical runtime
-evidence above remains evidence for its recorded environment and commit, not a
-fresh execution claim.
+Scoped MyPy (with third-party imports ignored), both Compose configurations,
+Terraform formatting, Helm lint/render with synthetic non-production digests,
+and KFP compilation passed. Read-only DVC status ran and reported the existing
+`data/processed/module3/training_manifest.json` dependency as modified; it was
+not reproduced or changed. Terraform validation was attempted but the installed
+Google provider could not start in this sandbox, so it did not complete.
+Actionlint, Trivy and Gitleaks were unavailable locally.
+
+Maven/Flink JUnit, Spark, dbt and Airflow were not rerun because starting them
+could touch preserved development volumes or cross the isolated Spark boundary.
+No >100 GB run, MinIO/AIStor runtime, cloud operation or Kubernetes deployment
+occurred. Historical runtime evidence above remains evidence for its recorded
+environment and commit, not a fresh execution claim.
