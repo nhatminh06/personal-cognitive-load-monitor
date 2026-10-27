@@ -40,3 +40,33 @@ Security-gate rerun on 2026-10-25:
 - The isolated SeaweedFS topology preserved authenticated S3 access and bucket inventory (Bronze 1 object, lakehouse 141 objects) while a default-network client could not resolve `seaweedfs:9333`.
 
 SEC-022 exception validation on 2026-10-25 used only new disposable volumes. Six approved Ivy JARs matched the manifest, and the cache remained read-only. Spark ran without runtime Ivy resolution, read two deterministic Bronze records through S3A, wrote/reopened Delta, and replayed twice without increasing the row count; Trino returned two rows with Delta history `WRITE`, `MERGE`, `MERGE`. dbt passed 15/15 and the real six-task Airflow DAG succeeded; wrong/missing tokens, missing/tampered JARs, public internet access and unrelated-network access all failed closed. The final Python regression was 76 passed at 88.67% coverage; Ruff, MyPy, Compose, Helm and Gitleaks passed, and DVC reported the pipeline up to date. Temporary services and networks were stopped without deleting named volumes. This validates compensating controls only; SEC-022 remains unpatched and is accepted for isolated local development only through 2027-01-23.
+
+## Rubric-compliance source review
+
+On 2026-10-27 America/Chicago, the benchmark scalability source review passed
+**316 Python tests** in 46.45 seconds with **88.76% combined coverage** against
+the 81% gate; Ruff and scoped MyPy passed. The 14 focused recovery tests cover crashes after
+partition synchronization, partition publication, manifest synchronization
+and manifest replacement, plus incomplete manifest writes, untrusted counters,
+missing/tampered partitions, concurrent generators, no-overwrite behavior and
+instrumented linear partition verification. Eight 5,000-byte partitions caused
+eight normal-path verification calls; a resume scanned all 40,000 committed
+bytes once.
+The 12,345-byte fixture produced three exact-size partitions and reconciled
+physical bytes, manifest totals, event counts, unique event IDs and next-index
+progression. Earlier GitHub evidence for commit `8bf85aa` remains recorded as
+306 tests with Ruff and GitGuardian passing; it does not describe this commit.
+
+Scoped MyPy (with third-party imports ignored), both Compose configurations,
+Terraform formatting, Helm lint/render with synthetic non-production digests,
+and KFP compilation passed. Read-only DVC status ran and reported the existing
+`data/processed/module3/training_manifest.json` dependency as modified; it was
+not reproduced or changed. Terraform validation was attempted but the installed
+Google provider could not start in this sandbox, so it did not complete.
+Actionlint, Trivy and Gitleaks were unavailable locally.
+
+Maven/Flink JUnit, Spark, dbt and Airflow were not rerun because starting them
+could touch preserved development volumes or cross the isolated Spark boundary.
+No >100 GB run, MinIO/AIStor runtime, cloud operation or Kubernetes deployment
+occurred. Historical runtime evidence above remains evidence for its recorded
+environment and commit, not a fresh execution claim.
