@@ -40,3 +40,20 @@ Security-gate rerun on 2026-10-25:
 - The isolated SeaweedFS topology preserved authenticated S3 access and bucket inventory (Bronze 1 object, lakehouse 141 objects) while a default-network client could not resolve `seaweedfs:9333`.
 
 SEC-022 exception validation on 2026-10-25 used only new disposable volumes. Six approved Ivy JARs matched the manifest, and the cache remained read-only. Spark ran without runtime Ivy resolution, read two deterministic Bronze records through S3A, wrote/reopened Delta, and replayed twice without increasing the row count; Trino returned two rows with Delta history `WRITE`, `MERGE`, `MERGE`. dbt passed 15/15 and the real six-task Airflow DAG succeeded; wrong/missing tokens, missing/tampered JARs, public internet access and unrelated-network access all failed closed. The final Python regression was 76 passed at 88.67% coverage; Ruff, MyPy, Compose, Helm and Gitleaks passed, and DVC reported the pipeline up to date. Temporary services and networks were stopped without deleting named volumes. This validates compensating controls only; SEC-022 remains unpatched and is accepted for isolated local development only through 2027-01-23.
+
+## Rubric-compliance source review
+
+On 2026-10-27 America/Chicago, GitHub Actions for commit `8bf85aa`
+passed **306 Python tests** in 30.35 seconds with **88.76% combined coverage**
+against the 81% gate; Ruff and GitGuardian passed, while GHCR publication and
+deployment jobs were skipped. Local focused checks passed 12 tests, scoped
+MyPy, Compose rendering, Terraform format/validate, Helm lint and DVC status.
+The 12,345-byte benchmark fixture produced three exact-size partitions and 13
+valid JSON rows with manifest/checkpoint/report evidence.
+
+Maven/Flink JUnit, Spark, dbt, Airflow, Actionlint, Trivy and Gitleaks were not
+rerun locally because their tools/services were unavailable or starting them
+could touch preserved development volumes. No >100 GB run, MinIO/AIStor
+runtime, cloud operation or Kubernetes deployment occurred. Historical runtime
+evidence above remains evidence for its recorded environment and commit, not a
+fresh execution claim.
