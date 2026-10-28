@@ -8,7 +8,7 @@ import yaml
 
 from scripts.module1_compatibility import REQUIRED_CONTROLLERS, REQUIRED_CRDS
 from scripts.module1_qualification_preflight import GIB, validate_resources
-from scripts.prepare_module1_manifests import IMAGE_DIGESTS, prepare
+from scripts.prepare_module1_manifests import FILES, IMAGE_DIGESTS, prepare
 from scripts.render_module1_inventory import build_inventory
 from scripts import verify_module1_upstream_inventory as upstream_inventory
 
@@ -55,8 +55,7 @@ def test_manifest_preparation_pins_images_and_omits_only_kernel_agent(tmp_path: 
     ]
     documents.append({"apiVersion": "apps/v1", "kind": "DaemonSet",
                       "metadata": {"name": "kserve-kernelcachenode-agent", "namespace": "kserve"}})
-    for index, name in enumerate(("cert-manager.yaml", "istio-crds.yaml", "istio-namespace.yaml", "istio.yaml",
-                                  "knative-serving.yaml", "cluster-local-gateway.yaml", "kserve.yaml")):
+    for index, name in enumerate(FILES):
         (source / name).write_text(yaml.safe_dump_all(documents if index == 0 else []))
     evidence = prepare(source, output)
     rendered = "".join(path.read_text() for path in output.glob("*.yaml"))
@@ -66,7 +65,8 @@ def test_manifest_preparation_pins_images_and_omits_only_kernel_agent(tmp_path: 
         {"kind": "DaemonSet", "namespace": "kserve", "name": "kserve-kernelcachenode-agent"}
     ]
     first = next(iter(IMAGE_DIGESTS))
-    (source / "cert-manager.yaml").write_text((source / "cert-manager.yaml").read_text().replace(first, "missing:tag"))
+    first_manifest = source / FILES[0]
+    first_manifest.write_text(first_manifest.read_text().replace(first, "missing:tag"))
     with pytest.raises(ValueError, match="preparation mismatch"):
         prepare(source, tmp_path / "invalid-output")
 
@@ -77,6 +77,17 @@ def test_upstream_inventory_rejects_permissive_policy(monkeypatch: pytest.Monkey
     with pytest.raises(ValueError, match="allow-all"):
         upstream_inventory.verify(
             [{"kind": "AuthorizationPolicy", "metadata": {"name": "unsafe", "namespace": "user"}, "spec": {"rules": [{}]}}]
+        )
+
+
+def test_upstream_inventory_rejects_missing_namespace_prerequisite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(upstream_inventory, "REQUIRED_CONTROLLERS", set())
+    monkeypatch.setattr(upstream_inventory, "REQUIRED_CRDS", set())
+    with pytest.raises(ValueError, match="namespace prerequisites.*kubeflow"):
+        upstream_inventory.verify(
+            [{"kind": "Sidecar", "metadata": {"name": "ml-pipeline-ui-exception", "namespace": "kubeflow"}}]
         )
 
 
@@ -101,13 +112,18 @@ def test_qualification_client_is_restricted_digest_pinned_and_unprivileged() -> 
 def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     install = (QUALIFICATION / "install.sh").read_text()
     qualify = (QUALIFICATION / "qualify.sh").read_text()
+    recover = (QUALIFICATION / "recover-istio.sh").read_text()
     capture = (ROOT / "scripts/capture_module1_runtime.sh").read_text()
     assert "--execute" in install and "kind get clusters" not in install
     assert "module1_qualification_preflight.py --execute" in install
     assert "prepare_module1_manifests.py" in install
     assert "python -m scripts.verify_module1_upstream_inventory" in install
-    assert install.count("kubectl kustomize ") == 7
+    assert install.count("kubectl kustomize ") == 8
     assert "kustomize build" not in install
+    assert "common/kubeflow-namespace/base" in install
+    assert install.index('apply -f "$evidence/rendered/kubeflow-namespace.yaml"') < install.index(
+        'apply -f "$evidence/rendered/$manifest.yaml"'
+    )
     assert 'export KUBECONFIG="$evidence/kubeconfig"' in install + qualify
     assert 'chmod 0600 "$KUBECONFIG"' in install
     assert 'dedicated qualification kubeconfig is missing' in qualify
@@ -120,6 +136,11 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "networking.knative.dev/visibility: cluster-local" in qualify
     assert "AuthorizationPolicy" not in qualify
     assert all(controller in capture for controller in REQUIRED_CONTROLLERS)
+    assert "--original-evidence" in recover and "--recovery-evidence" in recover
+    assert "original-evidence.sha256" in recover and "pre-recovery-resources.json" in recover
+    assert "kind delete" not in recover
+    assert 'apply -f "$recovery/rendered/kubeflow-namespace.yaml"' in recover
+    assert "trap failed ERR" in recover
 
 
 def test_pinned_inventory_matches_required_workloads_and_crd_count() -> None:
@@ -128,6 +149,7 @@ def test_pinned_inventory_matches_required_workloads_and_crd_count() -> None:
     assert inventory["installation_method"] == "kustomize"
     assert set(inventory["rendered_controllers"]) == REQUIRED_CONTROLLERS
     assert inventory["required_crd_count"] == len(REQUIRED_CRDS) == 38
+    assert inventory["required_namespaces"] == ["kubeflow", "kubeflow-system"]
     assert "kserve/kserve-localmodelnode-agent" in inventory["disabled_or_omitted_workloads"]
     assert "kserve/kserve-kernelcachenode-agent" in inventory["disabled_or_omitted_workloads"]
 

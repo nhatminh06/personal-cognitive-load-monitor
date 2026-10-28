@@ -143,3 +143,33 @@ in-cluster provenance ConfigMap is corroborating metadata only, not independent 
 Only an independent human reviewer may copy accepted digests/charts/CRDs into
 `approved_inventory`, set the selected candidate suitable/qualified, and change the matrix
 to `QUALIFIED`. Upstream CI alone cannot authorize that change.
+
+## Authorized recovery from the Istio namespace failure
+
+Pinned Istio contains `Sidecar` resources `ml-pipeline-ui-exception` and
+`notebook-controller-exception` in namespace `kubeflow`. The pinned upstream installation
+order creates `common/kubeflow-namespace/base` first; its immutable render contains the
+`kubeflow` and `kubeflow-system` namespaces plus their NetworkPolicies. Fresh installation
+now preserves that raw render, inventories every identity, and applies it before cert-manager
+and Istio. The controller, CRD and seven-policy expectations do not change.
+
+For the existing partially installed disposable cluster, do not rerun `install.sh` and do
+not alter the original evidence directory. After separate recovery authorization, run from
+the reviewed repair commit with a new absolute evidence directory:
+
+```bash
+qualification/module1/recover-istio.sh --execute \
+  --original-evidence /absolute/path/to/the/failed-install-evidence \
+  --recovery-evidence /absolute/path/to/a/new-recovery-evidence-directory
+```
+
+The recovery verifies the original manifest hashes and pinned checkout, copies the original
+raw renders into new evidence, adds the exact upstream namespace render, reruns digest and
+inventory checks, captures pre-recovery resources, and applies the complete sequence with
+idempotent Kubernetes apply operations. `set -euo pipefail` and the `ERR` trap stop on the
+first failed apply and retain `recovery.log` plus `recovery-result.json`. Each attempt must
+use a new recovery evidence directory; the failed installation evidence remains unchanged.
+
+After a successful recovery, the still-separate qualification authorization uses the new
+recovery evidence directory. Cluster deletion remains a third operation and is never called
+by the installer, recovery, or qualification scripts.

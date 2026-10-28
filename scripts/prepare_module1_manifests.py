@@ -25,7 +25,7 @@ IMAGE_DIGESTS = {
     "quay.io/jetstack/cert-manager-webhook:v1.21.2": "sha256:b929259301ee75270ab4651d5e6bd4ba7b6624b1ce48ba767d064295a9312101",
 }
 FILES = (
-    "cert-manager.yaml", "istio-crds.yaml", "istio-namespace.yaml", "istio.yaml",
+    "kubeflow-namespace.yaml", "cert-manager.yaml", "istio-crds.yaml", "istio-namespace.yaml", "istio.yaml",
     "knative-serving.yaml", "cluster-local-gateway.yaml", "kserve.yaml",
 )
 OMITTED = ("DaemonSet", "kserve", "kserve-kernelcachenode-agent")

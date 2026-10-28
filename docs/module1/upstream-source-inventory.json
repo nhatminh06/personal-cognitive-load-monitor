@@ -48,6 +48,8 @@
   ],
   "required_crd_count": 38,
   "required_crd_inventory": "scripts/module1_compatibility.py:REQUIRED_CRDS",
+  "required_namespaces": ["kubeflow", "kubeflow-system"],
+  "namespace_source": "common/kubeflow-namespace/base",
   "rendered_images": {
     "docker.io/istio/install-cni:1.31.3": "115d9d77a6f70da7ea84f997964e871bf4c9b0f235e56aed30c773ffd7154b06",
     "docker.io/istio/pilot:1.31.3": "1a349da3d48a59f2663256b50284de6ff84776db5ea9f42d426f752b34b44e62",
