@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-[[ "${1:-}" == "--execute" && $# == 3 && "$2" == "--evidence-dir" ]] || {
-  echo "usage: qualify.sh --execute --evidence-dir INSTALL_EVIDENCE_DIRECTORY" >&2
+[[ "${1:-}" == "--execute" && $# == 5 && "$2" == "--installation-evidence" \
+  && "$4" == "--qualification-evidence" ]] || {
+  echo "usage: qualify.sh --execute --installation-evidence INSTALL_DIRECTORY --qualification-evidence NEW_DIRECTORY" >&2
   exit 2
 }
-image=${KSERVE_IMAGE:?set KSERVE_IMAGE to the locally built qualification image@sha256 digest}
-[[ "$image" =~ @sha256:[a-f0-9]{64}$ ]] || { echo "KSERVE_IMAGE must be immutable" >&2; exit 1; }
-evidence=$3
-[[ -f "$evidence/installation.json" && -d "$evidence/rendered" ]] || { echo "installation evidence is missing" >&2; exit 1; }
-[[ -f "$evidence/kubeconfig" ]] || { echo "dedicated qualification kubeconfig is missing" >&2; exit 1; }
-export KUBECONFIG="$evidence/kubeconfig"
+installation=$3
+evidence=$5
+[[ -f "$installation/installation.json" && -d "$installation/rendered" ]] || { echo "installation evidence is missing" >&2; exit 1; }
+[[ -f "$installation/kubeconfig" ]] || { echo "dedicated qualification kubeconfig is missing" >&2; exit 1; }
+[[ "$evidence" == /* && "$evidence" != "$(pwd)"/* && ! -e "$evidence" ]] || {
+  echo "qualification evidence must be a new absolute directory outside the repository" >&2
+  exit 1
+}
+mkdir -m 0700 "$evidence"
+export KUBECONFIG="$installation/kubeconfig"
 context=kind-cogniflow-module1-qualification
+cluster=cogniflow-module1-qualification
 model=qualification-model
 namespace=cogniflow-qualification
 deadline=35
 k=(kubectl --context "$context")
-[[ "$(kubectl config current-context)" == "$context" ]] || { echo "current context mismatch" >&2; exit 1; }
 exec > >(tee "$evidence/qualification.log") 2>&1
 
 observations=$evidence/scale-observations.jsonl
@@ -29,11 +34,28 @@ record() {
 failed() {
   jq -n --arg timestamp "$(date --iso-8601=ns)" '{status:"FAIL",finished_at:$timestamp}' >"$result"
 }
+abort() {
+  echo "$1" >&2
+  failed
+  trap - ERR
+  exit 1
+}
 trap failed ERR
+
+image=${KSERVE_IMAGE:-}
+[[ "$image" =~ @sha256:[a-f0-9]{64}$ ]] || abort "KSERVE_IMAGE must be an immutable local image digest"
+[[ "$(kubectl config current-context)" == "$context" ]] || abort "current context mismatch"
+[[ "$(kind get clusters | grep -Fx "$cluster")" == "$cluster" ]] || abort "exact disposable cluster is missing"
+docker exec "$cluster-control-plane" crictl inspecti "$image" >"$evidence/qualification-image-resolution.json"
+sha256sum "$installation/installation.json" "$installation/rendered-manifests.sha256" \
+  >"$evidence/installation-evidence.sha256"
 
 "${k[@]}" create namespace "$namespace" --dry-run=client -o yaml | "${k[@]}" apply -f -
 "${k[@]}" label namespace "$namespace" pod-security.kubernetes.io/enforce=restricted --overwrite
-"${k[@]}" apply --dry-run=server -f qualification/module1/qualification-client.yaml >/dev/null
+"${k[@]}" delete pod qualification-client -n "$namespace" --ignore-not-found --wait=true --timeout=60s
+python scripts/module1_qualification_client.py --execute --context "$context" \
+  --service-account qualification/module1/qualification-client-serviceaccount.yaml \
+  --pod qualification/module1/qualification-client.yaml
 "${k[@]}" create serviceaccount qualification-model -n "$namespace" --dry-run=client -o yaml | "${k[@]}" apply -f -
 cat <<EOF | "${k[@]}" apply -f -
 apiVersion: serving.kserve.io/v1beta1
@@ -64,11 +86,9 @@ EOF
 "${k[@]}" wait --for=condition=Ready "inferenceservice/$model" -n "$namespace" --timeout=600s
 selector="serving.kserve.io/inferenceservice=$model"
 ready=$("${k[@]}" get deployment -n "$namespace" -l "$selector" -o json | jq '[.items[].status.readyReplicas // 0] | add // 0')
-((ready >= 1)) || { echo "predictor never reached a Ready replica" >&2; exit 1; }
+((ready >= 1)) || abort "predictor never reached a Ready replica"
 record READY "$ready"
 
-"${k[@]}" apply -f qualification/module1/qualification-client.yaml
-"${k[@]}" wait --for=condition=Ready pod/qualification-client -n "$namespace" --timeout=120s
 origin="http://${model}-predictor.${namespace}.svc.cluster.local"
 request='{"instances":[[150,10,0,96,0.9375,0.0625]]}'
 predict() {
@@ -78,7 +98,7 @@ predict() {
     "$origin/v1/models/$model:predict"
 }
 response=$(predict)
-[[ "$(tail -n1 <<<"$response")" == 200 ]] || { echo "initial inference did not return HTTP 200" >&2; exit 1; }
+[[ "$(tail -n1 <<<"$response")" == 200 ]] || abort "initial inference did not return HTTP 200"
 head -n -1 <<<"$response" >"$evidence/prediction.json"
 jq -e '.predictions == ["LOW"] and .provenance.model_name == "qualification-model"' "$evidence/prediction.json" >/dev/null
 record INITIAL_INFERENCE "$ready"
@@ -94,7 +114,7 @@ for _ in $(seq 1 150); do
   [[ "$ready" == 0 ]] && break
   sleep 2
 done
-[[ "$ready" == 0 ]] || { echo "predictor did not scale to exactly zero" >&2; exit 1; }
+[[ "$ready" == 0 ]] || abort "predictor did not scale to exactly zero"
 record SCALED_TO_ZERO 0
 
 "${k[@]}" apply -f qualification/module1/qualification-client.yaml
@@ -103,13 +123,12 @@ start=$(date +%s)
 response=$(predict)
 elapsed=$(( $(date +%s) - start ))
 [[ "$elapsed" -le "$deadline" && "$(tail -n1 <<<"$response")" == 200 ]] || {
-  echo "cold activation exceeded ${deadline}s or failed" >&2
-  exit 1
+  abort "cold activation exceeded ${deadline}s or failed"
 }
 head -n -1 <<<"$response" >"$evidence/cold-prediction.json"
 jq -e '.predictions == ["LOW"] and .provenance.model_name == "qualification-model"' "$evidence/cold-prediction.json" >/dev/null
 ready=$("${k[@]}" get deployment -n "$namespace" -l "$selector" -o json | jq '[.items[].status.readyReplicas // 0] | add // 0')
-((ready >= 1)) || { echo "predictor did not return to a Ready replica" >&2; exit 1; }
+((ready >= 1)) || abort "predictor did not return to a Ready replica"
 record COLD_ACTIVATION_READY "$ready"
 record POST_ACTIVATION_INFERENCE "$ready"
 
@@ -119,7 +138,7 @@ jq -n --arg timestamp "$(date --iso-8601=ns)" --argjson seconds "$elapsed" \
   cold_activation_deadline_seconds:$deadline,states:[$observations[].state]}' >"$result"
 scripts/capture_module1_runtime.sh --execute --context "$context" \
   --output "$evidence/runtime-snapshot.json" --model "$model" --namespace "$namespace" \
-  --installation "$evidence/installation.json" --rendered-dir "$evidence/rendered"
+  --installation "$installation/installation.json" --rendered-dir "$installation/rendered"
 jq --slurpfile acceptance "$result" '. + {acceptance:$acceptance[0]}' \
   "$evidence/runtime-snapshot.json" >"$evidence/runtime-snapshot.tmp"
 mv "$evidence/runtime-snapshot.tmp" "$evidence/runtime-snapshot.json"

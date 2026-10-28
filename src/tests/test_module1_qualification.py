@@ -92,8 +92,14 @@ def test_upstream_inventory_rejects_missing_namespace_prerequisite(
 
 
 def test_qualification_client_is_restricted_digest_pinned_and_unprivileged() -> None:
-    service_account, pod = list(yaml.safe_load_all((QUALIFICATION / "qualification-client.yaml").read_text()))
-    assert {service_account["kind"], pod["kind"]} == {"ServiceAccount", "Pod"}
+    service_account = yaml.safe_load((QUALIFICATION / "qualification-client-serviceaccount.yaml").read_text())
+    pod = yaml.safe_load((QUALIFICATION / "qualification-client.yaml").read_text())
+    client_manifests = "".join(
+        path.read_text() for path in QUALIFICATION.glob("qualification-client*.yaml")
+    )
+    assert service_account["kind"] == "ServiceAccount" and pod["kind"] == "Pod"
+    assert "RoleBinding" not in client_manifests and "ClusterRoleBinding" not in client_manifests
+    assert service_account["metadata"]["namespace"] == "cogniflow-qualification"
     assert service_account["automountServiceAccountToken"] is False
     assert pod["spec"]["serviceAccountName"] == "qualification-client"
     assert pod["spec"]["automountServiceAccountToken"] is False
@@ -135,6 +141,12 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "COLD_ACTIVATION_READY" in qualify and "POST_ACTIVATION_INFERENCE" in qualify
     assert "networking.knative.dev/visibility: cluster-local" in qualify
     assert "AuthorizationPolicy" not in qualify
+    assert "--installation-evidence" in qualify and "--qualification-evidence" in qualify
+    assert 'export KUBECONFIG="$installation/kubeconfig"' in qualify
+    assert "kind-cogniflow-module1-qualification" in qualify
+    assert qualify.index("current-context") < qualify.index("module1_qualification_client.py --execute")
+    assert 'crictl inspecti "$image"' in qualify
+    assert "--ignore-not-found --wait=true --timeout=60s" in qualify
     assert all(controller in capture for controller in REQUIRED_CONTROLLERS)
     assert "--original-evidence" in recover and "--recovery-evidence" in recover
     assert "original-evidence.sha256" in recover and "pre-recovery-resources.json" in recover
