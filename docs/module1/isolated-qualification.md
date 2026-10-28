@@ -153,7 +153,8 @@ disposable run, verify the context name after installation, and then:
    `knative-serving`. The restricted client runs in `cogniflow-qualification`, so qualification
    adds one separate, evidence-captured NetworkPolicy allowing only Pods with the
    `qualification-client` label in that exact namespace to reach only the
-   `cluster-local-gateway` Pods on TCP 8080. It does not modify the seven pinned upstream
+   `cluster-local-gateway` Pods on TCP 8081, the exact target port of Knative 1.23's
+   `knative-local-gateway` Service. It does not modify the seven pinned upstream
    AuthorizationPolicies or their inventory, expose the route publicly, or grant Kubernetes
    API permissions.
 4. Run `qualification/module1/negative-tests.sh` only against a reviewer-prepared
