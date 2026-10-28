@@ -57,15 +57,17 @@ python scripts/module1_qualification_client.py --execute --context "$context" \
   --service-account qualification/module1/qualification-client-serviceaccount.yaml \
   --pod qualification/module1/qualification-client.yaml
 "${k[@]}" create serviceaccount qualification-model -n "$namespace" --dry-run=client -o yaml | "${k[@]}" apply -f -
-cat <<EOF | "${k[@]}" apply -f -
+cat <<EOF >"$evidence/inferenceservice.yaml"
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: $model
   namespace: $namespace
+  labels:
+    networking.kserve.io/visibility: cluster-local
+    networking.knative.dev/visibility: cluster-local
   annotations:
     serving.kserve.io/deploymentMode: Knative
-    networking.knative.dev/visibility: cluster-local
     autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
     autoscaling.knative.dev/min-scale: "0"
     autoscaling.knative.dev/max-scale: "3"
@@ -82,8 +84,19 @@ spec:
       volumeMounts: [{name: tmp, mountPath: /tmp}]
     volumes: [{name: tmp, emptyDir: {sizeLimit: 64Mi}}]
 EOF
+"${k[@]}" apply --dry-run=server -f "$evidence/inferenceservice.yaml" >/dev/null
+"${k[@]}" apply -f "$evidence/inferenceservice.yaml"
 
 "${k[@]}" wait --for=condition=Ready "inferenceservice/$model" -n "$namespace" --timeout=600s
+"${k[@]}" get kservice "$model-predictor" -n "$namespace" -o json \
+  >"$evidence/knative-service.json"
+jq -e '
+  .metadata.labels["networking.kserve.io/visibility"] == "cluster-local" and
+  .metadata.labels["networking.knative.dev/visibility"] == "cluster-local" and
+  (.spec.template.metadata.annotations["networking.kserve.io/visibility"] == null) and
+  (.spec.template.metadata.annotations["networking.knative.dev/visibility"] == null) and
+  (.status.url | endswith(".svc.cluster.local"))
+' "$evidence/knative-service.json" >/dev/null || abort "Knative Service is not strictly cluster-local"
 selector="serving.kserve.io/inferenceservice=$model"
 ready=$("${k[@]}" get deployment -n "$namespace" -l "$selector" -o json | jq '[.items[].status.readyReplicas // 0] | add // 0')
 ((ready >= 1)) || abort "predictor never reached a Ready replica"

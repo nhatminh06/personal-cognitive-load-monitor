@@ -128,6 +128,17 @@ disposable run, verify the context name after installation, and then:
    It requires strict readiness, HTTP 200 prediction,
    metadata, internal service routing, observed 1→0→1 KPA behavior, cold activation and a
    successful post-cold prediction, then captures resources, RBAC and the live inventory.
+
+   KServe v0.21.0 propagates InferenceService labels to Knative Service metadata, while its
+   `RevisionTemplateLabelDisallowedList` removes `networking.knative.dev/visibility` from the
+   Revision template. The qualification InferenceService therefore uses both
+   `networking.kserve.io/visibility: cluster-local` and
+   `networking.knative.dev/visibility: cluster-local` as metadata labels, never annotations.
+   The former records KServe's private-ingress intent; the latter is the label Knative Serving
+   enforces on its Service. Qualification fails unless the generated Knative Service has both
+   service labels, no visibility template annotations, and a `.svc.cluster.local` status URL.
+   A failed InferenceService may be updated in place by a separately authorized retry; do not
+   delete it, and use a new qualification evidence directory for every attempt.
 4. Run `qualification/module1/negative-tests.sh` only against a reviewer-prepared
    qualified matrix copy and the captured snapshot. It proves version, image, CRD,
    autoscaling and route drift fail closed.
