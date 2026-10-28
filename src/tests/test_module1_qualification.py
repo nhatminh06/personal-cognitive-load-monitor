@@ -136,7 +136,7 @@ def test_qualification_gateway_policy_allows_only_the_restricted_client() -> Non
                     "app.kubernetes.io/name": "qualification-client",
                 }},
             }],
-            "ports": [{"protocol": "TCP", "port": 8080}],
+            "ports": [{"protocol": "TCP", "port": 8081}],
         }],
     }
 
