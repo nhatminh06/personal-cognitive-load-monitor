@@ -1,0 +1,269 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "agent_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Agent Version",
+      "type": "string"
+    },
+    "asset_name": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Asset Name"
+    },
+    "asset_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Asset Sha256"
+    },
+    "blink_rate_per_minute": {
+      "anyOf": [
+        {
+          "maximum": 300,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Blink Rate Per Minute"
+    },
+    "camera_available": {
+      "title": "Camera Available",
+      "type": "boolean"
+    },
+    "cpu_seconds": {
+      "anyOf": [
+        {
+          "maximum": 300,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cpu Seconds"
+    },
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_time": {
+      "format": "date-time",
+      "title": "Event Time",
+      "type": "string"
+    },
+    "event_type": {
+      "const": "cv.window",
+      "default": "cv.window",
+      "title": "Event Type",
+      "type": "string"
+    },
+    "face_presence_ratio": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Face Presence Ratio"
+    },
+    "feature_cutoff": {
+      "format": "date-time",
+      "title": "Feature Cutoff",
+      "type": "string"
+    },
+    "frames_dropped": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Frames Dropped",
+      "type": "integer"
+    },
+    "frames_processed": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Frames Processed",
+      "type": "integer"
+    },
+    "frames_sampled": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Frames Sampled",
+      "type": "integer"
+    },
+    "gaze_away_ratio": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Gaze Away Ratio"
+    },
+    "head_pose_variance": {
+      "anyOf": [
+        {
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Head Pose Variance"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "ingested_at": {
+      "format": "date-time",
+      "title": "Ingested At",
+      "type": "string"
+    },
+    "latency_p50_ms": {
+      "anyOf": [
+        {
+          "maximum": 60000,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency P50 Ms"
+    },
+    "latency_p95_ms": {
+      "anyOf": [
+        {
+          "maximum": 60000,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency P95 Ms"
+    },
+    "producer_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Producer Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Source",
+      "type": "string"
+    },
+    "subject_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 8,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subject Id"
+    },
+    "window_end": {
+      "format": "date-time",
+      "title": "Window End",
+      "type": "string"
+    },
+    "window_id": {
+      "format": "uuid",
+      "title": "Window Id",
+      "type": "string"
+    },
+    "window_start": {
+      "format": "date-time",
+      "title": "Window Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "event_time",
+    "ingested_at",
+    "source",
+    "producer_version",
+    "idempotency_key",
+    "window_id",
+    "window_start",
+    "window_end",
+    "feature_cutoff",
+    "camera_available",
+    "frames_sampled",
+    "frames_processed",
+    "frames_dropped",
+    "agent_version"
+  ],
+  "title": "CvFeatureWindowEvent",
+  "type": "object"
+}
