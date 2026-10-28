@@ -142,11 +142,11 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "COLD_ACTIVATION_READY" in qualify and "POST_ACTIVATION_INFERENCE" in qualify
     manifest = re.search(r'cat <<EOF >"\$evidence/inferenceservice.yaml"\n(.*?)\nEOF', qualify, re.S)
     assert manifest
-    isvc = yaml.safe_load(
-        manifest.group(1).replace("$model", "qualification-model")
-        .replace("$namespace", "cogniflow-qualification")
-        .replace("$image", "example.invalid/model@sha256:" + "a" * 64)
+    rendered_isvc = re.sub(r"\$model(?!_)", "qualification-model", manifest.group(1))
+    rendered_isvc = rendered_isvc.replace("$namespace", "cogniflow-qualification").replace(
+        "$image", "example.invalid/model@sha256:" + "a" * 64
     )
+    isvc = yaml.safe_load(rendered_isvc)
     assert isvc["metadata"]["labels"] == {
         "networking.kserve.io/visibility": "cluster-local",
         "networking.knative.dev/visibility": "cluster-local",
@@ -158,6 +158,15 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
         "autoscaling.knative.dev/max-scale": "3",
         "autoscaling.knative.dev/target": "1",
     } == isvc["metadata"]["annotations"]
+    runtime_env = {item["name"]: item["value"] for item in isvc["spec"]["predictor"]["containers"][0]["env"]}
+    assert runtime_env == {
+        "MODEL_NAME": "qualification-model",
+        "MODEL_VERSION": "1",
+        "MODEL_ARTIFACT_SHA256": "$artifact_sha",
+        "MODEL_DATASET_SHA256": "$dataset_sha",
+        "MODEL_FEATURE_SCHEMA_VERSION": "1.0",
+        "MODEL_SHA256": "$model_sha",
+    }
     assert "apply --dry-run=server -f \"$evidence/inferenceservice.yaml\"" in qualify
     assert '.status.url | endswith(".svc.cluster.local")' in qualify
     assert "Knative Service is not strictly cluster-local" in qualify

@@ -139,6 +139,15 @@ disposable run, verify the context name after installation, and then:
    service labels, no visibility template annotations, and a `.svc.cluster.local` status URL.
    A failed InferenceService may be updated in place by a separately authorized retry; do not
    delete it, and use a new qualification evidence directory for every attempt.
+
+   Before rendering the InferenceService, qualification validates
+   `build/model-package/cognitive_load_model.skops` and `model-package.json` as the fixed
+   disposable identity, records both hashes, and injects the six exact `MODEL_*` identity
+   values required by `validated_package_manifest()`. These are qualification Pod environment
+   values only; the validator and production configuration are unchanged. A different package,
+   missing digest, altered metadata, or mismatch between the host package and immutable image
+   fails closed. Set `QUALIFICATION_MODEL_PACKAGE` only when intentionally selecting another
+   reviewed disposable package directory.
 4. Run `qualification/module1/negative-tests.sh` only against a reviewer-prepared
    qualified matrix copy and the captured snapshot. It proves version, image, CRD,
    autoscaling and route drift fail closed.
