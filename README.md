@@ -697,6 +697,9 @@ See:
 
 Before a production deployment, the project still requires real-cluster validation of Kubernetes NetworkPolicy, KServe model artifact verification, cloud IAM, managed secrets, TLS, ingress rate limiting, and workload-level security.
 
+The authoritative Module I source and pre-cloud decision record is
+[`docs/module1/precloud-readiness.md`](docs/module1/precloud-readiness.md).
+
 The development-only exception cannot be transferred to production.
 
 ---

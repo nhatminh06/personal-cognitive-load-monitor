@@ -79,5 +79,6 @@ spec:
           {{- toYaml .Values.kserve.predictor.resources | nindent 10 }}
     volumes:
       - name: tmp
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 64Mi
 {{- end }}
