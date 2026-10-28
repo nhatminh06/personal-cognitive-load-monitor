@@ -176,6 +176,8 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "kind-cogniflow-module1-qualification" in qualify
     assert qualify.index("current-context") < qualify.index("module1_qualification_client.py --execute")
     assert 'crictl inspecti "$image"' in qualify
+    assert "uv run --offline --frozen python scripts/module1_qualification_model.py" in qualify
+    assert "PYTHONPATH=src" in qualify
     assert "--ignore-not-found --wait=true --timeout=60s" in qualify
     assert all(controller in capture for controller in REQUIRED_CONTROLLERS)
     assert "--original-evidence" in recover and "--recovery-evidence" in recover

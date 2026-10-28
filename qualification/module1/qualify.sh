@@ -50,7 +50,8 @@ docker exec "$cluster-control-plane" crictl inspecti "$image" >"$evidence/qualif
 sha256sum "$installation/installation.json" "$installation/rendered-manifests.sha256" \
   >"$evidence/installation-evidence.sha256"
 package=${QUALIFICATION_MODEL_PACKAGE:-build/model-package}
-PYTHONPATH=src python scripts/module1_qualification_model.py --package "$package" \
+PYTHONPATH=src UV_CACHE_DIR=/tmp/cogniflow-qualification-uv \
+  uv run --offline --frozen python scripts/module1_qualification_model.py --package "$package" \
   --output "$evidence/model-runtime-environment.json"
 sha256sum "$package/cognitive_load_model.skops" "$package/model-package.json" \
   >"$evidence/model-package.sha256"
