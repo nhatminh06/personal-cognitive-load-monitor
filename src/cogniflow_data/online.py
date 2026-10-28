@@ -9,6 +9,8 @@ from typing import Any, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict
 
+from cogniflow_data.behavioral import BehavioralFeatureRecord
+
 
 class OnlineFeatureRecord(BaseModel):
     session_id: str
@@ -52,3 +54,12 @@ class RedisFeatureStore:
         payload = json.loads(value)
         public_fields = {name: payload[name] for name in OnlineFeatureRecord.model_fields if name in payload}
         return OnlineFeatureRecord.model_validate(public_fields)
+
+    def get_behavioral(self, session_id: str) -> BehavioralFeatureRecord | None:
+        try:
+            value = cast(
+                bytes | None, self.client.get(f"cogniflow:behavioral-features:v1:{session_id}")
+            )
+        except self._redis_error as exc:
+            raise ConnectionError("Redis unavailable") from exc
+        return BehavioralFeatureRecord.model_validate_json(value) if value is not None else None

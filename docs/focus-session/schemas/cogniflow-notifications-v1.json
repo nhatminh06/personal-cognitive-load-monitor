@@ -1,0 +1,177 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attempt_count": {
+      "maximum": 3,
+      "minimum": 0,
+      "title": "Attempt Count",
+      "type": "integer"
+    },
+    "channel": {
+      "const": "discord_webhook",
+      "default": "discord_webhook",
+      "title": "Channel",
+      "type": "string"
+    },
+    "deduplication_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Deduplication Key",
+      "type": "string"
+    },
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_time": {
+      "format": "date-time",
+      "title": "Event Time",
+      "type": "string"
+    },
+    "event_type": {
+      "enum": [
+        "notification.requested",
+        "notification.delivered",
+        "notification.failed",
+        "notification.suppressed"
+      ],
+      "title": "Event Type",
+      "type": "string"
+    },
+    "failure_code": {
+      "anyOf": [
+        {
+          "enum": [
+            "network",
+            "timeout",
+            "rate_limited",
+            "server_error",
+            "client_error",
+            "retries_exhausted"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Failure Code"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "ingested_at": {
+      "format": "date-time",
+      "title": "Ingested At",
+      "type": "string"
+    },
+    "notification_id": {
+      "format": "uuid",
+      "title": "Notification Id",
+      "type": "string"
+    },
+    "prediction_id": {
+      "format": "uuid",
+      "title": "Prediction Id",
+      "type": "string"
+    },
+    "producer_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Producer Version",
+      "type": "string"
+    },
+    "rule_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Rule Id",
+      "type": "string"
+    },
+    "rule_version": {
+      "maxLength": 32,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Rule Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Source",
+      "type": "string"
+    },
+    "subject_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 8,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subject Id"
+    },
+    "suppression_reason": {
+      "anyOf": [
+        {
+          "enum": [
+            "duplicate",
+            "disabled",
+            "cooldown",
+            "rule_not_met"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suppression Reason"
+    }
+  },
+  "required": [
+    "session_id",
+    "event_time",
+    "ingested_at",
+    "source",
+    "producer_version",
+    "idempotency_key",
+    "event_type",
+    "notification_id",
+    "prediction_id",
+    "rule_id",
+    "rule_version",
+    "deduplication_key",
+    "attempt_count"
+  ],
+  "title": "NotificationEvent",
+  "type": "object"
+}

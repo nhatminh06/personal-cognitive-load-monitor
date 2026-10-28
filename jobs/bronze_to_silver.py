@@ -11,7 +11,9 @@ from botocore.config import Config
 from delta.tables import DeltaTable
 from pyspark.sql import DataFrame, SparkSession, functions as F, types as T
 
-SILVER_URI = "s3a://cogniflow-lakehouse/silver/session_features"
+LAKEHOUSE_BUCKET = os.getenv("MINIO_LAKEHOUSE_BUCKET", "cogniflow-lakehouse")
+SILVER_URI = f"s3a://{LAKEHOUSE_BUCKET}/silver/session_features"
+BEHAVIORAL_SILVER_URI = f"s3a://{LAKEHOUSE_BUCKET}/silver/behavioral_features"
 SILVER_SCHEMA = T.StructType(
     [
         T.StructField("event_id", T.StringType(), False),
@@ -25,6 +27,28 @@ SILVER_SCHEMA = T.StructType(
         T.StructField("distraction_minutes", T.LongType(), False),
         T.StructField("tasks_due", T.LongType(), False),
         T.StructField("hours_to_deadline", T.DoubleType(), False),
+        T.StructField("kafka_topic", T.StringType(), False),
+        T.StructField("kafka_partition", T.LongType(), False),
+        T.StructField("kafka_offset", T.LongType(), False),
+    ]
+)
+BEHAVIORAL_SCHEMA = T.StructType(
+    [
+        T.StructField("event_id", T.StringType(), False),
+        T.StructField("session_id", T.StringType(), False),
+        T.StructField("window_id", T.StringType(), False),
+        T.StructField("window_start", T.TimestampType(), False),
+        T.StructField("window_end", T.TimestampType(), False),
+        T.StructField("feature_cutoff", T.TimestampType(), False),
+        T.StructField("schema_version", T.StringType(), False),
+        T.StructField("source", T.StringType(), False),
+        T.StructField("active_seconds", T.DoubleType(), False),
+        T.StructField("idle_seconds", T.DoubleType(), False),
+        T.StructField("keyboard_event_count", T.LongType(), False),
+        T.StructField("pointer_event_count", T.LongType(), False),
+        T.StructField("application_switch_count", T.LongType(), False),
+        T.StructField("build_count", T.LongType(), True),
+        T.StructField("test_count", T.LongType(), True),
         T.StructField("kafka_topic", T.StringType(), False),
         T.StructField("kafka_partition", T.LongType(), False),
         T.StructField("kafka_offset", T.LongType(), False),
@@ -51,6 +75,45 @@ def validate_event(value: dict) -> dict:
         parsed = datetime.fromisoformat(value[field].replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             raise ValueError(f"naive {field}")
+    return value
+
+
+def validate_behavioral_event(value: dict) -> dict:
+    """Validate the privacy-minimal completed behavioral window contract."""
+
+    if value.get("schema_version") != "1.0" or value.get("event_type") != "behavioral.window":
+        raise ValueError("unsupported behavioral schema")
+    allowed = {
+        "schema_version", "event_id", "session_id", "subject_id", "event_time", "ingested_at",
+        "source", "producer_version", "idempotency_key", "event_type", "window_id",
+        "window_start", "window_end", "feature_cutoff", "active_seconds", "idle_seconds",
+        "keyboard_event_count", "pointer_event_count", "application_switch_count", "build_count",
+        "test_count",
+    }
+    if set(value) - allowed:
+        raise ValueError("unknown behavioral field")
+    timestamps = {
+        field: datetime.fromisoformat(value[field].replace("Z", "+00:00"))
+        for field in ("event_time", "ingested_at", "window_start", "window_end", "feature_cutoff")
+    }
+    if any(timestamp.tzinfo is None for timestamp in timestamps.values()):
+        raise ValueError("naive behavioral timestamp")
+    if not (
+        (timestamps["window_end"] - timestamps["window_start"]).total_seconds() == 300
+        and timestamps["event_time"] == timestamps["feature_cutoff"] == timestamps["window_end"]
+        and timestamps["ingested_at"] >= timestamps["event_time"]
+    ):
+        raise ValueError("invalid behavioral chronology")
+    limits = {
+        "active_seconds": (0, 300), "idle_seconds": (0, 300),
+        "keyboard_event_count": (0, 1_000_000), "pointer_event_count": (0, 1_000_000),
+        "application_switch_count": (0, 100_000),
+    }
+    for field, (minimum, maximum) in limits.items():
+        if field not in value or not minimum <= float(value[field]) <= maximum:
+            raise ValueError(f"invalid {field}")
+    if float(value["active_seconds"]) + float(value["idle_seconds"]) > 300:
+        raise ValueError("invalid activity duration")
     return value
 
 
@@ -100,6 +163,44 @@ def load_bronze() -> tuple[list[dict], list[dict]]:
     return valid, rejected
 
 
+def load_behavioral_bronze() -> tuple[list[dict], list[dict]]:
+    client = s3_client()
+    bucket = os.getenv("MINIO_BRONZE_BUCKET", "cogniflow-bronze")
+    valid, rejected = [], []
+    listing = client.list_objects_v2(Bucket=bucket, Prefix="behavioral_activity/")
+    for item in listing.get("Contents", []):
+        body = client.get_object(Bucket=bucket, Key=item["Key"])["Body"]
+        for line in body.iter_lines():
+            try:
+                row = json.loads(line)
+                event = validate_behavioral_event(row["event"])
+                valid.append({
+                    **{field: event.get(field) for field in (
+                        "event_id", "session_id", "window_id", "schema_version",
+                        "active_seconds", "idle_seconds", "keyboard_event_count",
+                        "pointer_event_count", "application_switch_count", "build_count", "test_count",
+                    )},
+                    **{field: datetime.fromisoformat(event[field].replace("Z", "+00:00")).astimezone(timezone.utc)
+                       for field in ("window_start", "window_end", "feature_cutoff")},
+                    "source": f"{event['source']}:cogniflow.behavioral-activity.v1",
+                    "kafka_topic": row["kafka"]["topic"],
+                    "kafka_partition": row["kafka"]["partition"],
+                    "kafka_offset": row["kafka"]["offset"],
+                })
+            except Exception as exc:
+                rejected.append({"object_key": item["Key"], "error": type(exc).__name__})
+    return valid, rejected
+
+
+def merge_delta(spark: SparkSession, frame: DataFrame, uri: str) -> None:
+    if DeltaTable.isDeltaTable(spark, uri):
+        DeltaTable.forPath(spark, uri).alias("target").merge(
+            frame.alias("source"), "target.event_id = source.event_id"
+        ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
+    else:
+        frame.write.format("delta").partitionBy("event_date").save(uri)
+
+
 def add_features(frame: DataFrame) -> DataFrame:
     """Apply the exact Module I ratio semantics with Spark expressions."""
 
@@ -144,24 +245,32 @@ def main() -> None:
     spark = spark_session()
     spark.sparkContext.setLogLevel("WARN")
     rows, rejected = load_bronze()
-    if not rows:
+    behavioral_rows, behavioral_rejected = load_behavioral_bronze()
+    if not rows and not behavioral_rows:
         raise RuntimeError("No valid Bronze records found")
-    frame = add_features(spark.createDataFrame(rows, SILVER_SCHEMA)).dropDuplicates(["event_id"])
-    frame = frame.filter(
-        F.col("event_time").isNotNull()
-        & F.col("focus_ratio").isNotNull()
-        & F.col("distraction_ratio").isNotNull()
-    )
-    if DeltaTable.isDeltaTable(spark, SILVER_URI):
-        target = DeltaTable.forPath(spark, SILVER_URI)
-        target.alias("target").merge(
-            frame.alias("source"), "target.event_id = source.event_id"
-        ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
-    else:
-        frame.write.format("delta").partitionBy("event_date").save(SILVER_URI)
-    count = spark.read.format("delta").load(SILVER_URI).count()
-    history = DeltaTable.forPath(spark, SILVER_URI).history().select("version", "operation").collect()
-    result = {"silver_rows": count, "rejected_rows": len(rejected), "history": [row.asDict() for row in history]}
+    if rows:
+        frame = add_features(spark.createDataFrame(rows, SILVER_SCHEMA)).dropDuplicates(["event_id"])
+        frame = frame.filter(
+            F.col("event_time").isNotNull()
+            & F.col("focus_ratio").isNotNull()
+            & F.col("distraction_ratio").isNotNull()
+        )
+        merge_delta(spark, frame, SILVER_URI)
+    behavioral_count = 0
+    if behavioral_rows:
+        behavioral = spark.createDataFrame(behavioral_rows, BEHAVIORAL_SCHEMA).dropDuplicates(
+            ["event_id", "window_id"]
+        ).withColumn("event_date", F.to_date("window_end")).withColumn(
+            "processed_at", F.current_timestamp()
+        )
+        merge_delta(spark, behavioral, BEHAVIORAL_SILVER_URI)
+        behavioral_count = spark.read.format("delta").load(BEHAVIORAL_SILVER_URI).count()
+    count = spark.read.format("delta").load(SILVER_URI).count() if rows else 0
+    history = (DeltaTable.forPath(spark, SILVER_URI).history().select("version", "operation").collect()
+               if rows else [])
+    result = {"silver_rows": count, "behavioral_silver_rows": behavioral_count,
+              "rejected_rows": len(rejected) + len(behavioral_rejected),
+              "history": [row.asDict() for row in history]}
     spark.stop()
     print(json.dumps(result))
 

@@ -10,6 +10,7 @@ from datetime import UTC
 from typing import Any
 
 from cogniflow_data.events import SessionEvent
+from cogniflow_contracts import BehavioralActivityEvent
 
 
 class BronzeUnavailable(RuntimeError):
@@ -25,7 +26,7 @@ class KafkaPosition:
 
 @dataclass(frozen=True)
 class BronzeRecord:
-    event: SessionEvent
+    event: SessionEvent | BehavioralActivityEvent
     kafka: KafkaPosition
 
     def as_dict(self) -> dict[str, Any]:
@@ -68,8 +69,16 @@ class BronzeStore:
             raise ValueError("Bronze batches must share schema version and UTC event date")
         identity = "\n".join(sorted(str(record.event.event_id) for record in records)).encode()
         digest = hashlib.sha256(identity).hexdigest()
+        prefix = (
+            "behavioral_activity"
+            if isinstance(records[0].event, BehavioralActivityEvent)
+            else "session_events"
+        )
+        if any(isinstance(record.event, BehavioralActivityEvent) != (prefix == "behavioral_activity")
+               for record in records):
+            raise ValueError("Bronze batches cannot mix event contracts")
         return (
-            f"session_events/schema_version={versions.pop()}/event_date={dates.pop()}/"
+            f"{prefix}/schema_version={versions.pop()}/event_date={dates.pop()}/"
             f"batch={digest}.jsonl"
         )
 
@@ -111,7 +120,11 @@ class BronzeStore:
             rows = [json.loads(line) for line in body.splitlines() if line]
             return [
                 BronzeRecord(
-                    event=SessionEvent.model_validate(row["event"]),
+                    event=(
+                        BehavioralActivityEvent.model_validate(row["event"])
+                        if row["event"].get("event_type") == "behavioral.window"
+                        else SessionEvent.model_validate(row["event"])
+                    ),
                     kafka=KafkaPosition(**row["kafka"]),
                 )
                 for row in rows

@@ -53,7 +53,7 @@ services:
         condition: service_healthy
     command: >-
       sh -c '
-      for topic in cogniflow.session-events.v1 cogniflow.features.v1 cogniflow.dead-letter.v1; do
+      for topic in cogniflow.session-events.v1 cogniflow.session-lifecycle.v1 cogniflow.effort-labels.v1 cogniflow.behavioral-activity.v1 cogniflow.features.v1 cogniflow.behavioral-features.v1 cogniflow.dead-letter.v1; do
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 3 --replication-factor 1;
       done'
     mem_limit: 128m
@@ -63,7 +63,7 @@ services:
     build:
       context: ./seaweedfs
     profiles: [lake]
-    command: server -dir=/data -filer=true -master.port=9333 -volume.port=8080 -volume.max=16 -filer.port=8888 -ip=seaweedfs -master.telemetry=false
+    command: server -dir=/data -filer=true -master.port=9333 -volume.port=8080 -volume.max=32 -filer.port=8888 -ip=seaweedfs -master.telemetry=false
     volumes:
       - seaweedfs-data:/data
     healthcheck:

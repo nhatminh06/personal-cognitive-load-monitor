@@ -1,5 +1,12 @@
 # Data Card — Personal Cognitive Load Monitor
 
+The pre-cloud focus-session extension defines `self_reported_effort` as an
+integer 1–7 rating supplied by the user after a completed five-minute window.
+The original rating is retained; LOW/MEDIUM/HIGH is derived compatibility
+metadata. See [`focus-session/contracts.md`](focus-session/contracts.md). No
+focus-session user dataset has been collected or approved by this contract-only
+change.
+
 ## Data source
 
 **100% synthetic.** No real users, no collected behavioral data, no third-party
