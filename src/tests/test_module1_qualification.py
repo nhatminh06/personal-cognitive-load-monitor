@@ -140,6 +140,9 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "original-evidence.sha256" in recover and "pre-recovery-resources.json" in recover
     assert "kind delete" not in recover
     assert 'apply -f "$recovery/rendered/kubeflow-namespace.yaml"' in recover
+    assert install.count("module1_crd_order.py --execute") == 2
+    assert recover.count("module1_crd_order.py --execute") == 2
+    assert '--component knative' in install + recover and '--component kserve' in install + recover
     assert "trap failed ERR" in recover
 
 

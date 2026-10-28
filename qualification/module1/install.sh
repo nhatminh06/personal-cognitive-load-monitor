@@ -74,10 +74,16 @@ kubectl --context "$context" cluster-info >"$evidence/cluster-info.txt"
 kubectl --context "$context" apply -f "$evidence/rendered/kubeflow-namespace.yaml"
 kubectl --context "$context" apply -f "$evidence/rendered/cert-manager.yaml"
 kubectl --context "$context" rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
-for manifest in istio-crds istio-namespace istio knative-serving cluster-local-gateway; do
+for manifest in istio-crds istio-namespace istio; do
   kubectl --context "$context" apply -f "$evidence/rendered/$manifest.yaml"
 done
-kubectl --context "$context" apply --server-side --force-conflicts -f "$evidence/rendered/kserve.yaml"
+python scripts/module1_crd_order.py --execute --context "$context" \
+  --manifest "$evidence/rendered/knative-serving.yaml" --component knative \
+  --evidence-dir "$evidence/apply-stages/knative"
+kubectl --context "$context" apply -f "$evidence/rendered/cluster-local-gateway.yaml"
+python scripts/module1_crd_order.py --execute --context "$context" \
+  --manifest "$evidence/rendered/kserve.yaml" --component kserve \
+  --evidence-dir "$evidence/apply-stages/kserve" --server-side
 kubectl --context "$context" wait --for=condition=Ready pods --all --all-namespaces \
   --timeout=300s --field-selector=status.phase!=Succeeded
 

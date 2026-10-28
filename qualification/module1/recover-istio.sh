@@ -78,10 +78,16 @@ k=(kubectl --context "$context")
 "${k[@]}" apply -f "$recovery/rendered/kubeflow-namespace.yaml"
 "${k[@]}" apply -f "$recovery/rendered/cert-manager.yaml"
 "${k[@]}" rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
-for manifest in istio-crds istio-namespace istio knative-serving cluster-local-gateway; do
+for manifest in istio-crds istio-namespace istio; do
   "${k[@]}" apply -f "$recovery/rendered/$manifest.yaml"
 done
-"${k[@]}" apply --server-side --force-conflicts -f "$recovery/rendered/kserve.yaml"
+python scripts/module1_crd_order.py --execute --context "$context" \
+  --manifest "$recovery/rendered/knative-serving.yaml" --component knative \
+  --evidence-dir "$recovery/apply-stages/knative"
+"${k[@]}" apply -f "$recovery/rendered/cluster-local-gateway.yaml"
+python scripts/module1_crd_order.py --execute --context "$context" \
+  --manifest "$recovery/rendered/kserve.yaml" --component kserve \
+  --evidence-dir "$recovery/apply-stages/kserve" --server-side
 "${k[@]}" wait --for=condition=Ready pods --all --all-namespaces \
   --timeout=300s --field-selector=status.phase!=Succeeded
 
