@@ -26,6 +26,7 @@ from preprocessing_api.observability import (
 )
 from preprocessing_api.schemas import CognitiveLoadLevel, PredictionRequest, PredictionResponse
 from preprocessing_api.security import SecurityMiddleware, is_production, require_api_key
+from preprocessing_api.sessions import router as session_router
 from preprocessing_api.service import calculate_cognitive_load
 
 configure_logging()
@@ -47,6 +48,7 @@ app.add_middleware(MetricsMiddleware)
 app.add_middleware(SecurityMiddleware)
 app.add_middleware(InferenceActivityMiddleware)
 app.include_router(event_router)
+app.include_router(session_router)
 
 
 @app.get("/")

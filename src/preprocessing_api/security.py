@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import hashlib
 import os
 from collections.abc import Awaitable, Callable
 
@@ -30,6 +31,18 @@ async def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
     supplied = x_api_key or ""
     if not supplied.strip() or not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+
+
+async def authenticated_owner(x_api_key: str | None = Header(default=None)) -> str:
+    """Return a non-reversible owner identity for routes that persist user data."""
+
+    expected = os.getenv("COGNIFLOW_API_KEY") or os.getenv("EVENT_API_KEY")
+    if expected is None or not expected.strip():
+        raise HTTPException(status_code=503, detail="API authentication is not configured")
+    supplied = x_api_key or ""
+    if not supplied.strip() or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+    return hashlib.sha256(supplied.encode()).hexdigest()
 
 
 class SecurityMiddleware:
