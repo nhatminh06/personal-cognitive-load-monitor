@@ -90,12 +90,14 @@ disposable run, verify the context name after installation, and then:
    docker buildx build --platform linux/amd64 --load \
      --metadata-file "$EVIDENCE/qualification-image-metadata.json" \
      --file Dockerfile.kserve --tag cogniflow-kserve:qualification .
-   KUBECONFIG="$EVIDENCE/kubeconfig" kind load docker-image \
-     --name cogniflow-module1-qualification cogniflow-kserve:qualification
    export KSERVE_IMAGE="docker.io/library/cogniflow-kserve@$(
      jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' \
        "$EVIDENCE/qualification-image-metadata.json"
    )"
+   KUBECONFIG="$EVIDENCE/kubeconfig" kind load docker-image \
+     --name cogniflow-module1-qualification "$KSERVE_IMAGE"
+   docker exec cogniflow-module1-qualification-control-plane \
+     crictl inspecti "$KSERVE_IMAGE"
    ```
 
    Stop if BuildKit does not report one linux/amd64 manifest digest or the image cannot
@@ -108,7 +110,11 @@ disposable run, verify the context name after installation, and then:
    the reviewed host and must be supplied and version-recorded on the separately approved
    disposable host; do not replace the immutable-digest step with a tag-only build.
 3. Authorize qualification separately, then run
-   `qualification/module1/qualify.sh --execute --evidence-dir INSTALL_EVIDENCE_DIRECTORY`.
+   `qualification/module1/qualify.sh --execute --installation-evidence INSTALL_EVIDENCE_DIRECTORY
+   --qualification-evidence NEW_QUALIFICATION_EVIDENCE_DIRECTORY`.
+   The output directory must not exist. This preserves previous failed attempts and records
+   the exact installation hashes and kind-containerd resolution of `KSERVE_IMAGE` before any
+   qualification resource is created.
    It requires strict readiness, HTTP 200 prediction,
    metadata, internal service routing, observed 1→0→1 KPA behavior, cold activation and a
    successful post-cold prediction, then captures resources, RBAC and the live inventory.
