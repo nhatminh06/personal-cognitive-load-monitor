@@ -49,6 +49,14 @@ image=${KSERVE_IMAGE:-}
 docker exec "$cluster-control-plane" crictl inspecti "$image" >"$evidence/qualification-image-resolution.json"
 sha256sum "$installation/installation.json" "$installation/rendered-manifests.sha256" \
   >"$evidence/installation-evidence.sha256"
+package=${QUALIFICATION_MODEL_PACKAGE:-build/model-package}
+PYTHONPATH=src python scripts/module1_qualification_model.py --package "$package" \
+  --output "$evidence/model-runtime-environment.json"
+sha256sum "$package/cognitive_load_model.skops" "$package/model-package.json" \
+  >"$evidence/model-package.sha256"
+model_sha=$(jq -er .MODEL_SHA256 "$evidence/model-runtime-environment.json")
+artifact_sha=$(jq -er .MODEL_ARTIFACT_SHA256 "$evidence/model-runtime-environment.json")
+dataset_sha=$(jq -er .MODEL_DATASET_SHA256 "$evidence/model-runtime-environment.json")
 
 "${k[@]}" create namespace "$namespace" --dry-run=client -o yaml | "${k[@]}" apply -f -
 "${k[@]}" label namespace "$namespace" pod-security.kubernetes.io/enforce=restricted --overwrite
@@ -79,6 +87,13 @@ spec:
     - name: kserve-container
       image: $image
       args: ["--model_name", "$model", "--http_port", "8080", "--enable_grpc=false"]
+      env:
+      - {name: MODEL_NAME, value: qualification-model}
+      - {name: MODEL_VERSION, value: "1"}
+      - {name: MODEL_ARTIFACT_SHA256, value: "$artifact_sha"}
+      - {name: MODEL_DATASET_SHA256, value: "$dataset_sha"}
+      - {name: MODEL_FEATURE_SCHEMA_VERSION, value: "1.0"}
+      - {name: MODEL_SHA256, value: "$model_sha"}
       securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}, capabilities: {drop: ["ALL"]}}
       resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 500m, memory: 512Mi}}
       volumeMounts: [{name: tmp, mountPath: /tmp}]
