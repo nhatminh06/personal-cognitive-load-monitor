@@ -78,6 +78,8 @@ disposable run, verify the context name after installation, and then:
    the 16 GiB local budget. Every `kubectl` operation is bound to
    `kind-cogniflow-module1-qualification`; kind writes only to the private
    `NEW_PRIVATE_DIRECTORY/kubeconfig`, never the user's default kubeconfig.
+   Use kubectl 1.34.11 when possible; qualification rejects a client more than one minor
+   from the Kubernetes 1.34.11 server. The host's kubectl 1.37.1 is unsupported for this run.
 2. Generate `build/model-package` with
    `PYTHONPATH=src uv run python scripts/generate_qualification_model.py build/model-package`; build the
    KServe image locally, load it into kind, and set `KSERVE_IMAGE` to its immutable
@@ -139,6 +141,12 @@ disposable run, verify the context name after installation, and then:
    service labels, no visibility template annotations, and a `.svc.cluster.local` status URL.
    A failed InferenceService may be updated in place by a separately authorized retry; do not
    delete it, and use a new qualification evidence directory for every attempt.
+
+   KServe v0.21.0 derives Knative replica annotations from predictor fields. Qualification
+   sets `spec.predictor.minReplicas: 0`, `maxReplicas: 3`, and `scaleTarget: 1` explicitly;
+   top-level annotations alone leave the default minimum of one. Before inference, the
+   script checks the generated Knative Service template for KPA with min=0, max=3, target=1
+   and fails with retained evidence if the effective settings differ.
 
    Before rendering the InferenceService, qualification validates
    `build/model-package/cognitive_load_model.skops` and `model-package.json` as the fixed
@@ -228,3 +236,21 @@ installation and every failed recovery directory remain unchanged.
 After a successful recovery, the still-separate qualification authorization uses the new
 recovery evidence directory. Cluster deletion remains a third operation and is never called
 by the installer, recovery, or qualification scripts.
+
+Qualification retries may begin with an idle Ready InferenceService. The initial
+prediction activates it before the script requires at least one Ready replica. KPA may
+briefly start more than one within the configured maximum. Checks target
+the current Ready revision, which must receive 100% of traffic. Zero requires a
+converged Deployment with desired and actual replicas zero and no revision Pods.
+Cold prediction and readiness share the original 35-second deadline; a separate
+post-activation prediction must also succeed. Failure snapshots and events are
+captured in the new attempt directory without changing earlier evidence.
+
+After separate qualification execution approval, retry from the repository root
+using Fish (the existing immutable image and installation variables must be set):
+
+```fish
+set retry /var/tmp/cogniflow-module1-qualification-activation-retry-(date -u +%Y%m%dT%H%M%SZ)
+env KSERVE_IMAGE="$KSERVE_IMAGE" qualification/module1/qualify.sh --execute \
+    --installation-evidence "$installation" --qualification-evidence "$retry"
+```
