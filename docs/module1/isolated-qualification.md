@@ -97,11 +97,21 @@ disposable run, verify the context name after installation, and then:
    KUBECONFIG="$EVIDENCE/kubeconfig" kind load docker-image \
      --name cogniflow-module1-qualification "$KSERVE_IMAGE"
    docker exec cogniflow-module1-qualification-control-plane \
+     ctr --namespace k8s.io images inspect docker.io/library/cogniflow-kserve:qualification \
+     | grep -F "@${KSERVE_IMAGE##*@}"
+   docker exec cogniflow-module1-qualification-control-plane \
+     ctr --namespace k8s.io images tag docker.io/library/cogniflow-kserve:qualification \
+     "$KSERVE_IMAGE"
+   docker exec cogniflow-module1-qualification-control-plane \
      crictl inspecti "$KSERVE_IMAGE"
    ```
 
-   Stop if BuildKit does not report one linux/amd64 manifest digest or the image cannot
-   be loaded into the exact named cluster. The ten control-plane substitutions and their
+   Kind imports the OCI index under the loaded tag rather than retaining its canonical digest
+   name. Stop unless `ctr images inspect` shows the requested index digest before adding that
+   digest alias, or unless `crictl inspecti` resolves the alias afterward. The alias does not
+   replace the digest with the tag; both names point to the verified descriptor. Stop if
+   BuildKit does not report one linux/amd64 manifest digest or the image cannot be loaded into
+   the exact named cluster. The ten control-plane substitutions and their
    exact digests are the complete `rendered_images` map in
    `docs/module1/upstream-source-inventory.json`; changing any one requires new source
    review and authorization.
