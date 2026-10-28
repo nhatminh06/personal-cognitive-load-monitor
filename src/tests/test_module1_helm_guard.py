@@ -12,7 +12,8 @@ IDENTITY = hashlib.sha256(MANIFEST).hexdigest()
 
 
 def status(namespace: str = "cogniflow") -> dict:
-    return {"name": "cognitive-load-monitor", "namespace": namespace, "version": 7}
+    return {"name": "cognitive-load-monitor", "namespace": namespace, "version": 7,
+            "info": {"status": "deployed"}}
 
 
 def values(owner: str = "module3-standard", mode: str = "Standard") -> dict:
@@ -32,6 +33,16 @@ def test_existing_module3_release_conflicts_without_separate_authorization() -> 
         validate_existing_release(
             status(), values(), MANIFEST,
             allow_standard_replacement=False, approved_revision="7", approved_identity=IDENTITY,
+        )
+
+
+def test_existing_pending_release_fails_closed() -> None:
+    pending = status()
+    pending["info"]["status"] = "pending-upgrade"
+    with pytest.raises(ValueError, match="deployed state"):
+        validate_existing_release(
+            pending, values(), MANIFEST,
+            allow_standard_replacement=True, approved_revision="7", approved_identity=IDENTITY,
         )
 
 

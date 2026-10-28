@@ -67,6 +67,17 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Python for deployment guards
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Require an exact qualified serving matrix
+        run: >-
+          python scripts/module1_compatibility.py
+          --matrix docs/module1/compatibility-matrix.json
+          --require-qualified
+
       - name: Validate immutable release inputs
         env:
           API_IMAGE: ${{ inputs.api_image }}
@@ -109,11 +120,6 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
 
-      - name: Set up Python for release guard
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-
       - name: Require pre-installed serving control planes
         run: |
           kubectl wait --for=condition=Established crd/inferenceservices.serving.kserve.io --timeout=30s
@@ -125,6 +131,9 @@ jobs:
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.enable-scale-to-zero}')" == "true" ]] || { echo "Knative global scale-to-zero must be explicitly enabled" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.stable-window}')" == "60s" ]] || { echo "Unexpected Knative stable window" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.scale-to-zero-grace-period}')" == "30s" ]] || { echo "Unexpected Knative scale-to-zero grace period" >&2; exit 1; }
+          [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative Revision timeout" >&2; exit 1; }
+          [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-response-start-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative response-start timeout" >&2; exit 1; }
+          [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-idle-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative idle timeout" >&2; exit 1; }
 
       - name: Inspect and authorize the exact shared Helm release
         env:
@@ -135,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           actual_context="$(kubectl config current-context)"
-          release_count="$(helm list --namespace cogniflow --filter '^cognitive-load-monitor$' --output json | jq 'length')"
+          release_count="$(helm list --all --namespace cogniflow --filter '^cognitive-load-monitor$' --output json | jq 'length')"
           [[ "$release_count" == "0" || "$release_count" == "1" ]] || { echo "Ambiguous existing Helm release" >&2; exit 1; }
           guard=(python scripts/module1_helm_guard.py --actual-context "$actual_context" --expected-context "$EXPECTED_GKE_CONTEXT" --namespace cogniflow)
           if [[ "$release_count" == "1" ]]; then

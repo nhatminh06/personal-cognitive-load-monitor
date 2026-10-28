@@ -5,28 +5,66 @@ creation, model approval, image publication, workflow dispatch, load generation
 or teardown. Record a step as runtime verified only after its command succeeds
 against the separately approved target.
 
-## Compatibility decision and blocker
+## Compatibility qualification — BLOCKED
 
-KServe `v0.20.0` supports distinct Standard and Knative modes. Standard remains
-the chart default for Module III. Module I selects
+KServe supports distinct Standard and Knative modes. Standard remains the chart
+default for Module III. Module I selects
 `values.module1-knative.yaml`, which emits
 `serving.kserve.io/deploymentMode: Knative`, KPA concurrency autoscaling and
 `min-scale: 0`.
 
-The repository targets GKE/Kubernetes `1.34`. KServe 0.20's own dependency file
-pins Knative Serving `1.21.1`, cert-manager `1.17.0` and Istio `1.27.1`.
-Knative 1.21 is now outside community support; supported Knative 1.23 requires
-Kubernetes 1.34, but this repository has not qualified KServe 0.20 against that
-newer Serving release. Therefore installation is **blocked** until an owner
-selects and security-reviews one exact supported matrix, image digests and
-manifests. Do not use an unpinned quick-install script.
+The machine-readable decision is [`compatibility-matrix.json`](compatibility-matrix.json).
+No candidate is selected. Both maintained KServe `0.20.0` and current `0.21.0`
+pin Knative Serving `1.21.1`, Istio `1.27.1` and cert-manager `1.17.0` upstream.
+That integration-tested set is unusable for this demonstration:
+
+| Candidate | Integration evidence | Current support/security | Decision |
+|---|---|---|---|
+| KServe 0.20.0 + Knative 1.21.1 + Istio 1.27.1 + cert-manager 1.17.0 | exact KServe dependency lock | Knative, Istio and upstream cert-manager are EOL; cert-manager supports only Kubernetes through 1.33; Istio 1.27.1 is in published affected ranges | Rejected |
+| KServe 0.21.0 + the same dependency set | exact KServe dependency lock | same blockers | Rejected |
+| KServe 0.21.0 + Knative 1.23.0 + Istio 1.31.3 + cert-manager 1.21.0 + GKE 1.34.12-gke.1153000 | each component is individually supported; KServe publishes no evidence for the substituted integration | exact images/manifests still need digest inventory and scanning; the GKE patch must be confirmed in `us-central1` | Needs isolated qualification; not deployable |
+
+GKE Regular offers Kubernetes 1.34 and newer, while Knative 1.23 requires at
+least Kubernetes 1.34. Version overlap is necessary but does not establish
+KServe compatibility. The protected workflow therefore runs
+`module1_compatibility.py --require-qualified` before OIDC and fails closed.
+Do not mark the matrix `QUALIFIED` until an isolated exact-stack rehearsal
+records controller/CRD readiness, effective Revision settings, routing,
+scale-to-zero and cold-start inference. Do not use an unpinned installer.
 
 Primary references:
 
 - <https://kserve.github.io/website/docs/install/kserve-install>
 - <https://raw.githubusercontent.com/kserve/kserve/v0.20.0/kserve-deps.env>
+- <https://raw.githubusercontent.com/kserve/kserve/v0.21.0/kserve-deps.env>
+- <https://github.com/kserve/kserve/releases/tag/v0.21.0>
 - <https://github.com/knative/community/blob/main/mechanics/RELEASE-SCHEDULE.md>
+- <https://cloud.google.com/kubernetes-engine/docs/release-notes-regular>
+- <https://istio.io/latest/docs/releases/supported-releases/>
+- <https://istio.io/latest/news/security/>
 - <https://cert-manager.io/docs/releases/>
+
+The KServe 0.21.0 release publishes SHA-256
+`d5bac34adc2e1c41be11892c11040b904af856d683cac358a3ce71afdaa5f294`
+for its CRD chart and
+`d992919775cf0dbae0e64381d4ccd5da52fde9f18b32e5468c7536508a07bf41`
+for its resources chart. Those hashes are release metadata, not a complete
+controller inventory or approval to install them.
+
+Concrete unblock options, in preference order:
+
+1. adopt a stable KServe release whose own dependency lock uses supported
+   Knative, networking and cert-manager releases, then re-run this review;
+2. obtain explicit upstream KServe evidence for the exact substituted candidate;
+3. with separate human authorization, qualify the candidate on a disposable,
+   isolated Kubernetes 1.34 environment using immutable manifests/images and
+   the same custom runtime, then discard it. Record installation, CRD conversion,
+   controller readiness, Revision propagation, routing and 1→0→1 inference.
+
+Knative supports multiple networking layers, but CogniFlow does not switch to
+Kourier or another provider merely because it supports Knative: KServe's tested
+dependency set selects Istio, so any networking substitution is another matrix
+that needs equivalent integration evidence.
 
 ## Required GCP and GitHub prerequisites
 
@@ -52,6 +90,13 @@ Before any authorized run, independently confirm:
 10. namespace Pod Security, RBAC, quotas, NetworkPolicies, logging retention,
     rollback owner and teardown owner.
 
+Inventory every Helm chart, CRD bundle and controller image by digest. At
+minimum this covers KServe CRDs/resources/controller, Knative Serving
+controller/autoscaler/activator/webhook/queue-proxy, the networking
+controller/data plane, and cert-manager controller/webhook/cainjector. Scan the
+exact images and attach sanitized reports. A version or chart checksum never
+substitutes for image digests.
+
 The Knative `config-autoscaler` must explicitly set
 `enable-scale-to-zero: "true"`, `stable-window: "60s"` and
 `scale-to-zero-grace-period: "30s"`. The stable window smooths the concurrency
@@ -67,6 +112,17 @@ The capacity ledger in `deploy/gke/resource-budget.yaml` reserves 700m CPU and
 2 GiB specifically for Knative Serving, networking and autoscaling alongside
 the other control planes. Recalculate before adding optional dashboards or
 running training concurrently.
+
+## Module I-only cost and operating window
+
+The bounded topology is two `e2-standard-4` nodes in `us-central1` (8 vCPU and
+32 GiB total) with 20% system/restart reserve. The October 2026 public-price
+basis is approximately `$0.376/hour` before disks, load balancing, storage
+operations, logging and traffic. The initial owner-approved window must not
+exceed eight hours; use a conservative `$6–$12` envelope. Terraform budget
+alerts fire at 25/50/75/90/100% of `$100`, but alerts do **not** stop spend.
+Record a calendar expiry and stop on exhausted reserve, an unexpected billable
+resource, or any matrix/inventory mismatch.
 
 ## Offline source gate
 
@@ -91,6 +147,8 @@ helm template module1 helm/cognitive-load-monitor --namespace cogniflow \
   --set-string config.modelDatasetSha256=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee \
   >/tmp/cogniflow-module1-render.yaml
 terraform -chdir=infra/terraform/gke fmt -check
+uv run python scripts/module1_compatibility.py \
+  --matrix docs/module1/compatibility-matrix.json
 uv run dvc status
 ```
 
@@ -103,6 +161,13 @@ Only after the prerequisites pass, a reviewer may dispatch
 digest references and the approved model lineage. The workflow checks OIDC,
 control-plane readiness, signatures and immutable inputs before an atomic Helm
 upgrade. It does not approve a model or build an image.
+
+Today dispatch is intentionally blocked by the compatibility gate. After exact
+qualification, confirm the requested GKE patch is available in `us-central1`,
+review a no-create Terraform plan, verify the protected runner identity, and
+inspect Helm inventory including `pending-install`, `pending-upgrade`,
+`pending-rollback`, `failed` and `uninstalling`. Any pending state, missing
+ownership, context mismatch, or Module III Standard release stops the run.
 
 The workflow first compares the exact Kubernetes context and inspects any
 `cognitive-load-monitor` release in `cogniflow`. An existing release must have a
@@ -120,6 +185,9 @@ are 35 seconds. The protected preflight requires the reviewed Knative global
 Revision/request and activator queues must allow at least 35 seconds but remain
 finite; this external control-plane setting is a runtime prerequisite, not
 installed by this repository.
+The workflow also requires Knative `config-defaults` request, response-start
+and idle Revision timeouts to equal 35 seconds; missing values and the upstream
+300-second/infinite defaults fail closed.
 
 Immediately record identity before testing:
 

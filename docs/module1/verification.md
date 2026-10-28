@@ -6,20 +6,30 @@ Module I deployment workflow and a fail-closed evidence validator. These are
 offline/static results until the authorization gates in `final-acceptance.md`
 are satisfied. Historical evidence below retains its original date and scope.
 
-On 2026-10-27, **341 Python tests passed in 45.26 seconds with 88.89%
-coverage**. Ruff, scoped MyPy, Helm lint, Standard and Knative GKE renders,
-workflow YAML parsing and Terraform formatting passed. The 41 focused Module I
-tests cover deployment-mode selection, KPA scale-to-zero values, HPA target and
-bounds, gateway authentication/ClusterIP isolation, CI dependencies, protected
-manual deployment, immutable images, model identity/digests, context guards,
-evidence completeness and exclusive report creation.
+The 2026-10-27 compatibility review found no supported, upstream-qualified
+serverless matrix. KServe 0.20.0 and 0.21.0 both pin EOL Knative 1.21.1 and
+Istio 1.27.1 plus upstream-EOL cert-manager 1.17.0. A supported-component
+candidate is recorded for a future isolated qualification, but is not selected.
+The protected deployment stops before OIDC while the matrix is `BLOCKED`.
+Offline tests cover missing controllers/CRDs, version drift, global scale-to-zero,
+routes, Revision annotations, digest-pinned images and finite timeout ordering.
 
-Read-only DVC status completed and reported the pre-existing modified
-`data/processed/module3/training_manifest.json` dependency; it was not changed
-or reproduced. Terraform validation was attempted but the installed Google
-provider could not complete its local plugin handshake. Actionlint, Gitleaks
-and Trivy were unavailable locally. No containers, Kubernetes resources,
-Terraform state, model metadata, images or cloud resources were touched.
+On PR #21 head `79f65b8`, hosted CI passed **369 Python tests in 31.39
+seconds with 88.89% coverage**. Both coverage jobs and GitGuardian passed;
+image build and deployment were skipped as designed. Locally, 69 focused
+Module I tests, Ruff, scoped MyPy over 30 source files, Helm lint, Standard and
+Knative renders, workflow/JSON parsing and Terraform formatting passed. These
+checks cover deployment-mode preservation, the blocked compatibility gate,
+controller/CRD inventory, version drift, KPA/global scale-to-zero, timeout
+ordering, internal routes, pending Helm states, release ownership and evidence
+integrity.
+
+Terraform validation was attempted but the installed Google provider could not
+complete its local plugin handshake. Actionlint, Trivy, Gitleaks, Checkov,
+tfsec, Bandit and pip-audit were unavailable locally. The full local suite hung
+at the pre-existing threaded alert-sink persistence test; hosted CI completed
+it successfully. No containers, Kubernetes resources, Terraform state, model
+metadata, images or cloud resources were touched.
 
 Verified on 2026-10-23 on branch `feature/cogniflow-module1-foundation`. No cloud resources or remote deployments were used.
 

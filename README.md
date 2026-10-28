@@ -225,7 +225,11 @@ the default used by Module III, while
 explicitly selects Knative/KPA scale-to-zero for the final Module I acceptance.
 The latter is source-ready but not runtime-accepted: live GKE, protected manual
 deployment, FastAPI HPA behavior, approved-model serving and predictor 1→0→1
-evidence remain pending. See the [rubric matrix](docs/module1/rubric-matrix.md)
+evidence remain pending. Compatibility is explicitly `BLOCKED`: KServe
+0.20/0.21 pin EOL serverless dependencies, while the modern candidate lacks
+published KServe integration evidence. See the
+[compatibility matrix](docs/module1/compatibility-matrix.json),
+[rubric matrix](docs/module1/rubric-matrix.md)
 and [final acceptance guide](docs/module1/final-acceptance.md).
 
 ### Model development

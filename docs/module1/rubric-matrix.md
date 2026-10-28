@@ -12,7 +12,7 @@ is never runtime proof.
 | Helm on cloud Kubernetes | Statically verified | digest-pinned GKE render, private GKE Terraform and scoped identities | Authorized plan/apply, install, rollback and teardown evidence |
 | FastAPI HPA | Statically verified | autoscaling/v2 targets the API Deployment; requests, limits and explicit bounded behavior render | Metrics Server plus observed 2→N→2 scaling under bounded load |
 | KServe custom `.skops` runtime | Locally runtime verified + statically verified | KServe 0.20 server contract, six features, immutable image/model lineage and fail-closed loader | Approved model and cloud `InferenceService Ready=True` |
-| KServe scale-to-zero | Ready for cloud verification | separate Knative overlay sets KPA concurrency and min-scale 0; Standard remains default | Resolve the supported-version blocker, then observe 1→0→1 and cold-start prediction |
+| KServe scale-to-zero | Blocked after compatibility qualification | separate Knative overlay sets KPA concurrency and min-scale 0; Standard remains default; `compatibility-matrix.json` rejects both upstream dependency sets | Qualify the exact supported candidate in isolation, then observe 1→0→1 and cold-start prediction |
 | NGINX gateway authentication/TLS | Locally runtime verified + statically verified | local 401/200 proof; production Ingress requires Basic Auth Secret and TLS | Cloud certificate, 401/200 and backend-bypass checks |
 | Prometheus/Grafana | Locally runtime verified | live scrape and provisioned dashboard evidence | Hosted target and dashboard capture |
 | Loki logging | Locally runtime verified | structured request log queried without payload/credential fields | Hosted request/log correlation and redaction evidence |

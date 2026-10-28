@@ -39,7 +39,7 @@ The unselected GCE-only 20% alternative is not additive. Private-node GKE, priva
 - [ ] Runtime HPA and KServe scale-to-zero evidence; these are additional engineering targets, not separate supplied rubric points.
 - [x] Separate Standard/Knative Helm modes, fail-closed Knative scale-to-zero render and bounded HPA policy are source-tested.
 - [x] Protected manual Module I deployment contract uses OIDC and immutable release/model inputs.
-- [ ] Resolve the supported KServe 0.20 / Knative Serving / GKE compatibility matrix before installation.
+- [ ] Qualify the exact KServe 0.21 / Knative 1.23 / Istio 1.31.3 / cert-manager 1.21 / GKE 1.34 candidate in isolation; upstream KServe 0.20/0.21 dependency sets are rejected and deployment fails closed.
 - [ ] Run the authorized Module I acceptance report and observe KServe 1→0→1 plus API HPA 2→N→2.
 - [ ] Optional bounded 100 GB benchmark; not required for the weighted rubric and not yet run.
 
