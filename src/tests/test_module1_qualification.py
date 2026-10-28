@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,89 @@ from scripts import verify_module1_upstream_inventory as upstream_inventory
 
 ROOT = Path(__file__).parents[2]
 QUALIFICATION = ROOT / "qualification/module1"
+
+
+@pytest.mark.parametrize("becomes_ready,expected_code", [(True, 0), (False, 1)])
+def test_cold_readiness_poll_shares_original_deadline(tmp_path, becomes_ready, expected_code):
+    script = (QUALIFICATION / "qualify.sh").read_text()
+    block = "wait_ready() {" + script.split("wait_ready() {", 1)[1].split('\norigin=', 1)[0]
+    block += "\nwait_ready cold\n"
+    # A simulated clock and API avoid cluster access and real sleeps.
+    harness = r'''
+set -euo pipefail
+evidence=$1
+becomes_ready=$2
+start=100
+deadline=35
+now=130
+namespace=test
+selector=test
+k=(fake_kubectl)
+date() { printf '%s\n' "$now"; }
+sleep() { now=$((now + 1)); }
+abort() { exit 1; }
+timeout() { shift; "$@"; }
+fake_kubectl() {
+  if [[ "$becomes_ready" == true && "$now" -ge 132 ]]; then
+    printf '%s\n' '{"items":[{"status":{"readyReplicas":2}}]}'
+  else
+    printf '%s\n' '{"items":[{"status":{"readyReplicas":0}}]}'
+  fi
+}
+'''
+    result = subprocess.run(
+        ["bash", "-c", harness + block, "test", str(tmp_path), str(becomes_ready).lower()],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == expected_code, result.stderr
+    observations = [json.loads(line) for line in
+                    (tmp_path / "cold-readiness-observations.jsonl").read_text().splitlines()]
+    assert observations[0] == {"elapsed_seconds": 30, "ready_replicas": 0}
+    assert max(row["elapsed_seconds"] for row in observations) <= 35
+    assert observations[-1]["ready_replicas"] == (2 if becomes_ready else 0)
+
+
+def test_idle_retry_activates_before_readiness_and_uses_current_revision():
+    script = (QUALIFICATION / "qualify.sh").read_text()
+    assert script.index("response=$(predict)") < script.index("wait_ready initial")
+    assert script.index("wait_ready initial") < script.index('record READY "$ready"')
+    assert 'selector="serving.knative.dev/revision=$revision"' in script
+    assert script.index("wait_ready cold") < script.index('post-activation-prediction.json')
+    assert 'failure-resources.json' in script and 'failure-events.json' in script
+
+
+def test_runtime_capture_uses_api_group_in_resource_identity():
+    capture = (ROOT / "scripts/capture_module1_runtime.sh").read_text()
+    assert 'resource="$kind.${api_version%/*}"' in capture
+    assert 'resource="$kind.${api_version#*/}"' not in capture
+    assert "while IFS='|' read -r api_version kind resource_namespace name" in capture
+    assert 'join("|")' in capture
+    assert 'controller-gen\\.kubebuilder\\.io/version' in capture
+    assert 'app\\.kubernetes\\.io/version' in capture
+    assert 'operator\\.istio\\.io/version' not in capture
+    assert '"$kserve" == 0.21.0' in capture
+
+
+def test_qualification_rejects_unsupported_kubectl_skew():
+    qualify = (QUALIFICATION / "qualify.sh").read_text()
+    assert 'kubectl-version.json' in qualify
+    assert 'kubectl client/server minor skew exceeds one version' in qualify
+
+
+@pytest.mark.parametrize("desired,actual,observed,expected", [
+    (0, 0, 2, True), (1, 1, 2, False), (0, 1, 2, False), (0, 0, 1, False),
+])
+def test_zero_requires_converged_deployment(desired, actual, observed, expected):
+    script = (QUALIFICATION / "qualify.sh").read_text()
+    expression = script.split("if jq -e '", 1)[1].split("' \\", 1)[0]
+    deployment = {"items": [{"metadata": {"generation": 2},
+                            "spec": {"replicas": desired},
+                            "status": {"replicas": actual, "readyReplicas": 0,
+                                       "observedGeneration": observed}}]}
+    result = subprocess.run(["jq", "-e", expression], input=json.dumps(deployment),
+                            text=True, capture_output=True)
+    assert (result.returncode == 0) == expected
+    assert '(.items | length) == 0' in script
 
 
 def test_resource_preflight_accepts_budget_and_rejects_each_shortage() -> None:
@@ -172,6 +256,10 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
         "$image", "example.invalid/model@sha256:" + "a" * 64
     )
     isvc = yaml.safe_load(rendered_isvc)
+    predictor = isvc["spec"]["predictor"]
+    assert {key: predictor[key] for key in ("minReplicas", "maxReplicas", "scaleTarget")} == {
+        "minReplicas": 0, "maxReplicas": 3, "scaleTarget": 1,
+    }
     assert isvc["metadata"]["labels"] == {
         "networking.kserve.io/visibility": "cluster-local",
         "networking.knative.dev/visibility": "cluster-local",
@@ -214,6 +302,34 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert recover.count("module1_crd_order.py --execute") == 2
     assert '--component knative' in install + recover and '--component kserve' in install + recover
     assert "trap failed ERR" in recover
+
+
+@pytest.mark.parametrize("field,value", [
+    (None, None), ("min-scale", "1"), ("max-scale", None),
+    ("target", "2"), ("class", "hpa.autoscaling.knative.dev"),
+])
+def test_effective_autoscaling_gate_rejects_controller_drift(field, value) -> None:
+    script = (QUALIFICATION / "qualify.sh").read_text()
+    expression = re.search(r"jq -e '(\n  \.spec.template.metadata.annotations as \$a .*?)'", script, re.S)
+    assert expression
+    annotations = {
+        "autoscaling.knative.dev/class": "kpa.autoscaling.knative.dev",
+        "autoscaling.knative.dev/min-scale": "0",
+        "autoscaling.knative.dev/max-scale": "3",
+        "autoscaling.knative.dev/target": "1",
+    }
+    if field:
+        key = f"autoscaling.knative.dev/{field}"
+        if value is None:
+            del annotations[key]
+        else:
+            annotations[key] = value
+    result = subprocess.run(
+        ["jq", "-e", expression.group(1)],
+        input=json.dumps({"spec": {"template": {"metadata": {"annotations": annotations}}}}),
+        text=True, capture_output=True,
+    )
+    assert (result.returncode == 0) == (field is None)
 
 
 def test_pinned_inventory_matches_required_workloads_and_crd_count() -> None:
