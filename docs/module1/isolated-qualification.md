@@ -148,6 +148,14 @@ disposable run, verify the context name after installation, and then:
    missing digest, altered metadata, or mismatch between the host package and immutable image
    fails closed. Set `QUALIFICATION_MODEL_PACKAGE` only when intentionally selecting another
    reviewed disposable package directory.
+
+   The pinned upstream NetworkPolicy allows port 8080 on the cluster-local gateway only from
+   `knative-serving`. The restricted client runs in `cogniflow-qualification`, so qualification
+   adds one separate, evidence-captured NetworkPolicy allowing only Pods with the
+   `qualification-client` label in that exact namespace to reach only the
+   `cluster-local-gateway` Pods on TCP 8080. It does not modify the seven pinned upstream
+   AuthorizationPolicies or their inventory, expose the route publicly, or grant Kubernetes
+   API permissions.
 4. Run `qualification/module1/negative-tests.sh` only against a reviewer-prepared
    qualified matrix copy and the captured snapshot. It proves version, image, CRD,
    autoscaling and route drift fail closed.

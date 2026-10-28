@@ -65,6 +65,11 @@ dataset_sha=$(jq -er .MODEL_DATASET_SHA256 "$evidence/model-runtime-environment.
 python scripts/module1_qualification_client.py --execute --context "$context" \
   --service-account qualification/module1/qualification-client-serviceaccount.yaml \
   --pod qualification/module1/qualification-client.yaml
+"${k[@]}" apply --dry-run=server \
+  -f qualification/module1/qualification-client-gateway-policy.yaml >/dev/null
+"${k[@]}" apply -f qualification/module1/qualification-client-gateway-policy.yaml
+"${k[@]}" get networkpolicy allow-qualification-client-to-cluster-local-gateway \
+  -n istio-system -o json >"$evidence/qualification-gateway-policy.json"
 "${k[@]}" create serviceaccount qualification-model -n "$namespace" --dry-run=client -o yaml | "${k[@]}" apply -f -
 cat <<EOF >"$evidence/inferenceservice.yaml"
 apiVersion: serving.kserve.io/v1beta1
