@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -139,7 +140,27 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "--retry" not in qualify
     assert "--connect-timeout 3" in qualify and '--max-time "$deadline"' in qualify
     assert "COLD_ACTIVATION_READY" in qualify and "POST_ACTIVATION_INFERENCE" in qualify
-    assert "networking.knative.dev/visibility: cluster-local" in qualify
+    manifest = re.search(r'cat <<EOF >"\$evidence/inferenceservice.yaml"\n(.*?)\nEOF', qualify, re.S)
+    assert manifest
+    isvc = yaml.safe_load(
+        manifest.group(1).replace("$model", "qualification-model")
+        .replace("$namespace", "cogniflow-qualification")
+        .replace("$image", "example.invalid/model@sha256:" + "a" * 64)
+    )
+    assert isvc["metadata"]["labels"] == {
+        "networking.kserve.io/visibility": "cluster-local",
+        "networking.knative.dev/visibility": "cluster-local",
+    }
+    assert not any("visibility" in key for key in isvc["metadata"]["annotations"])
+    assert isvc["metadata"]["annotations"] | {
+        "autoscaling.knative.dev/class": "kpa.autoscaling.knative.dev",
+        "autoscaling.knative.dev/min-scale": "0",
+        "autoscaling.knative.dev/max-scale": "3",
+        "autoscaling.knative.dev/target": "1",
+    } == isvc["metadata"]["annotations"]
+    assert "apply --dry-run=server -f \"$evidence/inferenceservice.yaml\"" in qualify
+    assert '.status.url | endswith(".svc.cluster.local")' in qualify
+    assert "Knative Service is not strictly cluster-local" in qualify
     assert "AuthorizationPolicy" not in qualify
     assert "--installation-evidence" in qualify and "--qualification-evidence" in qualify
     assert 'export KUBECONFIG="$installation/kubeconfig"' in qualify
