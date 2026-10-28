@@ -116,6 +116,31 @@ def test_qualification_client_is_restricted_digest_pinned_and_unprivileged() -> 
     assert container["resources"]["requests"] and container["resources"]["limits"]
 
 
+def test_qualification_gateway_policy_allows_only_the_restricted_client() -> None:
+    policy = yaml.safe_load((QUALIFICATION / "qualification-client-gateway-policy.yaml").read_text())
+    assert policy["metadata"] == {
+        "name": "allow-qualification-client-to-cluster-local-gateway",
+        "namespace": "istio-system",
+    }
+    assert policy["spec"] == {
+        "podSelector": {"matchLabels": {
+            "app": "cluster-local-gateway", "istio": "cluster-local-gateway",
+        }},
+        "policyTypes": ["Ingress"],
+        "ingress": [{
+            "from": [{
+                "namespaceSelector": {"matchLabels": {
+                    "kubernetes.io/metadata.name": "cogniflow-qualification",
+                }},
+                "podSelector": {"matchLabels": {
+                    "app.kubernetes.io/name": "qualification-client",
+                }},
+            }],
+            "ports": [{"protocol": "TCP", "port": 8080}],
+        }],
+    }
+
+
 def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     install = (QUALIFICATION / "install.sh").read_text()
     qualify = (QUALIFICATION / "qualify.sh").read_text()
@@ -179,6 +204,7 @@ def test_scripts_require_authorization_context_and_bounded_cold_start() -> None:
     assert "uv run --offline --frozen python scripts/module1_qualification_model.py" in qualify
     assert "PYTHONPATH=src" in qualify
     assert "--ignore-not-found --wait=true --timeout=60s" in qualify
+    assert "qualification-client-gateway-policy.yaml" in qualify
     assert all(controller in capture for controller in REQUIRED_CONTROLLERS)
     assert "--original-evidence" in recover and "--recovery-evidence" in recover
     assert "original-evidence.sha256" in recover and "pre-recovery-resources.json" in recover
