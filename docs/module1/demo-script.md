@@ -21,7 +21,7 @@ only; it is not approved-model or KServe evidence.
 Follow [`final-acceptance.md`](final-acceptance.md) exactly. Use the protected
 Module I workflow and one approved model/release identity. Demonstrate the
 NGINX 401/200 boundary, model provenance, KServe `Ready=True`, independent
-predictor 1→0→1 behavior with a successful cold-start prediction, independent
+predictor positive→0→positive behavior with a successful cold-start prediction, independent
 FastAPI HPA 2→N→2 behavior under bounded load, and correlated metric/log/trace
 evidence. Stop at any identity, health, error-rate, capacity or cost mismatch.
 

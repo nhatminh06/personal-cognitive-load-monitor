@@ -59,7 +59,7 @@ Concrete unblock options, in preference order:
 3. with separate human authorization, qualify the candidate on a disposable,
    isolated Kubernetes 1.34 environment using immutable manifests/images and
    the same custom runtime, then discard it. Record installation, CRD conversion,
-   controller readiness, Revision propagation, routing and 1→0→1 inference.
+   controller readiness, Revision propagation, routing and positive→0→positive inference.
 
 Knative supports multiple networking layers, but CogniFlow does not switch to
 Kourier or another provider merely because it supports Knative: KServe's tested

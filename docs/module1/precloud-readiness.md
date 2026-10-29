@@ -57,7 +57,7 @@ not proof produced by this pass.
 | Manual protected deployment | NEEDS_HUMAN_APPROVAL | Dispatch-only, main-only, OIDC and `module1-production` environment are source-defined. Reviewers, runner, variables and secrets require owner verification; no dispatch occurred. |
 | FastAPI preprocessing/postprocessing | PASS_OFFLINE | Bounded schemas, six-feature transformation, explicit provenance and failure mapping are tested. `demo_rule`, `local_model` and `kserve` are explicit modes and do not silently fall back. |
 | API HPA | PASS_OFFLINE | `autoscaling/v2`, 2–5 replicas, CPU target, bounded behavior and resource requests render. Runtime 2→N→2 remains `NEEDS_GKE_RUNTIME`. |
-| KServe Knative/KPA contract | PASS_OFFLINE | Module I overlay renders Knative, KPA concurrency, min 0/max 3/target 1 and bounded timeouts. Readiness and 1→0→1 remain `NEEDS_KIND_RUNTIME`. |
+| KServe Knative/KPA contract | PASS_KIND_RUNTIME_PENDING_REVIEW | Module I overlay renders Knative, KPA concurrency, min 0/max 3/target 1 and bounded timeouts. Preserved kind evidence records 2→0→2; independent review remains pending. |
 | Module III KServe | PASS_OFFLINE | Default and GKE render remain `Standard` with a three-second client timeout. |
 | NGINX authentication and TLS | PASS_OFFLINE | Production render refuses missing TLS or auth Secret and remains digest-only. Certificate, 401/200 and backend-bypass evidence need `NEEDS_GKE_RUNTIME`. |
 | Prometheus and Grafana | PASS_OFFLINE | Metrics endpoint, ServiceMonitor and provisioned dashboard exist; prior local runtime evidence is documented. Hosted scrape/dashboard need `NEEDS_GKE_RUNTIME`. |
@@ -116,7 +116,7 @@ The reviewed host lacks Buildx, so it cannot execute the documented immutable lo
 packet even after memory is freed.
 
 The acceptance contract is strict HTTP 200 prediction and metadata over the
-cluster-local route, Ready replicas 1→0→1, a single non-retried cold request
+cluster-local route, positive Ready replicas→0→positive, a single non-retried cold request
 with a 35-second curl deadline and 40-second outer bound, and preserved PASS or
 FAIL evidence. Negative mutations cover version, digest, CRD, rendered source,
 autoscaler, route and acceptance drift. No installer or qualification command
@@ -265,7 +265,7 @@ Other results:
    the strict acceptance/negative tests. No production credentials or model
    status changes.
 4. **Independent evidence decision:** review all renders, 15 workload image IDs,
-   38 CRDs, RBAC, seven policies, scans and 1→0→1 evidence. Only that reviewer
+   38 CRDs, RBAC, seven policies, scans and positive→0→positive evidence. Only that reviewer
    may update the matrix. Keep it `BLOCKED` until then.
 5. **Disposable deletion authorization:** separately approve deletion only
    after immutable evidence retention.
