@@ -68,7 +68,7 @@ GKE compatibility.
 | HPA | Bounded FastAPI HPA chart | Preserve source and later runtime acceptance requirements |
 | Helm/Kubernetes IaC | Hardened chart, quotas and policies | Add no cloud requirement for MVP; later templates remain digest-pinned |
 | KServe | Custom verified `.skops` runtime | Reuse after independent model approval; Module III stays Standard mode |
-| Scale-to-zero | Module I Knative overlay and reported kind 1→0→1 evidence | Preserve code/evidence; formal review and GKE proof remain separate |
+| Scale-to-zero | Module I Knative overlay and preserved kind 2→0→2 evidence | Preserve code/evidence; formal review and GKE proof remain separate |
 | NGINX/TLS | Local auth proof and cloud-static templates | Local MVP binds loopback; no new public endpoint |
 | Model retrieval/integrity | Exact package, artifact-tree and OCI digests | Include feature/label/edge-asset manifests in package provenance |
 | Security | Non-root, immutable images, no fallback, secret scanning | CV off by default; no frames; Discord secret only at runtime |
