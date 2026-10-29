@@ -128,7 +128,8 @@ disposable run, verify the context name after installation, and then:
    the exact installation hashes and kind-containerd resolution of `KSERVE_IMAGE` before any
    qualification resource is created.
    It requires strict readiness, HTTP 200 prediction,
-   metadata, internal service routing, observed 1→0→1 KPA behavior, cold activation and a
+   metadata, internal service routing, observed positive→0→positive KPA behavior
+   (2→0→2 in the preserved run), cold activation and a
    successful post-cold prediction, then captures resources, RBAC and the live inventory.
 
    KServe v0.21.0 propagates InferenceService labels to Knative Service metadata, while its

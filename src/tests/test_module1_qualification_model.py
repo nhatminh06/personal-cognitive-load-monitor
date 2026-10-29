@@ -3,15 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 
 import pytest
 
 from cogniflow_kserve.predictor import CogniFlowPredictor
+from scripts.generate_qualification_model import main as generate_qualification_model
 from scripts.module1_qualification_model import qualification_environment
-
-ROOT = Path(__file__).parents[2]
-PACKAGE = ROOT / "build/model-package"
 
 
 def configure(monkeypatch: pytest.MonkeyPatch, package: Path) -> dict[str, str]:
@@ -23,26 +22,30 @@ def configure(monkeypatch: pytest.MonkeyPatch, package: Path) -> dict[str, str]:
     return environment
 
 
-def copied_package(tmp_path: Path) -> Path:
-    package = tmp_path / "package"
-    package.mkdir()
-    for name in ("cognitive_load_model.skops", "model-package.json"):
-        (package / name).write_bytes((PACKAGE / name).read_bytes())
+@pytest.fixture
+def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    package = tmp_path / "model-package"
+    monkeypatch.setattr(sys, "argv", ["generate_qualification_model.py", str(package)])
+    generate_qualification_model()
     return package
 
 
-def test_valid_synthetic_qualification_package_loads(monkeypatch: pytest.MonkeyPatch) -> None:
-    configure(monkeypatch, PACKAGE)
+def test_valid_synthetic_qualification_package_loads(
+    monkeypatch: pytest.MonkeyPatch, package: Path,
+) -> None:
+    configure(monkeypatch, package)
     predictor = CogniFlowPredictor()
     assert predictor.load() is True
     assert predictor.provenance and predictor.provenance["model_name"] == "qualification-model"
 
 
-def test_incorrect_model_sha_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    environment = configure(monkeypatch, PACKAGE)
+def test_incorrect_model_sha_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, package: Path,
+) -> None:
+    environment = configure(monkeypatch, package)
     monkeypatch.setenv("MODEL_SHA256", "f" * 64)
     assert environment["MODEL_SHA256"] == hashlib.sha256(
-        (PACKAGE / "cognitive_load_model.skops").read_bytes()
+        (package / "cognitive_load_model.skops").read_bytes()
     ).hexdigest()
     with pytest.raises(ValueError, match="deployment configuration"):
         CogniFlowPredictor().load()
@@ -53,9 +56,8 @@ def test_incorrect_model_sha_is_rejected(monkeypatch: pytest.MonkeyPatch) -> Non
     [("model_name", "production-model"), ("registered_source", "models:/production")],
 )
 def test_incorrect_qualification_metadata_is_rejected(
-    tmp_path: Path, field: str, value: str,
+    package: Path, field: str, value: str,
 ) -> None:
-    package = copied_package(tmp_path)
     manifest_path = package / "model-package.json"
     manifest = json.loads(manifest_path.read_text())
     manifest[field] = value
@@ -64,7 +66,9 @@ def test_incorrect_qualification_metadata_is_rejected(
         qualification_environment(package)
 
 
-def test_production_environment_is_not_overwritten(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_production_environment_is_not_overwritten(
+    monkeypatch: pytest.MonkeyPatch, package: Path,
+) -> None:
     production = {
         "MODEL_NAME": "production-model",
         "MODEL_VERSION": "42",
@@ -76,5 +80,5 @@ def test_production_environment_is_not_overwritten(monkeypatch: pytest.MonkeyPat
     }
     for name, value in production.items():
         monkeypatch.setenv(name, value)
-    qualification_environment(PACKAGE)
+    qualification_environment(package)
     assert {name: os.environ[name] for name in production} == production
