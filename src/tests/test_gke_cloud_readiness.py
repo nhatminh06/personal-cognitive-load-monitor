@@ -229,7 +229,10 @@ def test_ci_test_build_and_manual_deploy_boundaries_are_explicit() -> None:
     assert "--cov-fail-under=81" in workflow
     assert "build:\n    name: Build and push Docker image\n    needs: test" in workflow
     assert "github.ref == 'refs/heads/main' && github.event_name == 'push'" in workflow
-    assert 'models:/cognitive-load-classifier/${MODEL_VERSION}' in workflow
+    assert "REQUIRE_MLFLOW" in workflow
+    assert "cogniflow-module1-engineering-candidates" in workflow
+    assert "mlflow.register_model" not in workflow
+    assert "download_model_from_mlflow.py" not in workflow
     assert "deploy:\n    name: Manual deploy to Kubernetes with Helm\n    needs: test" in workflow
     assert "github.event_name == 'workflow_dispatch'" in workflow
     assert "name: production" in workflow

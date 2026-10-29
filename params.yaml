@@ -3,12 +3,20 @@ data:
   seed: 42
   start_date: "2025-01-01T00:00:00+00:00"
   raw_path: data/raw/sample_data.csv
-  train_path: data/processed/train.csv
-  test_path: data/processed/test.csv
 model:
   output_path: models/cognitive_load_model.joblib
   experiment_name: personal-cognitive-load-monitor
   registered_model_name: cognitive-load-classifier
+module1_evaluation:
+  random_seed: 42
+  train_fraction: 0.6
+  validation_fraction: 0.2
+  experiment_name: cogniflow-module1-engineering-candidates
+  train_path: data/processed/train.csv
+  validation_path: data/processed/validation.csv
+  audit_path: data/processed/previously_observed.csv
+  report_path: reports/metrics.json
+  tracking_uri: sqlite:///data/processed/module1-evaluation/mlflow.db
 reports:
   drift_report: reports/evidently/data_drift.html
 historical:

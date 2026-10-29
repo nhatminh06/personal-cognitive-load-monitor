@@ -90,11 +90,8 @@ jobs:
         run: uv sync --frozen --all-extras
 
       - name: Start ephemeral MLflow tracking server
-        # Self-contained tracking server for this job only, so "pull the model from
-        # MLflow" is a real step CI exercises on every build instead of a path that
-        # only exists if someone happens to run a persistent MLflow server. A
-        # separately protected workflow can target a persistent registry later;
-        # registry credentials must never be Docker build arguments.
+        # Self-contained tracking for engineering candidate comparison only.
+        # This job logs candidates but never registers, approves, or promotes them.
         run: |
           nohup uv run mlflow server --host 127.0.0.1 --port 5000 \
             --backend-store-uri "sqlite:///${RUNNER_TEMP}/mlflow.db" \
@@ -110,22 +107,16 @@ jobs:
           cat "${RUNNER_TEMP}/mlflow-server.log" >&2
           exit 1
 
-      - name: Train, register with MLflow, and pull the registered model back for the image
+      - name: Train and track an isolated engineering candidate
         env:
-          REQUIRE_MODEL: "true"
+          REQUIRE_MLFLOW: "true"
         run: |
-          uv run python scripts/train_model.py --input data/raw/sample_data.csv --output models/cognitive_load_model.joblib
-          MODEL_VERSION=$(uv run python -c "
-          import mlflow
-          client = mlflow.MlflowClient()
-          versions = client.search_model_versions(\"name='cognitive-load-classifier'\")
-          print(max(versions, key=lambda v: int(v.version)).version)
-          ")
-          echo "Registered model version: $MODEL_VERSION"
-          rm -f models/cognitive_load_model.joblib
-          uv run python scripts/download_model_from_mlflow.py \
-            --model-uri "models:/cognitive-load-classifier/${MODEL_VERSION}" \
-            --output models/cognitive_load_model.joblib
+          uv run python scripts/train_model.py \
+            --input data/raw/sample_data.csv \
+            --output models/cognitive_load_model.joblib \
+            --tracking-uri "$MLFLOW_TRACKING_URI" \
+            --experiment-name cogniflow-module1-engineering-candidates \
+            --generate-if-missing
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3

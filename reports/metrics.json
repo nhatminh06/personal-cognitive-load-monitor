@@ -1,120 +1,278 @@
 {
-  "label_provenance": "synthetic_proxy",
-  "dataset_sha256": "ab67e62ee1c401d135bb6ba32b9baf48bbcbf83c0bbbdec64fde366c21fbf0e7",
-  "split": "chronological_80_20",
-  "feature_names": [
-    "focus_minutes",
-    "distraction_minutes",
-    "tasks_due",
-    "hours_to_deadline",
-    "focus_ratio",
-    "distraction_ratio"
-  ],
-  "models": {
-    "rule_baseline": {
-      "accuracy": 1.0,
-      "macro_f1": 1.0,
-      "per_class_recall": [
-        1.0,
-        1.0,
-        1.0
+  "contract_version": "2.0",
+  "exported_joblib_sha256": "1a65d25424963d185465183a8f589e30aa8a15b15218074c01e88c4bfab0d893",
+  "lineage": {
+    "candidate_code_sha256": "77c0faae13e938fa8cb591536a94c642cf550a9ec0855f957e143647b7244ca2",
+    "configuration": {
+      "random_seed": 42,
+      "selection_metric": "validation_macro_f1",
+      "tie_break": [
+        "dummy_majority",
+        "logistic_regression",
+        "random_forest"
       ],
-      "confusion_matrix": [
-        [
-          24,
-          0,
-          0
-        ],
-        [
-          0,
-          60,
-          0
-        ],
-        [
-          0,
-          0,
-          16
-        ]
-      ]
+      "train_fraction": 0.6,
+      "validation_fraction": 0.2
     },
+    "configuration_sha256": "670d48e60bc1f9986eae8a2c67ded6091d17add56b0677357cb3d43a2215ad5e",
+    "dataset_sha256": "ab67e62ee1c401d135bb6ba32b9baf48bbcbf83c0bbbdec64fde366c21fbf0e7",
+    "dependencies": {
+      "mlflow": "3.17.2",
+      "numpy": "2.4.6",
+      "pandas": "2.3.3",
+      "python": "3.11.17",
+      "scikit-learn": "1.9.1"
+    },
+    "dvc_pipeline_sha256": "ff50ca93c5c424f5317492e97494b94dac1b6ef09ecf3f0a97ddfd6e439ac8ce",
+    "feature_code_sha256": "fe3c4b7e3ebb8547dd01f67ae74ce2e04943763f29eb366538bbfad06aaddd1f",
+    "feature_names": [
+      "focus_minutes",
+      "distraction_minutes",
+      "tasks_due",
+      "hours_to_deadline",
+      "focus_ratio",
+      "distraction_ratio"
+    ],
+    "feature_schema_version": "1.0",
+    "git_dirty": true,
+    "git_revision": "b0ed4583b6abbc11e6754f851d965ec60c9b7580",
+    "label_provenance": "synthetic_proxy",
+    "random_seed": 42,
+    "split_sha256": "1ed2886659daf196ca47a35f4e987006653fffdc786318a5e3496403c6893d23",
+    "training_code_sha256": "b91c9d8125d3533cb219e12c8589eb69dc4dceab753c70da767f464a399fb1bd"
+  },
+  "mlflow_experiment": "cogniflow-module1-engineering-candidates",
+  "models": {
     "dummy_majority": {
-      "accuracy": 0.6,
-      "macro_f1": 0.25,
-      "per_class_recall": [
-        0.0,
-        1.0,
-        0.0
-      ],
-      "confusion_matrix": [
-        [
-          0,
-          24,
-          0
+      "parameters": {
+        "strategy": "most_frequent"
+      },
+      "validation": {
+        "accuracy": 0.65,
+        "confusion_matrix": [
+          [
+            0,
+            19,
+            0
+          ],
+          [
+            0,
+            65,
+            0
+          ],
+          [
+            0,
+            16,
+            0
+          ]
         ],
-        [
-          0,
-          60,
-          0
-        ],
-        [
-          0,
-          16,
-          0
-        ]
-      ]
+        "macro_f1": 0.2626262626262626,
+        "per_class_precision": {
+          "HIGH": 0.0,
+          "LOW": 0.0,
+          "MEDIUM": 0.65
+        },
+        "per_class_recall": {
+          "HIGH": 0.0,
+          "LOW": 0.0,
+          "MEDIUM": 1.0
+        }
+      }
     },
     "logistic_regression": {
-      "accuracy": 0.96,
-      "macro_f1": 0.9514687100893998,
-      "per_class_recall": [
-        1.0,
-        0.9333333333333333,
-        1.0
-      ],
-      "confusion_matrix": [
-        [
-          24,
-          0,
-          0
+      "parameters": {
+        "classifier__C": 1.0,
+        "classifier__dual": false,
+        "classifier__fit_intercept": true,
+        "classifier__intercept_scaling": 1,
+        "classifier__l1_ratio": 0.0,
+        "classifier__max_iter": 1000,
+        "classifier__penalty": "deprecated",
+        "classifier__random_state": 42,
+        "classifier__solver": "lbfgs",
+        "classifier__tol": 0.0001,
+        "classifier__verbose": 0,
+        "classifier__warm_start": false,
+        "scaler__copy": true,
+        "scaler__with_mean": true,
+        "scaler__with_std": true,
+        "verbose": false
+      },
+      "validation": {
+        "accuracy": 0.86,
+        "confusion_matrix": [
+          [
+            18,
+            1,
+            0
+          ],
+          [
+            3,
+            60,
+            2
+          ],
+          [
+            0,
+            8,
+            8
+          ]
         ],
-        [
-          0,
-          56,
-          4
-        ],
-        [
-          0,
-          0,
-          16
-        ]
-      ]
+        "macro_f1": 0.8036356678147722,
+        "per_class_precision": {
+          "HIGH": 0.8,
+          "LOW": 0.8571428571428571,
+          "MEDIUM": 0.8695652173913043
+        },
+        "per_class_recall": {
+          "HIGH": 0.5,
+          "LOW": 0.9473684210526315,
+          "MEDIUM": 0.9230769230769231
+        }
+      }
     },
     "random_forest": {
-      "accuracy": 0.88,
-      "macro_f1": 0.8678356121965144,
-      "per_class_recall": [
-        0.9166666666666666,
-        0.85,
-        0.9375
-      ],
+      "parameters": {
+        "bootstrap": true,
+        "ccp_alpha": 0.0,
+        "class_weight": "balanced",
+        "criterion": "gini",
+        "max_features": "sqrt",
+        "min_impurity_decrease": 0.0,
+        "min_samples_leaf": 1,
+        "min_samples_split": 2,
+        "min_weight_fraction_leaf": 0.0,
+        "n_estimators": 200,
+        "oob_score": false,
+        "random_state": 42,
+        "verbose": 0,
+        "warm_start": false
+      },
+      "validation": {
+        "accuracy": 0.9,
+        "confusion_matrix": [
+          [
+            16,
+            3,
+            0
+          ],
+          [
+            3,
+            60,
+            2
+          ],
+          [
+            0,
+            2,
+            14
+          ]
+        ],
+        "macro_f1": 0.8800607287449393,
+        "per_class_precision": {
+          "HIGH": 0.875,
+          "LOW": 0.8421052631578947,
+          "MEDIUM": 0.9230769230769231
+        },
+        "per_class_recall": {
+          "HIGH": 0.875,
+          "LOW": 0.8421052631578947,
+          "MEDIUM": 0.9230769230769231
+        }
+      }
+    }
+  },
+  "previously_observed_audit": {
+    "selected_model_metrics": {
+      "accuracy": 0.91,
       "confusion_matrix": [
         [
-          22,
-          2,
+          23,
+          1,
           0
         ],
         [
-          3,
-          51,
-          6
+          2,
+          53,
+          5
         ],
         [
           0,
           1,
           15
         ]
-      ]
-    }
+      ],
+      "macro_f1": 0.8979493246573993,
+      "per_class_precision": {
+        "HIGH": 0.75,
+        "LOW": 0.92,
+        "MEDIUM": 0.9636363636363636
+      },
+      "per_class_recall": {
+        "HIGH": 0.9375,
+        "LOW": 0.9583333333333334,
+        "MEDIUM": 0.8833333333333333
+      }
+    },
+    "status": "not_independent_and_not_used_for_selection"
   },
-  "warning": "Scores measure fidelity to synthetic rules, not real cognitive load validity."
+  "registry_mutation": "none",
+  "selected_model": "random_forest",
+  "selection_rule": {
+    "primary": "validation_macro_f1_desc",
+    "secondary": "validation_accuracy_desc",
+    "tie_break": [
+      "dummy_majority",
+      "logistic_regression",
+      "random_forest"
+    ]
+  },
+  "split": {
+    "duplicate_record_count": 0,
+    "duplicate_timestamp_row_count": 500,
+    "final_partition_status": "previously_observed_not_independent",
+    "group_overlap_check": "unavailable_no_identifiers",
+    "method": "chronological_timestamp_groups",
+    "partitions": {
+      "previously_observed": {
+        "class_counts": {
+          "HIGH": 16,
+          "LOW": 24,
+          "MEDIUM": 60
+        },
+        "end": "2025-09-07T00:00:00+00:00",
+        "membership_sha256": "b00613fa98bfd0ccde883bbffeecb08c08420031b45180e8a84e3cc482f03c67",
+        "row_count": 100,
+        "start": "2025-07-20T00:00:00+00:00",
+        "timestamp_group_count": 50
+      },
+      "train": {
+        "class_counts": {
+          "HIGH": 43,
+          "LOW": 77,
+          "MEDIUM": 180
+        },
+        "end": "2025-05-30T00:00:00+00:00",
+        "membership_sha256": "ebf745d6462a8097e4d379e622c305cdf50cee5429a9be0d1609f01337507768",
+        "row_count": 300,
+        "start": "2025-01-01T00:00:00+00:00",
+        "timestamp_group_count": 150
+      },
+      "validation": {
+        "class_counts": {
+          "HIGH": 16,
+          "LOW": 19,
+          "MEDIUM": 65
+        },
+        "end": "2025-07-19T00:00:00+00:00",
+        "membership_sha256": "b596e8446367a2841e2bc6e696eedbc8e04936d2b15ce56ae645a2524bf302d3",
+        "row_count": 100,
+        "start": "2025-05-31T00:00:00+00:00",
+        "timestamp_group_count": 50
+      }
+    },
+    "selection_partition": "validation",
+    "train_fraction": 0.6,
+    "validation_fraction": 0.2
+  },
+  "validation_scope": "synthetic_proxy_engineering_only",
+  "warning": "Metrics measure synthetic-rule fidelity, not real cognitive-load validity."
 }

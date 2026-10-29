@@ -264,17 +264,17 @@ def split_training_frame(frame: Any, manifest: dict[str, Any]) -> tuple[Any, Any
     return parts
 
 
-def candidate_models() -> dict[str, Any]:
+def candidate_models(random_seed: int = 42) -> dict[str, Any]:
     return {
         "dummy_majority": DummyClassifier(strategy="most_frequent"),
         "logistic_regression": Pipeline(
             [
                 ("scaler", StandardScaler()),
-                ("classifier", LogisticRegression(max_iter=1000, random_state=42)),
+                ("classifier", LogisticRegression(max_iter=1000, random_state=random_seed)),
             ]
         ),
         "random_forest": RandomForestClassifier(
-            n_estimators=200, random_state=42, class_weight="balanced"
+            n_estimators=200, random_state=random_seed, class_weight="balanced"
         ),
     }
 
