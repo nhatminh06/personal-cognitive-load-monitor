@@ -412,6 +412,33 @@ class FocusSessionRepository:
             "completed_windows": [dict(window) for window in windows],
         }
 
+    def feature_window(self, session_id: str, window_id: UUID, owner: str) -> dict[str, Any]:
+        """Read one owner-scoped completed window and its aggregate feature events."""
+
+        with self._connection() as connection:
+            self._owned_session(connection, session_id, owner)
+            window = connection.execute(
+                "SELECT window_id, session_id, window_start, window_end FROM windows "
+                "WHERE window_id=? AND session_id=?", (str(window_id), session_id),
+            ).fetchone()
+            if window is None:
+                raise NotFoundError("Completed session window not found")
+            activity = connection.execute(
+                "SELECT event_json FROM activity_events WHERE window_id=? AND session_id=?",
+                (str(window_id), session_id),
+            ).fetchone()
+            cv = connection.execute(
+                "SELECT event_json FROM cv_events WHERE window_id=? AND session_id=?",
+                (str(window_id), session_id),
+            ).fetchone()
+        if activity is None:
+            raise NotFoundError("Behavioral aggregate for completed window not found")
+        return {
+            "window": dict(window),
+            "activity": json.loads(activity[0]),
+            "cv": json.loads(cv[0]) if cv is not None else None,
+        }
+
     def timeline(self, session_id: str, owner: str, limit: int, offset: int) -> dict[str, Any]:
         with self._connection() as connection:
             self._owned_session(connection, session_id, owner)

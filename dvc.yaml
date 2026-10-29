@@ -130,3 +130,13 @@ stages:
     metrics:
       - reports/multimodal/engineering-validation.json:
           cache: false
+  focus_fixture_package:
+    cmd: env PYTHONPATH=src uv run python scripts/package_focus_model.py --model models/multimodal/experiment-C.skops --report reports/multimodal/engineering-validation.json --dataset-manifest data/processed/multimodal/dataset.manifest.json --output-dir models/focus-fixture --modality C --model-name focus-effort-fixture --model-version 1
+    deps:
+      - scripts/package_focus_model.py
+      - src/cogniflow_focus/package.py
+      - models/multimodal/experiment-C.skops
+      - reports/multimodal/engineering-validation.json
+      - data/processed/multimodal/dataset.manifest.json
+    outs:
+      - models/focus-fixture

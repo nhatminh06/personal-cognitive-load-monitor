@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import resource
 import statistics
@@ -15,6 +16,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 import joblib
 import pandas as pd
+import skops.io
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import RandomForestRegressor
@@ -557,6 +559,18 @@ def _candidate_models(random_seed: int) -> dict[str, Any]:
     }
 
 
+def _model_config(name: str, random_seed: int) -> dict[str, Any]:
+    configs: dict[str, dict[str, Any]] = {
+        "dummy_median": {"strategy": "median"},
+        "ridge": {"alpha": 1.0},
+        "random_forest": {
+            "n_estimators": 100, "max_depth": 8,
+            "random_state": random_seed, "n_jobs": 1,
+        },
+    }
+    return configs[name]
+
+
 def _band(value: float) -> str:
     return effort_band(min(7.0, max(1.0, float(value)))).value
 
@@ -765,6 +779,8 @@ def run_experiments(
         test_predictions, test_latency = _predict_with_latency(selected, cohort["test"], features)
         model_path = output_dir / f"experiment-{modality}.joblib"
         joblib.dump(selected, model_path)
+        skops_path = output_dir / f"experiment-{modality}.skops"
+        skops.io.dump(selected, skops_path)
         experiments[modality] = {
             "status": "PASS", "feature_names": list(features), "selected_model": selected_name,
             "validation_candidates": validation_candidates,
@@ -775,6 +791,9 @@ def run_experiments(
                 name: len(frames[name]) - len(cohort[name]) for name in cohort
             },
             "model_sha256": sha256_file(model_path),
+            "model_skops_sha256": sha256_file(skops_path),
+            "model_config": _model_config(selected_name, int(split_manifest["random_seed"])),
+            "skops_untrusted_types": sorted(skops.io.get_untrusted_types(file=skops_path)),
             "validation_scope": validation_scope,
             "peak_rss_mib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
         }
@@ -822,6 +841,11 @@ def run_experiments(
             "c_macro_f1_tolerance": SELECTION_F1_TOLERANCE,
             "uses": "validation_only",
         },
+        "runtime_versions": {
+            name: importlib.metadata.version(name)
+            for name in ("python", "numpy", "pandas", "scikit-learn", "skops")
+            if name != "python"
+        } | {"python": ".".join(map(str, __import__("sys").version_info[:3]))},
         "preferred_candidate": preferred,
         "models_registered": 0,
         "mlflow": {},

@@ -4,7 +4,7 @@ install sync:
 	uv sync --all-extras
 
 test:
-	uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov-report=term-missing --cov-fail-under=81
+	uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov=src/cogniflow_eventing --cov=src/cogniflow_anomaly --cov=src/cogniflow_kserve --cov=src/cogniflow_contracts --cov=src/cogniflow_sessions --cov=src/cogniflow_edge --cov=src/cogniflow_focus --cov-report=term-missing --cov-fail-under=81
 
 coverage: test
 
