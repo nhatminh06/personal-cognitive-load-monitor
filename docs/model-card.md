@@ -30,9 +30,9 @@ observability), not to produce a validated cognitive-load instrument.
 trained by [`scripts/train_model.py`](../scripts/train_model.py).
 
 - `n_estimators=200`, `random_state=42`, and `class_weight="balanced"` are
-  currently hard-coded in the training script.
-- The script sorts rows by `date` and uses the first 80% for training and the
-  final 20% for testing. It does not create a separate validation split.
+  recorded candidate parameters.
+- The script groups rows by timestamp into chronological 60% training, 20%
+  validation, and 20% previously observed audit partitions.
 
 ## Features (in this exact order — see `preprocessing_api/features.py`)
 
@@ -67,75 +67,66 @@ reproduce them yourself.
 
 | Metric | Value |
 |---|---|
-| Accuracy | 0.880 |
-| Macro F1 | 0.8678356121965144 |
-| Train / test size | 400 / 100 |
+| Validation accuracy | 0.900 |
+| Validation macro F1 | 0.8800607287449393 |
+| Train / validation / audit size | 300 / 100 / 100 |
 
-Per-class (test set):
+Per-class (validation set):
 
 | Class | Precision | Recall | F1 | Support |
 |---|---|---|---|---|
-| LOW | — | 0.9167 | — | 24 |
-| MEDIUM | — | 0.8500 | — | 60 |
-| HIGH | — | 0.9375 | — | 16 |
+| LOW | 0.8421 | 0.8421 | — | 19 |
+| MEDIUM | 0.9231 | 0.9231 | — | 65 |
+| HIGH | 0.8750 | 0.8750 | — | 16 |
 
-The current report does not record per-class precision or F1, so this card does
-not infer them from the confusion matrix.
+The report records per-class precision and recall; it does not record per-class
+F1, so this card does not infer it.
 
 Confusion matrix (rows = true LOW/MEDIUM/HIGH, columns = predicted
 LOW/MEDIUM/HIGH):
 
 ```
-[[22  2  0]
- [ 3 51  6]
- [ 0  1 15]]
+[[16  3  0]
+ [ 3 60  2]
+ [ 0  2 14]]
 ```
 
-All candidates use the same dataset, chronological 400/100 split, six features,
-preprocessing path, and metric functions, so their recorded scores are directly
-comparable within this synthetic run:
+All candidates use the same dataset, chronological timestamp-group split, six
+features, train-only preprocessing, and metric functions, so their validation
+scores are directly comparable within this synthetic run:
 
 | Candidate | Accuracy | Macro F1 |
 |---|---:|---:|
-| Rule-label identity check | 1.00 | 1.00 |
-| Dummy majority | 0.60 | 0.25 |
-| Logistic regression | 0.96 | 0.9514687100893998 |
-| Selected random forest | 0.88 | 0.8678356121965144 |
+| Dummy majority | 0.65 | 0.2626262626262626 |
+| Logistic regression | 0.86 | 0.8036356678147722 |
+| Selected random forest | 0.90 | 0.8800607287449393 |
 
-The rule result is computed as `metrics(y_test, y_test)` and is therefore an
-identity check, not an independently executed predictive baseline. The logistic
-candidate materially outperforms the selected random forest on both recorded
-metrics. The repository contains no selection criterion that justifies choosing
-the random forest despite that result. No candidate should be selected until the
-requirements in [`module1/model-selection-policy.md`](module1/model-selection-policy.md)
-are satisfied.
+Selection uses validation macro-F1, then accuracy, then a declared
+simple-to-complex tie order. The audit partition is not independent and does not
+participate in selection. Selection is engineering evidence, not approval or
+scientific validity; see
+[`module1/model-selection-policy.md`](module1/model-selection-policy.md).
 
 ## Baselines considered
 
 - **Dummy majority** and **logistic regression** are evaluated in
   `scripts/train_model.py` and recorded in `reports/metrics.json`.
-- MLflow logs only the selected random forest's accuracy and macro-F1 as scalar
-  metrics; the complete comparison is stored in the `evaluation.json` artifact.
-- The rule-label identity check is useful for detecting report corruption but
-  is not a fair model baseline.
+- Each candidate is tracked with validation metrics and lineage in an isolated
+  engineering experiment. No candidate is registered or approved.
 
 ## MLflow tracking
 
-The current script logs `model_type`, `n_estimators`, `label_provenance`,
-`dataset_sha256`, selected random-forest accuracy and macro-F1, the full
-evaluation JSON, the joblib artifact, and a registered `mlflow.sklearn` model
-version under `cognitive-load-classifier`. It does not explicitly log the split
-indices, feature-schema version, DVC identity, training Git revision, or a
-candidate-selection decision.
+The current script logs candidate parameters, validation metrics, dataset and
+split identities, feature schema, DVC and Git identities, code hashes, dependency
+versions, and evaluation artifacts. It does not register, approve, or promote a
+model.
 
 **Persistent vs. ephemeral MLflow**: CI (`.github/workflows/ci-cd.yaml`, `build`
 job) starts a **self-contained MLflow tracking server for the duration of that
 job only** (SQLite backend, local artifact root under the runner's temp dir),
-trains against it, registers a model version, and downloads that exact version
-back down via `scripts/download_model_from_mlflow.py` before the Docker build
-— this is intended to exercise "pull the model from MLflow"
-(`Created version 'N' of model 'cognitive-load-classifier'` →
-`Downloading MLflow artifact from models:/cognitive-load-classifier/N`).
+trains against it, logs isolated engineering candidates, and uses the directly
+selected joblib for the non-production image build. It does not read or mutate
+the production registry.
 No specific retained hosted run was revalidated for this documentation change.
 The workflow does **not** provide durable cross-run experiment history: each run's
 MLflow server and its history are destroyed with the runner. A real deployment
