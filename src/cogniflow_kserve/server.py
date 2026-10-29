@@ -9,8 +9,12 @@ from fastapi import HTTPException
 from kserve.errors import InvalidInput
 from kserve.model import Model
 from kserve.model_server import ModelServer, app, parser
+from opentelemetry import trace
 
 from cogniflow_kserve.predictor import CogniFlowPredictor
+from preprocessing_api.observability import configure_logging, configure_tracing
+
+TRACER = trace.get_tracer(__name__)
 
 
 class CogniFlowModel(Model):
@@ -28,10 +32,13 @@ class CogniFlowModel(Model):
         headers: dict[str, str] | None = None,
         response_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        try:
-            return self.predictor.predict(payload)
-        except ValueError as exc:
-            raise InvalidInput(str(exc)) from exc
+        with TRACER.start_as_current_span(
+            "cogniflow.model.predict", attributes={"cogniflow.model.name": self.name}
+        ):
+            try:
+                return self.predictor.predict(payload)
+            except ValueError as exc:
+                raise InvalidInput(str(exc)) from exc
 
 
 model: CogniFlowModel | None = None
@@ -46,10 +53,12 @@ async def metadata(model_name: str) -> dict[str, Any]:
 
 def main() -> None:
     global model
+    configure_logging()
     argument_parser = argparse.ArgumentParser(parents=[parser])
     args, _ = argument_parser.parse_known_args()
     model = CogniFlowModel(args.model_name)
     model.load()
+    configure_tracing(app, service_name="cognitive-load-kserve")
     ModelServer().start([model])
 
 

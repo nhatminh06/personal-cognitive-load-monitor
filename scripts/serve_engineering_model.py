@@ -14,6 +14,7 @@ from cogniflow_kserve.predictor import CogniFlowPredictor
 from cogniflow_kserve import server
 from cogniflow_kserve.server import CogniFlowModel
 from preprocessing_api.security import is_production
+from preprocessing_api.observability import configure_logging, configure_tracing
 
 
 async def _invalid_input_handler(_, exc: Exception) -> JSONResponse:
@@ -21,6 +22,7 @@ async def _invalid_input_handler(_, exc: Exception) -> JSONResponse:
 
 
 def main() -> None:
+    configure_logging()
     argument_parser = argparse.ArgumentParser(parents=[parser])
     argument_parser.add_argument("--allow-synthetic-engineering", action="store_true")
     args, _ = argument_parser.parse_known_args()
@@ -31,6 +33,7 @@ def main() -> None:
     model.load()
     server.model = model
     rest_server.invalid_input_handler = _invalid_input_handler
+    configure_tracing(server.app, service_name="cognitive-load-kserve")
     ModelServer().start([model])
 
 

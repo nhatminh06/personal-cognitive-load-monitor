@@ -11,7 +11,23 @@ scrape_configs:
       - targets: [localhost]
         labels:
           job: cognitive-load-api
-          __path__: /var/log/cogniflow/*.log
+          service_name: cognitive-load-api
+          __path__: /var/log/cogniflow/api.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            logger: logger
+      - labels:
+          level:
+          logger:
+  - job_name: cognitive-load-kserve
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: cognitive-load-kserve
+          service_name: cognitive-load-kserve
+          __path__: /var/log/cogniflow/kserve.log
     pipeline_stages:
       - json:
           expressions:
