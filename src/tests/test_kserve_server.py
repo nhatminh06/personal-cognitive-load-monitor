@@ -49,3 +49,29 @@ def test_engineering_invalid_input_handler_returns_bounded_client_error():
 
     assert response.status_code == 400
     assert response.body == b'{"error":"invalid fixture"}'
+
+
+def test_prediction_creates_safe_inference_span(monkeypatch):
+    recorded = {}
+
+    class Span:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    class Tracer:
+        def start_as_current_span(self, name, *, attributes):
+            recorded.update(name=name, attributes=attributes)
+            return Span()
+
+    model = server.CogniFlowModel("classifier")
+    monkeypatch.setattr(server, "TRACER", Tracer())
+    monkeypatch.setattr(model.predictor, "predict", lambda payload: {"predictions": ["LOW"]})
+
+    assert model.predict({"instances": [[1, 2, 3, 4, 5, 6]]}) == {"predictions": ["LOW"]}
+    assert recorded == {
+        "name": "cogniflow.model.predict",
+        "attributes": {"cogniflow.model.name": "classifier"},
+    }

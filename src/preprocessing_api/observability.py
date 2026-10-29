@@ -34,14 +34,24 @@ PREDICTION_COUNT = Counter(
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        return json.dumps(
-            {
-                "timestamp": datetime.now(UTC).isoformat(),
-                "level": record.levelname,
-                "logger": record.name,
-                "message": record.getMessage(),
-            }
-        )
+        payload = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        try:
+            from opentelemetry import trace
+
+            context = trace.get_current_span().get_span_context()
+            if context.is_valid:
+                payload.update(
+                    trace_id=format(context.trace_id, "032x"),
+                    span_id=format(context.span_id, "016x"),
+                )
+        except Exception:  # pragma: no cover - logging must remain available
+            pass
+        return json.dumps(payload)
 
 
 def configure_logging() -> None:
@@ -55,7 +65,7 @@ def configure_logging() -> None:
     logging.basicConfig(level=level, handlers=handlers, force=True)
 
 
-def configure_tracing(app) -> None:
+def configure_tracing(app, *, service_name: str | None = None) -> None:
     """Attach OpenTelemetry FastAPI instrumentation when installed.
 
     Tracing only activates when an OTLP endpoint is explicitly configured.
@@ -77,15 +87,19 @@ def configure_tracing(app) -> None:
         from opentelemetry import trace
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        resource = Resource.create({"service.name": os.getenv("OTEL_SERVICE_NAME", "cognitive-load-api")})
+        resource = Resource.create(
+            {"service.name": service_name or os.getenv("OTEL_SERVICE_NAME", "cognitive-load-api")}
+        )
         provider = TracerProvider(resource=resource)
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
         trace.set_tracer_provider(provider)
-        FastAPIInstrumentor.instrument_app(app)
+        FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+        HTTPXClientInstrumentor().instrument(tracer_provider=provider)
     except Exception as exc:  # pragma: no cover - optional instrumentation
         LOGGER.warning("OpenTelemetry tracing is disabled: %s", exc)
 
