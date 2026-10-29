@@ -92,3 +92,41 @@ stages:
       - models/cognitive_load_phase2.joblib
       - reports/module3/phase2-metrics.json:
           cache: false
+  multimodal_fixture:
+    cmd: env PYTHONPATH=src uv run python scripts/generate_multimodal_fixture.py --output data/processed/multimodal/source_snapshot.json --samples ${multimodal.samples} --seed ${multimodal.seed}
+    deps:
+      - scripts/generate_multimodal_fixture.py
+      - src/cogniflow_data/multimodal.py
+      - src/cogniflow_contracts/models.py
+    params:
+      - multimodal.samples
+      - multimodal.seed
+    outs:
+      - data/processed/multimodal/source_snapshot.json
+  multimodal_dataset:
+    cmd: env PYTHONPATH=src uv run python scripts/build_multimodal_dataset.py --snapshot data/processed/multimodal/source_snapshot.json --allow-synthetic-fixture --dataset data/processed/multimodal/dataset.jsonl --manifest data/processed/multimodal/dataset.manifest.json --splits data/processed/multimodal/splits.json --random-seed ${multimodal.seed}
+    deps:
+      - scripts/build_multimodal_dataset.py
+      - src/cogniflow_data/multimodal.py
+      - data/processed/multimodal/source_snapshot.json
+    params:
+      - multimodal.seed
+    outs:
+      - data/processed/multimodal/dataset.jsonl
+      - data/processed/multimodal/dataset.manifest.json
+      - data/processed/multimodal/splits.json
+  multimodal_experiments:
+    cmd: env PYTHONPATH=src uv run python scripts/run_multimodal_experiments.py --dataset data/processed/multimodal/dataset.jsonl --manifest data/processed/multimodal/dataset.manifest.json --splits data/processed/multimodal/splits.json --output-dir models/multimodal --report reports/multimodal/engineering-validation.json --tracking-uri sqlite:///data/processed/multimodal/mlflow.db --validation-scope engineering_validation
+    deps:
+      - scripts/run_multimodal_experiments.py
+      - src/cogniflow_data/multimodal.py
+      - data/processed/multimodal/dataset.jsonl
+      - data/processed/multimodal/dataset.manifest.json
+      - data/processed/multimodal/splits.json
+    outs:
+      - models/multimodal
+      - data/processed/multimodal/mlflow.db
+      - data/processed/multimodal/mlartifacts
+    metrics:
+      - reports/multimodal/engineering-validation.json:
+          cache: false

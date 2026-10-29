@@ -1,11 +1,13 @@
 # Model Card — Cognitive Load Classifier
 
-The planned focus-session MVP has a separate target contract named
+The focus-session experiment pipeline has a separate target contract named
 `self_reported_effort`; it is not implemented by or evidence for the currently
 packaged synthetic-proxy classifier. Its 1–7 user rating and derived
 LOW/MEDIUM/HIGH projection are documented in
-[`focus-session/contracts.md`](focus-session/contracts.md). No focus-session
-model is trained, approved or served by this contract-only change.
+[`focus-session/contracts.md`](focus-session/contracts.md). PR 5 produces only
+local experimental candidates as documented in
+[`focus-session/multimodal-experiments.md`](focus-session/multimodal-experiments.md).
+No focus-session model is approved, packaged, promoted, or served.
 
 > **This is not a medical, psychological, neurological, workplace-surveillance,
 > or diagnostic system.** It is an educational MLOps demonstration. Predictions
