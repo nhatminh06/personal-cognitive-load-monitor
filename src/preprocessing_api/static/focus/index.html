@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>CogniFlow focus workspace</title>
+  <link rel="stylesheet" href="/focus-assets/dashboard.css">
+  <script type="module" src="/focus-assets/dashboard.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to workspace</a>
+  <header class="site-header">
+    <div><span class="wordmark">CogniFlow</span><span class="product-label">Focus workspace</span></div>
+    <p class="local-mark"><span aria-hidden="true"></span> Local session data</p>
+  </header>
+
+  <main id="workspace" tabindex="-1">
+    <section id="credential-view" class="credential-view" aria-labelledby="credential-title">
+      <div>
+        <p class="kicker">Private by design</p>
+        <h1 id="credential-title">Settle into focused work.</h1>
+        <p class="lede">Control a local focus session, review persisted five-minute windows,
+          and record your own effort—without turning observations into judgments.</p>
+      </div>
+      <form id="credential-form" class="credential-form">
+        <fieldset>
+          <legend>Connect to your local CogniFlow API</legend>
+          <label for="api-key">Local API key</label>
+          <input id="api-key" name="api-key" type="password" required autocomplete="off"
+                 spellcheck="false" aria-describedby="credential-help credential-error">
+          <p id="credential-help" class="field-help">Held in memory only. Refreshing requires
+            entering it again.</p>
+          <p id="credential-error" class="field-error" role="alert" tabindex="-1"></p>
+          <button class="button primary" type="submit">Connect locally</button>
+        </fieldset>
+      </form>
+    </section>
+
+    <section id="app-view" hidden>
+      <div class="app-heading">
+        <div><p class="kicker">Current workspace</p><h1 id="session-title" tabindex="-1">Focus session</h1></div>
+        <button id="disconnect" class="button quiet" type="button">Disconnect</button>
+      </div>
+      <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
+      <div id="error-message" class="error-message" role="alert" tabindex="-1"></div>
+
+      <section id="setup-view" class="setup-view" aria-labelledby="setup-title">
+        <div>
+          <h2 id="setup-title">Begin a session</h2>
+          <p>Choose only what changes the session contract. Camera collection remains separate
+            and off unless you explicitly run the local collector.</p>
+        </div>
+        <form id="setup-form">
+          <fieldset><legend>Session type</legend>
+            <label><input type="radio" name="session-kind" value="programming" checked> Programming</label>
+            <label><input type="radio" name="session-kind" value="study"> Study</label>
+          </fieldset>
+          <fieldset><legend>Privacy mode</legend>
+            <label><input type="radio" name="privacy-mode" value="behavioral" checked>
+              Behavioral aggregates only</label>
+            <label><input type="radio" name="privacy-mode" value="behavioral_cv">
+              Behavioral + optional local CV aggregates</label>
+          </fieldset>
+          <label for="planned-duration">Planned duration <span>(optional, minutes)</span></label>
+          <input id="planned-duration" name="planned-duration" type="number" min="5" max="480" step="5">
+          <button class="button primary" type="submit">Start focus session</button>
+        </form>
+      </section>
+
+      <div id="session-view" hidden>
+        <div class="workspace-grid">
+          <section class="session-panel" aria-labelledby="current-session-title">
+            <div class="session-meta">
+              <div><p class="kicker">Server-confirmed state</p><h2 id="current-session-title">Current session</h2></div>
+              <span id="state-badge" class="state-badge">Loading</span>
+            </div>
+            <p id="elapsed" class="elapsed" aria-label="Approximate active session time">00:00:00</p>
+            <p class="timer-note">Display timer only. Persisted windows are confirmed by the server.</p>
+            <div class="window-progress">
+              <div><span id="window-label">Current active window</span><span id="window-time">0:00 / 5:00</span></div>
+              <progress id="window-progress" max="300" value="0" aria-labelledby="window-label">0%</progress>
+            </div>
+            <dl class="session-facts">
+              <div><dt>Session type</dt><dd id="session-kind">—</dd></div>
+              <div><dt>Started</dt><dd id="session-start">—</dd></div>
+              <div><dt>Privacy mode</dt><dd id="privacy-mode">—</dd></div>
+            </dl>
+            <div id="session-controls" class="session-controls" role="group" aria-label="Session controls"></div>
+          </section>
+
+          <aside class="detail-rail" aria-label="Session availability">
+            <section aria-labelledby="availability-title"><h2 id="availability-title">Selected window</h2>
+              <div id="availability-content" class="empty-copy">No completed five-minute windows yet.</div>
+            </section>
+            <section aria-labelledby="model-title" class="model-note"><h2 id="model-title">Model estimate</h2>
+              <p>Model-based estimates are not available yet. You can continue reporting your own effort.</p>
+            </section>
+            <section aria-labelledby="camera-title"><h2 id="camera-title">Camera privacy</h2>
+              <p id="camera-status">Camera collection is off.</p>
+              <p class="supporting">This dashboard never requests camera access. Optional CV uses a separate,
+                explicitly started local collector and stores aggregates only.</p>
+            </section>
+          </aside>
+        </div>
+
+        <section id="effort-section" class="effort-section" aria-labelledby="effort-title">
+          <div><p class="kicker">Your assessment</p><h2 id="effort-title">Self-reported effort</h2>
+            <p id="effort-copy">Rating becomes available after a completed five-minute window.</p></div>
+          <form id="effort-form" hidden>
+            <label for="effort-window">Completed window</label>
+            <select id="effort-window" name="effort-window"></select>
+            <fieldset aria-describedby="rating-help"><legend>How much mental effort did this window require?</legend>
+              <div class="rating-scale">
+                <label><input type="radio" name="effort" value="1"><span>1</span></label>
+                <label><input type="radio" name="effort" value="2"><span>2</span></label>
+                <label><input type="radio" name="effort" value="3"><span>3</span></label>
+                <label><input type="radio" name="effort" value="4"><span>4</span></label>
+                <label><input type="radio" name="effort" value="5"><span>5</span></label>
+                <label><input type="radio" name="effort" value="6"><span>6</span></label>
+                <label><input type="radio" name="effort" value="7"><span>7</span></label>
+              </div>
+              <p id="rating-help" class="rating-help"><span>1 Very low</span><span>7 Very high</span></p>
+            </fieldset>
+            <button id="save-rating" class="button primary" type="submit">Save my rating</button>
+          </form>
+        </section>
+
+        <section class="timeline-section" aria-labelledby="timeline-title">
+          <div class="section-heading"><div><p class="kicker">Persisted record</p><h2 id="timeline-title">Session timeline</h2></div>
+            <button id="refresh" class="button quiet" type="button">Refresh</button></div>
+          <ol id="timeline" class="timeline"></ol>
+          <p id="timeline-empty" class="empty-copy">No persisted events yet.</p>
+          <button id="load-earlier" class="button secondary" type="button" hidden>Load earlier events</button>
+          <p id="timeline-count" class="supporting"></p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="confirm-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-copy">
+    <form method="dialog"><h2 id="dialog-title">Confirm action</h2><p id="dialog-copy"></p>
+      <div class="dialog-actions"><button value="cancel" class="button quiet">Go back</button>
+        <button id="dialog-confirm" value="confirm" class="button danger">Confirm</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

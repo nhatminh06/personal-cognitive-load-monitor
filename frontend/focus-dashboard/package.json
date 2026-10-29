@@ -1,0 +1,15 @@
+{
+  "name": "cogniflow-focus-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "node --check ../../src/preprocessing_api/static/focus/dashboard.js && node --check ../../src/preprocessing_api/static/focus/dashboard-state.js",
+    "test": "node --test tests/*.test.js",
+    "build": "npm run typecheck && node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

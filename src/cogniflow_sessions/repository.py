@@ -403,14 +403,41 @@ class FocusSessionRepository:
                 "SELECT window_id, window_start, window_end FROM windows WHERE session_id=? "
                 "ORDER BY window_start", (session_id,)
             ).fetchall()
+            lifecycle = connection.execute(
+                "SELECT event_type, event_time FROM lifecycle_events WHERE session_id=? "
+                "ORDER BY sequence", (session_id,)
+            ).fetchall()
+        confirmed_active_seconds = 0
+        active_start: datetime | None = None
+        for event in lifecycle:
+            when = datetime.fromisoformat(event["event_time"])
+            if event["event_type"] in {"session.started", "session.resumed"}:
+                active_start = when
+            elif active_start is not None:
+                confirmed_active_seconds += max(0, int((when - active_start).total_seconds()))
+                active_start = None
         return {
             "session_id": row["session_id"], "session_kind": row["session_kind"],
             "privacy_mode": row["privacy_mode"],
             "planned_duration_seconds": row["planned_duration_seconds"],
             "state": row["state"], "last_sequence": row["last_sequence"],
             "last_event_time": row["last_event_time"],
+            "confirmed_active_seconds": confirmed_active_seconds,
             "completed_windows": [dict(window) for window in windows],
         }
+
+    def refresh_windows(self, session_id: str, owner: str, now: datetime) -> dict[str, Any]:
+        """Materialize only server-confirmed complete windows in the active segment."""
+
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("refresh time must include a timezone")
+        with self._write() as connection:
+            session = self._owned_session(connection, session_id, owner)
+            self._materialize_windows(
+                connection, session_id, session["state"], session["last_event_time"],
+                now.astimezone(UTC),
+            )
+        return self.session(session_id, owner)
 
     def feature_window(self, session_id: str, window_id: UUID, owner: str) -> dict[str, Any]:
         """Read one owner-scoped completed window and its aggregate feature events."""

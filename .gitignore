@@ -170,6 +170,8 @@ graphify-out/
 reports/security/
 reports/module3/
 mlflow-phase2.db
+frontend/focus-dashboard/node_modules/
+frontend/focus-dashboard/dist/
 
 # Editor and operating-system metadata
 .fleet/

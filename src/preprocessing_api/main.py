@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Response
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 from cogniflow_data.api import router as event_router
 from cogniflow_focus.api import router as focus_inference_router
@@ -32,6 +33,7 @@ from preprocessing_api.service import calculate_cognitive_load
 
 configure_logging()
 DEMO_HTML = (Path(__file__).with_name("static") / "index.html").read_text(encoding="utf-8")
+FOCUS_DASHBOARD = Path(__file__).with_name("static") / "focus"
 
 app = FastAPI(
     title="Personal Cognitive Load Monitoring API",
@@ -51,12 +53,20 @@ app.add_middleware(InferenceActivityMiddleware)
 app.include_router(event_router)
 app.include_router(session_router)
 app.include_router(focus_inference_router)
+app.mount("/focus-assets", StaticFiles(directory=FOCUS_DASHBOARD), name="focus-assets")
 
 
 @app.get("/")
 async def root():
     """Serve the lightweight local demonstration."""
     return HTMLResponse(DEMO_HTML)
+
+
+@app.get("/focus", include_in_schema=False)
+async def focus_dashboard():
+    """Serve the local-first focus-session workspace without changing the legacy demo."""
+
+    return FileResponse(FOCUS_DASHBOARD / "index.html")
 
 
 @app.get("/health")
