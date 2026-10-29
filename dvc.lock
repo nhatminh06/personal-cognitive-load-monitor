@@ -239,3 +239,113 @@ stages:
       hash: md5
       md5: aa53f71c62c4b8006bfd7209dd698efd
       size: 3948
+  multimodal_fixture:
+    cmd: env PYTHONPATH=src uv run python scripts/generate_multimodal_fixture.py
+      --output data/processed/multimodal/source_snapshot.json --samples 90
+      --seed 42
+    deps:
+    - path: scripts/generate_multimodal_fixture.py
+      hash: md5
+      md5: 950ca8b63f1c781ec2dbe794c6a14c36
+      size: 754
+    - path: src/cogniflow_contracts/models.py
+      hash: md5
+      md5: aeab5c7f65692a09f0c96e006d98e2d2
+      size: 17467
+    - path: src/cogniflow_data/multimodal.py
+      hash: md5
+      md5: c34efff2c77340bc5e3d09f7acb5cfa3
+      size: 40431
+    params:
+      params.yaml:
+        multimodal.samples: 90
+        multimodal.seed: 42
+    outs:
+    - path: data/processed/multimodal/source_snapshot.json
+      hash: md5
+      md5: 3d5f1c4884749f36b64453deedce9710
+      size: 275427
+  multimodal_dataset:
+    cmd: env PYTHONPATH=src uv run python scripts/build_multimodal_dataset.py
+      --snapshot data/processed/multimodal/source_snapshot.json
+      --allow-synthetic-fixture --dataset
+      data/processed/multimodal/dataset.jsonl --manifest
+      data/processed/multimodal/dataset.manifest.json --splits
+      data/processed/multimodal/splits.json --random-seed 42
+    deps:
+    - path: data/processed/multimodal/source_snapshot.json
+      hash: md5
+      md5: 3d5f1c4884749f36b64453deedce9710
+      size: 275427
+    - path: scripts/build_multimodal_dataset.py
+      hash: md5
+      md5: 59948081da5ab046cb4a890f20d13155
+      size: 2693
+    - path: src/cogniflow_data/multimodal.py
+      hash: md5
+      md5: c34efff2c77340bc5e3d09f7acb5cfa3
+      size: 40431
+    params:
+      params.yaml:
+        multimodal.seed: 42
+    outs:
+    - path: data/processed/multimodal/dataset.jsonl
+      hash: md5
+      md5: 57469d32e2259a37ee78401013ef2c1e
+      size: 87300
+    - path: data/processed/multimodal/dataset.manifest.json
+      hash: md5
+      md5: 99b16e4f993b6e84918702a6785fc94f
+      size: 34049
+    - path: data/processed/multimodal/splits.json
+      hash: md5
+      md5: 16a2fe6b469e6f93832adb28181c5670
+      size: 4603
+  multimodal_experiments:
+    cmd: env PYTHONPATH=src uv run python scripts/run_multimodal_experiments.py
+      --dataset data/processed/multimodal/dataset.jsonl --manifest
+      data/processed/multimodal/dataset.manifest.json --splits
+      data/processed/multimodal/splits.json --output-dir models/multimodal
+      --report reports/multimodal/engineering-validation.json --tracking-uri
+      sqlite:///data/processed/multimodal/mlflow.db --validation-scope
+      engineering_validation
+    deps:
+    - path: data/processed/multimodal/dataset.jsonl
+      hash: md5
+      md5: 57469d32e2259a37ee78401013ef2c1e
+      size: 87300
+    - path: data/processed/multimodal/dataset.manifest.json
+      hash: md5
+      md5: 99b16e4f993b6e84918702a6785fc94f
+      size: 34049
+    - path: data/processed/multimodal/splits.json
+      hash: md5
+      md5: 16a2fe6b469e6f93832adb28181c5670
+      size: 4603
+    - path: scripts/run_multimodal_experiments.py
+      hash: md5
+      md5: e07c1b5447f26cdd32073eb39bf8223d
+      size: 1239
+    - path: src/cogniflow_data/multimodal.py
+      hash: md5
+      md5: c34efff2c77340bc5e3d09f7acb5cfa3
+      size: 40431
+    outs:
+    - path: data/processed/multimodal/mlartifacts
+      hash: md5
+      md5: 4c5f80448c80153930b73a11fb74d986.dir
+      size: 339693
+      nfiles: 3
+    - path: data/processed/multimodal/mlflow.db
+      hash: md5
+      md5: fdd28da8b6d2c8eb32e52c7b475c8c29
+      size: 954368
+    - path: models/multimodal
+      hash: md5
+      md5: 11010e5fb32b16d8a11db626cabe5009.dir
+      size: 339693
+      nfiles: 3
+    - path: reports/multimodal/engineering-validation.json
+      hash: md5
+      md5: 1a88c60c2d8b1109ea810b4c1b4090bf
+      size: 14484

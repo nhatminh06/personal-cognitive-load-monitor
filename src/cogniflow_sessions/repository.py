@@ -435,3 +435,54 @@ class FocusSessionRepository:
                         key=lambda item: (item["event_time"], item.get("sequence", 0)))
         return {"items": events[offset:offset + limit], "limit": limit, "offset": offset,
                 "total": len(events)}
+
+    def experiment_snapshot(self, owner: str, cutoff: datetime) -> dict[str, Any]:
+        """Read one owner-scoped, point-in-time aggregate snapshot for local experiments."""
+
+        if cutoff.tzinfo is None or cutoff.utcoffset() is None:
+            raise ValueError("snapshot cutoff must include a timezone")
+        cutoff = cutoff.astimezone(UTC)
+        with self._connection() as connection:
+            connection.execute("BEGIN")
+            sessions = connection.execute(
+                "SELECT session_id, session_kind, privacy_mode, state, created_at "
+                "FROM sessions WHERE owner_id=? AND state!='session.cancelled' "
+                "ORDER BY created_at, session_id",
+                (owner,),
+            ).fetchall()
+            session_ids = [row["session_id"] for row in sessions]
+            if not session_ids:
+                connection.commit()
+                return {
+                    "source": "sqlite://focus-session-store", "snapshot_cutoff": cutoff.isoformat(),
+                    "sessions": [], "windows": [], "lifecycle": [], "activity": [],
+                    "cv": [], "labels": [],
+                }
+            placeholders = ",".join("?" for _ in session_ids)
+            windows = connection.execute(
+                f"SELECT window_id, session_id, window_start, window_end FROM windows "
+                f"WHERE session_id IN ({placeholders}) AND window_end<=? "
+                "ORDER BY window_start, window_id",
+                (*session_ids, cutoff.isoformat()),
+            ).fetchall()
+
+            def event_json(table: str, time_column: str) -> list[dict[str, Any]]:
+                rows = connection.execute(
+                    f"SELECT event_json FROM {table} WHERE session_id IN ({placeholders}) "
+                    f"AND {time_column}<=? ORDER BY {time_column}, rowid",
+                    (*session_ids, cutoff.isoformat()),
+                ).fetchall()
+                return [json.loads(row[0]) for row in rows]
+
+            result = {
+                "source": "sqlite://focus-session-store",
+                "snapshot_cutoff": cutoff.isoformat(),
+                "sessions": [dict(row) for row in sessions],
+                "windows": [dict(row) for row in windows],
+                "lifecycle": event_json("lifecycle_events", "event_time"),
+                "activity": event_json("activity_events", "event_time"),
+                "cv": event_json("cv_events", "event_time"),
+                "labels": event_json("effort_labels", "reported_at"),
+            }
+            connection.commit()
+        return result
