@@ -43,6 +43,7 @@ stages:
     deps:
       - scripts/package_engineering_model.py
       - src/cogniflow_kserve/engineering.py
+      - src/preprocessing_api/features.py
       - models/cognitive_load_model.joblib
       - reports/metrics.json
       - data/processed/validation.csv

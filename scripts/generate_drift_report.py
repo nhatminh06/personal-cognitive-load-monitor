@@ -1,4 +1,4 @@
-"""Generate a genuine Evidently data-drift report and machine-readable summary."""
+"""Generate a genuine Evidently HTML data-drift report."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import pandas as pd
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference", default="data/processed/train.csv")
-    parser.add_argument("--current", default="data/processed/test.csv")
+    parser.add_argument("--current", default="data/processed/validation.csv")
     parser.add_argument("--output", default="reports/evidently/data_drift.html")
     return parser.parse_args()
 

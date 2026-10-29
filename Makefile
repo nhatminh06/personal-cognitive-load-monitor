@@ -1,4 +1,4 @@
-.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro notebooks helm-template verify-local clean module2-ingestion module2-lake module2-batch module2-analytics module2-streaming module2-orchestration-dev module2-stop module2-ps
+.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro module1-engineering-repro notebooks helm-template verify-local clean module2-ingestion module2-lake module2-batch module2-analytics module2-streaming module2-orchestration-dev module2-stop module2-ps
 
 install sync:
 	uv sync --all-extras
@@ -21,7 +21,11 @@ train:
 	uv run --extra dev python scripts/train_model.py --input data/raw/sample_data.csv --output models/cognitive_load_model.joblib
 
 drift:
-	uv run --extra dev python scripts/generate_drift_report.py --reference data/processed/train.csv --current data/processed/test.csv --output reports/evidently/data_drift.html
+	uv run --extra dev python scripts/generate_drift_report.py --reference data/processed/train.csv --current data/processed/validation.csv --output reports/evidently/data_drift.html
+
+module1-engineering-repro:
+	uv run dvc repro generate_data train_model package_engineering_model drift_report
+	uv run dvc repro --dry generate_data train_model package_engineering_model drift_report
 
 dvc-repro:
 	uv run --extra dev dvc repro

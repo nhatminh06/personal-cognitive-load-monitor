@@ -19,6 +19,7 @@ from sklearn.ensemble import RandomForestClassifier
 from preprocessing_api.features import FEATURE_NAMES
 
 TRUSTED_TYPES = ["sklearn.tree._tree.Tree"]
+ENGINEERING_CANDIDATES = {"dummy_majority", "logistic_regression", "random_forest"}
 
 
 def _sha256(path: Path) -> str:
@@ -57,11 +58,22 @@ def package_engineering_model(
 
     report = json.loads(report_path.read_text())
     lineage = report.get("lineage", {})
+    mlflow = report.get("mlflow", {})
+    candidate_run_ids = mlflow.get("candidate_run_ids", {})
     if (
         report.get("contract_version") != "2.0"
         or report.get("selected_model") != "random_forest"
         or report.get("validation_scope") != "synthetic_proxy_engineering_only"
         or report.get("exported_joblib_sha256") != source_digest
+        or mlflow.get("experiment") != "cogniflow-module1-engineering-candidates"
+        or not isinstance(candidate_run_ids, dict)
+        or set(candidate_run_ids) != ENGINEERING_CANDIDATES
+        or any(
+            not re.fullmatch(r"[a-f0-9]{32}", str(value))
+            for value in candidate_run_ids.values()
+        )
+        or mlflow.get("selected_run_id")
+        != candidate_run_ids.get(report.get("selected_model"))
         or lineage.get("feature_schema_version") != "1.0"
         or lineage.get("feature_names") != list(FEATURE_NAMES)
         or lineage.get("label_provenance") != "synthetic_proxy"
@@ -103,6 +115,7 @@ def package_engineering_model(
             "model_name": "cognitive-load-engineering",
             "model_version": "engineering-2b",
             "run_id": "not-registered",
+            "engineering_mlflow_run_id": mlflow["selected_run_id"],
             "registered_source": "local-dvc:models/cognitive_load_model.joblib",
             "registered_artifact_sha256": source_digest,
             "source_model_sha256": source_digest,
@@ -147,6 +160,9 @@ def validated_engineering_manifest(model_path: Path, actual_digest: str) -> dict
         or manifest.get("model_name") != "cognitive-load-engineering"
         or manifest.get("model_version") != "engineering-2b"
         or manifest.get("run_id") != "not-registered"
+        or not re.fullmatch(
+            r"[a-f0-9]{32}", str(manifest.get("engineering_mlflow_run_id", ""))
+        )
         or manifest.get("registered_source") != "local-dvc:models/cognitive_load_model.joblib"
         or manifest.get("feature_names") != list(FEATURE_NAMES)
         or manifest.get("label_provenance") != "synthetic_proxy"

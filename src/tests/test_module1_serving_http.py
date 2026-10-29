@@ -74,6 +74,15 @@ def _package(tmp_path: Path) -> tuple[Path, dict]:
         "selected_model": "random_forest",
         "validation_scope": "synthetic_proxy_engineering_only",
         "exported_joblib_sha256": source_digest,
+        "mlflow": {
+            "experiment": "cogniflow-module1-engineering-candidates",
+            "candidate_run_ids": {
+                "dummy_majority": "b" * 32,
+                "logistic_regression": "c" * 32,
+                "random_forest": "a" * 32,
+            },
+            "selected_run_id": "a" * 32,
+        },
         "lineage": {
             "dataset_sha256": "a" * 64,
             "git_revision": "b" * 40,
