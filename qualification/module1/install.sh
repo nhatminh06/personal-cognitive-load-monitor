@@ -32,6 +32,7 @@ actual_commit=$(git -C "$evidence/upstream" rev-parse HEAD)
 
 mkdir -m 0700 "$evidence/raw-rendered"
 cd "$evidence/upstream"
+kubectl kustomize common/kubeflow-namespace/base >../raw-rendered/kubeflow-namespace.yaml
 kubectl kustomize common/cert-manager/base >../raw-rendered/cert-manager.yaml
 kubectl kustomize common/istio/istio-crds/base >../raw-rendered/istio-crds.yaml
 kubectl kustomize common/istio/istio-namespace/base >../raw-rendered/istio-namespace.yaml
@@ -45,6 +46,7 @@ python scripts/prepare_module1_manifests.py --input-dir "$evidence/raw-rendered"
   --output-dir "$evidence/rendered" --evidence "$evidence/manifest-preparation.json"
 python scripts/render_module1_inventory.py --commit "$actual_commit" \
   --output "$evidence/installation.json" \
+  kubeflow-namespace="$evidence/rendered/kubeflow-namespace.yaml" \
   cert-manager="$evidence/rendered/cert-manager.yaml" \
   istio-crds="$evidence/rendered/istio-crds.yaml" \
   istio-namespace="$evidence/rendered/istio-namespace.yaml" \
@@ -53,7 +55,8 @@ python scripts/render_module1_inventory.py --commit "$actual_commit" \
   cluster-local-gateway="$evidence/rendered/cluster-local-gateway.yaml" \
   kserve="$evidence/rendered/kserve.yaml"
 python -m scripts.verify_module1_upstream_inventory --output "$evidence/rendered-inventory.json" \
-  "$evidence/rendered/cert-manager.yaml" "$evidence/rendered/istio-crds.yaml" \
+  "$evidence/rendered/kubeflow-namespace.yaml" "$evidence/rendered/cert-manager.yaml" \
+  "$evidence/rendered/istio-crds.yaml" \
   "$evidence/rendered/istio-namespace.yaml" "$evidence/rendered/istio.yaml" \
   "$evidence/rendered/knative-serving.yaml" "$evidence/rendered/cluster-local-gateway.yaml" \
   "$evidence/rendered/kserve.yaml"
@@ -68,11 +71,19 @@ kind create cluster --name "$cluster" --image "$node_image" --wait 120s
 chmod 0600 "$KUBECONFIG"
 kubectl --context "$context" cluster-info >"$evidence/cluster-info.txt"
 
-for manifest in cert-manager istio-crds istio-namespace istio knative-serving cluster-local-gateway; do
+kubectl --context "$context" apply -f "$evidence/rendered/kubeflow-namespace.yaml"
+kubectl --context "$context" apply -f "$evidence/rendered/cert-manager.yaml"
+kubectl --context "$context" rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
+for manifest in istio-crds istio-namespace istio; do
   kubectl --context "$context" apply -f "$evidence/rendered/$manifest.yaml"
 done
-kubectl --context "$context" rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s
-kubectl --context "$context" apply --server-side --force-conflicts -f "$evidence/rendered/kserve.yaml"
+python scripts/module1_crd_order.py --execute --context "$context" \
+  --manifest "$evidence/rendered/knative-serving.yaml" --component knative \
+  --evidence-dir "$evidence/apply-stages/knative"
+kubectl --context "$context" apply -f "$evidence/rendered/cluster-local-gateway.yaml"
+python scripts/module1_crd_order.py --execute --context "$context" \
+  --manifest "$evidence/rendered/kserve.yaml" --component kserve \
+  --evidence-dir "$evidence/apply-stages/kserve" --server-side
 kubectl --context "$context" wait --for=condition=Ready pods --all --all-namespaces \
   --timeout=300s --field-selector=status.phase!=Succeeded
 

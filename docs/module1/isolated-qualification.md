@@ -78,6 +78,8 @@ disposable run, verify the context name after installation, and then:
    the 16 GiB local budget. Every `kubectl` operation is bound to
    `kind-cogniflow-module1-qualification`; kind writes only to the private
    `NEW_PRIVATE_DIRECTORY/kubeconfig`, never the user's default kubeconfig.
+   Use kubectl 1.34.11 when possible; qualification rejects a client more than one minor
+   from the Kubernetes 1.34.11 server. The host's kubectl 1.37.1 is unsupported for this run.
 2. Generate `build/model-package` with
    `PYTHONPATH=src uv run python scripts/generate_qualification_model.py build/model-package`; build the
    KServe image locally, load it into kind, and set `KSERVE_IMAGE` to its immutable
@@ -90,16 +92,28 @@ disposable run, verify the context name after installation, and then:
    docker buildx build --platform linux/amd64 --load \
      --metadata-file "$EVIDENCE/qualification-image-metadata.json" \
      --file Dockerfile.kserve --tag cogniflow-kserve:qualification .
-   KUBECONFIG="$EVIDENCE/kubeconfig" kind load docker-image \
-     --name cogniflow-module1-qualification cogniflow-kserve:qualification
    export KSERVE_IMAGE="docker.io/library/cogniflow-kserve@$(
      jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' \
        "$EVIDENCE/qualification-image-metadata.json"
    )"
+   KUBECONFIG="$EVIDENCE/kubeconfig" kind load docker-image \
+     --name cogniflow-module1-qualification "$KSERVE_IMAGE"
+   docker exec cogniflow-module1-qualification-control-plane \
+     ctr --namespace k8s.io images inspect docker.io/library/cogniflow-kserve:qualification \
+     | grep -F "@${KSERVE_IMAGE##*@}"
+   docker exec cogniflow-module1-qualification-control-plane \
+     ctr --namespace k8s.io images tag docker.io/library/cogniflow-kserve:qualification \
+     "$KSERVE_IMAGE"
+   docker exec cogniflow-module1-qualification-control-plane \
+     crictl inspecti "$KSERVE_IMAGE"
    ```
 
-   Stop if BuildKit does not report one linux/amd64 manifest digest or the image cannot
-   be loaded into the exact named cluster. The ten control-plane substitutions and their
+   Kind imports the OCI index under the loaded tag rather than retaining its canonical digest
+   name. Stop unless `ctr images inspect` shows the requested index digest before adding that
+   digest alias, or unless `crictl inspecti` resolves the alias afterward. The alias does not
+   replace the digest with the tag; both names point to the verified descriptor. Stop if
+   BuildKit does not report one linux/amd64 manifest digest or the image cannot be loaded into
+   the exact named cluster. The ten control-plane substitutions and their
    exact digests are the complete `rendered_images` map in
    `docs/module1/upstream-source-inventory.json`; changing any one requires new source
    review and authorization.
@@ -108,10 +122,50 @@ disposable run, verify the context name after installation, and then:
    the reviewed host and must be supplied and version-recorded on the separately approved
    disposable host; do not replace the immutable-digest step with a tag-only build.
 3. Authorize qualification separately, then run
-   `qualification/module1/qualify.sh --execute --evidence-dir INSTALL_EVIDENCE_DIRECTORY`.
+   `qualification/module1/qualify.sh --execute --installation-evidence INSTALL_EVIDENCE_DIRECTORY
+   --qualification-evidence NEW_QUALIFICATION_EVIDENCE_DIRECTORY`.
+   The output directory must not exist. This preserves previous failed attempts and records
+   the exact installation hashes and kind-containerd resolution of `KSERVE_IMAGE` before any
+   qualification resource is created.
    It requires strict readiness, HTTP 200 prediction,
-   metadata, internal service routing, observed 1→0→1 KPA behavior, cold activation and a
+   metadata, internal service routing, observed positive→0→positive KPA behavior
+   (2→0→2 in the preserved run), cold activation and a
    successful post-cold prediction, then captures resources, RBAC and the live inventory.
+
+   KServe v0.21.0 propagates InferenceService labels to Knative Service metadata, while its
+   `RevisionTemplateLabelDisallowedList` removes `networking.knative.dev/visibility` from the
+   Revision template. The qualification InferenceService therefore uses both
+   `networking.kserve.io/visibility: cluster-local` and
+   `networking.knative.dev/visibility: cluster-local` as metadata labels, never annotations.
+   The former records KServe's private-ingress intent; the latter is the label Knative Serving
+   enforces on its Service. Qualification fails unless the generated Knative Service has both
+   service labels, no visibility template annotations, and a `.svc.cluster.local` status URL.
+   A failed InferenceService may be updated in place by a separately authorized retry; do not
+   delete it, and use a new qualification evidence directory for every attempt.
+
+   KServe v0.21.0 derives Knative replica annotations from predictor fields. Qualification
+   sets `spec.predictor.minReplicas: 0`, `maxReplicas: 3`, and `scaleTarget: 1` explicitly;
+   top-level annotations alone leave the default minimum of one. Before inference, the
+   script checks the generated Knative Service template for KPA with min=0, max=3, target=1
+   and fails with retained evidence if the effective settings differ.
+
+   Before rendering the InferenceService, qualification validates
+   `build/model-package/cognitive_load_model.skops` and `model-package.json` as the fixed
+   disposable identity, records both hashes, and injects the six exact `MODEL_*` identity
+   values required by `validated_package_manifest()`. These are qualification Pod environment
+   values only; the validator and production configuration are unchanged. A different package,
+   missing digest, altered metadata, or mismatch between the host package and immutable image
+   fails closed. Set `QUALIFICATION_MODEL_PACKAGE` only when intentionally selecting another
+   reviewed disposable package directory.
+
+   The pinned upstream NetworkPolicy allows port 8080 on the cluster-local gateway only from
+   `knative-serving`. The restricted client runs in `cogniflow-qualification`, so qualification
+   adds one separate, evidence-captured NetworkPolicy allowing only Pods with the
+   `qualification-client` label in that exact namespace to reach only the
+   `cluster-local-gateway` Pods on TCP 8081, the exact target port of Knative 1.23's
+   `knative-local-gateway` Service. It does not modify the seven pinned upstream
+   AuthorizationPolicies or their inventory, expose the route publicly, or grant Kubernetes
+   API permissions.
 4. Run `qualification/module1/negative-tests.sh` only against a reviewer-prepared
    qualified matrix copy and the captured snapshot. It proves version, image, CRD,
    autoscaling and route drift fail closed.
@@ -143,3 +197,61 @@ in-cluster provenance ConfigMap is corroborating metadata only, not independent 
 Only an independent human reviewer may copy accepted digests/charts/CRDs into
 `approved_inventory`, set the selected candidate suitable/qualified, and change the matrix
 to `QUALIFIED`. Upstream CI alone cannot authorize that change.
+
+## Authorized recovery from installation-order failures
+
+Pinned Istio contains `Sidecar` resources `ml-pipeline-ui-exception` and
+`notebook-controller-exception` in namespace `kubeflow`. The pinned upstream installation
+order creates `common/kubeflow-namespace/base` first; its immutable render contains the
+`kubeflow` and `kubeflow-system` namespaces plus their NetworkPolicies. Fresh installation
+now preserves that raw render, inventories every identity, and applies it before cert-manager
+and Istio. The controller, CRD and seven-policy expectations do not change.
+
+The pinned Knative render also contains both CRDs and their dependent
+`Image/queue-proxy` and `Certificate/routing-serving-certs` resources. The KServe render
+similarly combines its CRDs with `ClusterServingRuntime` and `ClusterStorageContainer`
+resources. Installation and recovery split only the prepared render for application: they
+record the original and derived SHA-256 hashes and identities, apply CRDs first, wait for
+`Established`, verify the required served version and API discovery, and only then apply the
+remaining resources. The immutable prepared manifests and approved inventory remain unchanged.
+
+For the existing partially installed disposable cluster, do not rerun `install.sh` and do
+not alter the original evidence directory. After separate recovery authorization, run from
+the reviewed repair commit with a new absolute evidence directory:
+
+```bash
+qualification/module1/recover-istio.sh --execute \
+  --original-evidence /absolute/path/to/the/failed-install-evidence \
+  --recovery-evidence /absolute/path/to/a/new-recovery-evidence-directory
+```
+
+The recovery verifies the original manifest hashes and pinned checkout, copies the original
+raw renders into new evidence, adds the exact upstream namespace render, reruns digest and
+inventory checks, captures pre-recovery resources, and applies the complete sequence with
+idempotent Kubernetes apply operations. Each staged application records its own manifest
+hashes, identities and PASS/FAIL result below `apply-stages/`. `set -euo pipefail` and the
+`ERR` trap stop on the first failed apply and retain `recovery.log` plus
+`recovery-result.json`. Each attempt must use a new recovery evidence directory; the original
+installation and every failed recovery directory remain unchanged.
+
+After a successful recovery, the still-separate qualification authorization uses the new
+recovery evidence directory. Cluster deletion remains a third operation and is never called
+by the installer, recovery, or qualification scripts.
+
+Qualification retries may begin with an idle Ready InferenceService. The initial
+prediction activates it before the script requires at least one Ready replica. KPA may
+briefly start more than one within the configured maximum. Checks target
+the current Ready revision, which must receive 100% of traffic. Zero requires a
+converged Deployment with desired and actual replicas zero and no revision Pods.
+Cold prediction and readiness share the original 35-second deadline; a separate
+post-activation prediction must also succeed. Failure snapshots and events are
+captured in the new attempt directory without changing earlier evidence.
+
+After separate qualification execution approval, retry from the repository root
+using Fish (the existing immutable image and installation variables must be set):
+
+```fish
+set retry /var/tmp/cogniflow-module1-qualification-activation-retry-(date -u +%Y%m%dT%H%M%SZ)
+env KSERVE_IMAGE="$KSERVE_IMAGE" qualification/module1/qualify.sh --execute \
+    --installation-evidence "$installation" --qualification-evidence "$retry"
+```

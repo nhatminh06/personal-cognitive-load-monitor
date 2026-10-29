@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-qualification-client-to-cluster-local-gateway
+  namespace: istio-system
+spec:
+  podSelector:
+    matchLabels:
+      app: cluster-local-gateway
+      istio: cluster-local-gateway
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cogniflow-qualification
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qualification-client
+      ports:
+        - {protocol: TCP, port: 8081}

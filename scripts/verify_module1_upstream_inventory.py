@@ -20,6 +20,7 @@ UPSTREAM_CONTROL_PLANE_ALLOW_POLICIES = {
     "knative-serving/istio-webhook",
     "knative-serving/webhook",
 }
+BUILTIN_NAMESPACES = {"default", "kube-node-lease", "kube-public", "kube-system"}
 
 
 def verify(documents: list[dict[str, Any]]) -> dict[str, Any]:
@@ -52,10 +53,24 @@ def verify(documents: list[dict[str, Any]]) -> dict[str, Any]:
             allow_policies.add(identity)
     if allow_policies - UPSTREAM_CONTROL_PLANE_ALLOW_POLICIES:
         raise ValueError(f"unapproved allow-all AuthorizationPolicy: {sorted(allow_policies - UPSTREAM_CONTROL_PLANE_ALLOW_POLICIES)}")
+    created_namespaces = {
+        document.get("metadata", {}).get("name")
+        for document in documents
+        if document.get("kind") == "Namespace"
+    }
+    referenced_namespaces = {
+        document.get("metadata", {}).get("namespace")
+        for document in documents
+        if document.get("metadata", {}).get("namespace")
+    }
+    missing_namespaces = referenced_namespaces - created_namespaces - BUILTIN_NAMESPACES
+    if missing_namespaces:
+        raise ValueError(f"rendered namespace prerequisites are missing: {sorted(missing_namespaces)}")
     return {
         "workloads": sorted(REQUIRED_CONTROLLERS),
         "crds": sorted(relevant_crds),
         "upstream_control_plane_allow_policies": sorted(allow_policies),
+        "namespaces": sorted(created_namespaces),
     }
 
 

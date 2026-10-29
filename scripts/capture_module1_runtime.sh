@@ -61,13 +61,13 @@ if [[ -n "$installation" || -n "$rendered_dir" ]]; then
     actual=$(sha256sum "$rendered_dir/$component.yaml" | cut -d' ' -f1)
     [[ "$actual" == "$expected" ]] || { echo "rendered manifest hash mismatch: $component" >&2; exit 1; }
   done < <(jq -r '.rendered_manifests | to_entries[] | [.key,.value] | @tsv' "$installation")
-  while IFS=$'\t' read -r api_version kind resource_namespace name; do
+  while IFS='|' read -r api_version kind resource_namespace name; do
     resource=$kind
-    [[ "$api_version" == */* ]] && resource="$kind.${api_version#*/}"
+    [[ "$api_version" == */* ]] && resource="$kind.${api_version%/*}"
     resource_args=(get "$resource" "$name" -o name)
     [[ -n "$resource_namespace" ]] && resource_args+=(-n "$resource_namespace")
     "${k[@]}" "${resource_args[@]}" >/dev/null
-  done < <(jq -r '.resource_identities[] | [.apiVersion,.kind,.namespace,.name] | @tsv' "$installation")
+  done < <(jq -r '.resource_identities[] | [.apiVersion,.kind,.namespace,.name] | join("|")' "$installation")
   declared_commit=$("${k[@]}" get configmap cogniflow-serving-inventory -n kserve -o jsonpath='{.data.source_commit}')
   [[ "$declared_commit" == "$(jq -r .source_commit "$installation")" ]] || { echo "source provenance is contradictory" >&2; exit 1; }
 fi
@@ -76,6 +76,21 @@ configuration=$(jq -cn \
   --argjson autoscaler "$("${k[@]}" get configmap config-autoscaler -n knative-serving -o json | jq -c '{"enable-scale-to-zero": .data["enable-scale-to-zero"], "stable-window": .data["stable-window"], "scale-to-zero-grace-period": .data["scale-to-zero-grace-period"]}')" \
   --argjson defaults "$("${k[@]}" get configmap config-defaults -n knative-serving -o json | jq -c '{"revision-timeout-seconds": .data["revision-timeout-seconds"], "revision-response-start-timeout-seconds": .data["revision-response-start-timeout-seconds"], "revision-idle-timeout-seconds": .data["revision-idle-timeout-seconds"]}')" \
   '{autoscaler:$autoscaler, defaults:$defaults}')
+
+kserve=$("${k[@]}" get crd inferenceservices.serving.kserve.io \
+  -o jsonpath='{.metadata.annotations.controller-gen\.kubebuilder\.io/version}' | sed 's/^v//')
+knative=$("${k[@]}" get deployment controller -n knative-serving \
+  -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')
+kubernetes=$("${k[@]}" version -o json | jq -er '.serverVersion.gitVersion | sub("^v"; "")')
+istio=$("${k[@]}" get deployment istiod -n istio-system \
+  -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}')
+cert_manager=$("${k[@]}" get deployment cert-manager -n cert-manager \
+  -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')
+[[ "$kserve" == 0.21.0 && "$knative" == 1.23.0 && "$kubernetes" == 1.34.11 \
+  && "$istio" == 1.31.3 && "$cert_manager" == 1.21.2 ]] || {
+  echo "live serving versions do not match the pinned qualification stack" >&2
+  exit 1
+}
 
 origin= revision_annotations=null
 if [[ "$model" != "-" ]]; then
@@ -86,11 +101,8 @@ if [[ "$model" != "-" ]]; then
 fi
 
 jq -n \
-  --arg kserve "$("${k[@]}" get deployment kserve-controller-manager -n kserve -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')" \
-  --arg knative "$("${k[@]}" get deployment controller -n knative-serving -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')" \
-  --arg kubernetes "$("${k[@]}" version -o json | jq -er '.serverVersion.gitVersion | sub("^v"; "")')" \
-  --arg networking "istio-$("${k[@]}" get deployment istiod -n istio-system -o jsonpath='{.metadata.labels.operator\.istio\.io/version}')" \
-  --arg cert_manager "$("${k[@]}" get deployment cert-manager -n cert-manager -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')" \
+  --arg kserve "$kserve" --arg knative "$knative" --arg kubernetes "$kubernetes" \
+  --arg networking "istio-$istio" --arg cert_manager "$cert_manager" \
   --arg namespace "$namespace" --arg model_name "$model" --arg origin "$origin" \
   --argjson crds "$crds" --argjson controllers "$controller_json" \
   --argjson configuration "$configuration" --argjson installation "$installation_json" \
