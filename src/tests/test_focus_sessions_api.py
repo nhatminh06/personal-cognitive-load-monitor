@@ -202,4 +202,6 @@ def test_concurrent_transition_has_one_winner_and_rolls_back(tmp_path):
     with sqlite3.connect(repository.path) as connection:
         assert connection.execute("SELECT count(*) FROM lifecycle_events").fetchone()[0] == 2
         assert connection.execute("SELECT count(*) FROM outbox").fetchone()[0] == 2
-        assert connection.execute("SELECT version FROM schema_migrations").fetchall() == [(1,), (2,)]
+        assert connection.execute("SELECT version FROM schema_migrations").fetchall() == [
+            (1,), (2,), (3,)
+        ]

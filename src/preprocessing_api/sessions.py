@@ -9,7 +9,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
-from cogniflow_contracts import BehavioralActivityEvent, EffortLabelEvent, SessionLifecycleEvent
+from cogniflow_contracts import (
+    BehavioralActivityEvent,
+    CvFeatureWindowEvent,
+    EffortLabelEvent,
+    SessionLifecycleEvent,
+)
 from cogniflow_sessions import ConflictError, FocusSessionRepository, NotFoundError
 from preprocessing_api.security import authenticated_owner
 
@@ -23,7 +28,7 @@ def get_session_repository() -> FocusSessionRepository:
 
 
 def _server_ingested(
-    event: SessionLifecycleEvent | EffortLabelEvent | BehavioralActivityEvent,
+    event: SessionLifecycleEvent | EffortLabelEvent | BehavioralActivityEvent | CvFeatureWindowEvent,
 ):
     now = datetime.now(UTC)
     if event.event_time > now:
@@ -48,6 +53,23 @@ async def create_session(event: SessionLifecycleEvent, response: Response,
     try:
         result, created = repository.create(_server_ingested(event), owner)
     except (ConflictError, sqlite3.Error) as exc:
+        _raise_repository_error(exc)
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    return result
+
+
+@router.post("/{session_id}/cv-windows", status_code=status.HTTP_201_CREATED)
+async def add_cv_window(
+    session_id: SessionId, event: CvFeatureWindowEvent, response: Response,
+    owner: str = Depends(authenticated_owner),
+    repository: FocusSessionRepository = Depends(get_session_repository),
+):
+    if event.session_id != session_id:
+        raise HTTPException(422, "Path and event session IDs must match")
+    try:
+        result, created = repository.add_cv(_server_ingested(event), owner)
+    except (ConflictError, NotFoundError, sqlite3.Error) as exc:
         _raise_repository_error(exc)
     if not created:
         response.status_code = status.HTTP_200_OK

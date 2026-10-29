@@ -97,6 +97,13 @@ materialized by the owning session. One immutable activity event is allowed per
 window. Identical retries return the stored event; reused event, idempotency, or
 window identities with different content return a conflict.
 
+`POST /sessions/{id}/cv-windows` accepts the strict `CvFeatureWindowEvent`
+under the same API-key ownership boundary. It materializes only elapsed
+five-minute windows in the current active segment, then requires an exact
+window identity and boundaries. SQLite stores validated aggregates only—never
+frames, landmarks, or embeddings. Identical retries are idempotent and different
+data for an occupied window conflicts.
+
 The SQLite transaction appends the activity event and its outbox row together.
 `scripts/publish_focus_outbox.py` drains at most 25 ordered records per run,
 uses the session ID as the Kafka partition key, and marks a row published only
