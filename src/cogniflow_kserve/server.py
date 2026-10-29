@@ -6,6 +6,7 @@ import argparse
 from typing import Any
 
 from fastapi import HTTPException
+from kserve.errors import InvalidInput
 from kserve.model import Model
 from kserve.model_server import ModelServer, app, parser
 
@@ -13,9 +14,9 @@ from cogniflow_kserve.predictor import CogniFlowPredictor
 
 
 class CogniFlowModel(Model):
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, predictor: CogniFlowPredictor | None = None) -> None:
         super().__init__(name)
-        self.predictor = CogniFlowPredictor()
+        self.predictor = predictor or CogniFlowPredictor()
 
     def load(self) -> bool:
         self.ready = self.predictor.load()
@@ -27,7 +28,10 @@ class CogniFlowModel(Model):
         headers: dict[str, str] | None = None,
         response_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        return self.predictor.predict(payload)
+        try:
+            return self.predictor.predict(payload)
+        except ValueError as exc:
+            raise InvalidInput(str(exc)) from exc
 
 
 model: CogniFlowModel | None = None

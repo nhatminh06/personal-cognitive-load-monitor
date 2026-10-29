@@ -113,6 +113,7 @@ def _reset_local_model_cache():
 
 def test_kserve_payload_contains_engineered_features():
     payload = kserve_payload(_request())
+    assert payload["feature_names"] == list(model_client.FEATURE_NAMES)
     assert "instances" in payload
     assert len(payload["instances"][0]) == 6
     assert payload["instances"][0][4] == 0.8
@@ -230,6 +231,21 @@ def test_kserve_expected_provenance_rejects_placeholders(monkeypatch, name, valu
     _kserve_environment(monkeypatch)
     monkeypatch.setenv(name, value)
     with pytest.raises(RuntimeError, match="placeholder or invalid"):
+        model_client._expected_kserve_provenance()
+
+
+def test_engineering_provenance_is_explicit_and_prohibited_in_production(monkeypatch):
+    provenance = _kserve_environment(monkeypatch)
+    monkeypatch.setenv("ALLOW_SYNTHETIC_ENGINEERING_MODEL", "true")
+    monkeypatch.setenv("MODEL_VERSION", "engineering-2b")
+    expected = model_client._expected_kserve_provenance()
+    assert expected["approval_status"] == "engineering_fixture"
+    assert expected["validation_scope"] == "synthetic_proxy_engineering_only"
+
+    provenance.update(expected)
+    assert model_client._validate_kserve_provenance(provenance) == provenance
+    monkeypatch.setenv("APP_ENV", "production")
+    with pytest.raises(RuntimeError, match="prohibited"):
         model_client._expected_kserve_provenance()
 
 

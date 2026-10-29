@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import skops.io
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
 from preprocessing_api.features import FEATURE_NAMES
@@ -19,9 +20,16 @@ def main() -> None:
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
+    features = pd.DataFrame(
+        [
+            [150, 10, 0, 96, 0.9375, 0.0625],
+            [90, 60, 3, 24, 0.6, 0.4],
+            [30, 120, 8, 4, 0.2, 0.8],
+        ],
+        columns=FEATURE_NAMES,
+    )
     model = RandomForestClassifier(n_estimators=2, random_state=22).fit(
-        [[150, 10, 0, 96, 0.9375, 0.0625], [30, 120, 8, 4, 0.2, 0.8]],
-        ["LOW", "HIGH"],
+        features, ["LOW", "MEDIUM", "HIGH"]
     )
     model_path = args.output / "cognitive_load_model.skops"
     skops.io.dump(model, model_path)
