@@ -23,6 +23,7 @@ class PredictionRequest(BaseModel):
     feature_as_of: datetime | None = Field(None, description="UTC timestamp of the source features")
 
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "focus_minutes": 120,

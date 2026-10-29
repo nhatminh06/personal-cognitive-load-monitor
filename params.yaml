@@ -17,6 +17,9 @@ module1_evaluation:
   audit_path: data/processed/previously_observed.csv
   report_path: reports/metrics.json
   tracking_uri: sqlite:///data/processed/module1-evaluation/mlflow.db
+module1_serving:
+  source_sha256: 1a65d25424963d185465183a8f589e30aa8a15b15218074c01e88c4bfab0d893
+  package_path: build/module1-engineering-package
 reports:
   drift_report: reports/evidently/data_drift.html
 historical:

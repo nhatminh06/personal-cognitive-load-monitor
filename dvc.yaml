@@ -38,6 +38,22 @@ stages:
     metrics:
       - reports/metrics.json:
           cache: false
+  package_engineering_model:
+    cmd: uv run --extra dev python scripts/package_engineering_model.py --source-model ${model.output_path} --report ${module1_evaluation.report_path} --validation ${module1_evaluation.validation_path} --expected-source-sha256 ${module1_serving.source_sha256} --output-dir ${module1_serving.package_path}
+    deps:
+      - scripts/package_engineering_model.py
+      - src/cogniflow_kserve/engineering.py
+      - models/cognitive_load_model.joblib
+      - reports/metrics.json
+      - data/processed/validation.csv
+    params:
+      - model.output_path
+      - module1_evaluation.report_path
+      - module1_evaluation.validation_path
+      - module1_serving.source_sha256
+      - module1_serving.package_path
+    outs:
+      - ${module1_serving.package_path}
   drift_report:
     cmd: uv run --extra dev python scripts/generate_drift_report.py --reference ${module1_evaluation.train_path} --current ${module1_evaluation.validation_path} --output ${reports.drift_report}
     deps:

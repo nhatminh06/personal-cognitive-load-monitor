@@ -35,7 +35,7 @@
     ],
     "feature_schema_version": "1.0",
     "git_dirty": true,
-    "git_revision": "b0ed4583b6abbc11e6754f851d965ec60c9b7580",
+    "git_revision": "2e8bac71c76bcb5785db26e178797bb80948399d",
     "label_provenance": "synthetic_proxy",
     "random_seed": 42,
     "split_sha256": "1ed2886659daf196ca47a35f4e987006653fffdc786318a5e3496403c6893d23",

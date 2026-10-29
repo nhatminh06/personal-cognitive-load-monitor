@@ -4,8 +4,28 @@ import hashlib
 import json
 
 import pytest
+from kserve.errors import InvalidInput
 
 from cogniflow_kserve.predictor import CogniFlowPredictor
+from cogniflow_kserve.server import CogniFlowModel
+from preprocessing_api.features import FEATURE_NAMES
+
+
+def _payload(*rows):
+    return {"feature_names": list(FEATURE_NAMES), "instances": list(rows)}
+
+
+def _fake_model(predictions):
+    return type(
+        "Model",
+        (),
+        {
+            "n_features_in_": 6,
+            "feature_names_in_": list(FEATURE_NAMES),
+            "classes_": ["HIGH", "LOW", "MEDIUM"],
+            "predict": lambda self, rows: predictions,
+        },
+    )()
 
 
 def _package(monkeypatch, tmp_path):
@@ -51,12 +71,12 @@ def _package(monkeypatch, tmp_path):
 
 def test_predictor_loads_verified_package_and_predicts(monkeypatch, tmp_path):
     model_path, _, manifest = _package(monkeypatch, tmp_path)
-    fake = type("Model", (), {"predict": lambda self, rows: ["LOW", 2]})()
+    fake = _fake_model(["LOW", 2])
     monkeypatch.setattr("skops.io.load", lambda path, *, trusted: fake)
     predictor = CogniFlowPredictor()
 
     assert predictor.load() is True
-    result = predictor.predict({"instances": [[1, 0, 0, 24, 1, 0], [2, 2, 1, 8, .5, .5]]})
+    result = predictor.predict(_payload([1, 0, 0, 24, 1, 0], [2, 2, 1, 8, .5, .5]))
     assert result == {"predictions": ["LOW", "HIGH"], "provenance": manifest}
     assert predictor.ready is True
     assert model_path.is_file()
@@ -66,15 +86,18 @@ def test_predictor_loads_verified_package_and_predicts(monkeypatch, tmp_path):
     "payload",
     [
         {},
-        {"instances": []},
-        {"instances": [[1, 2]]},
-        {"instances": [[True, 0, 0, 1, 1, 0]]},
-        {"instances": [[float("inf"), 0, 0, 1, 1, 0]]},
+        _payload(),
+        _payload([1, 2]),
+        _payload([True, 0, 0, 1, 1, 0]),
+        _payload([float("inf"), 0, 0, 1, 1, 0]),
+        {"feature_names": ["wrong"], "instances": [[1, 0, 0, 24, 1, 0]]},
+        _payload([-1, 0, 0, 24, 0, 0]),
+        _payload([1, 1, 0, 24, 1, 0]),
     ],
 )
 def test_predictor_rejects_invalid_inputs(monkeypatch, tmp_path, payload):
     _package(monkeypatch, tmp_path)
-    monkeypatch.setattr("skops.io.load", lambda *args, **kwargs: object())
+    monkeypatch.setattr("skops.io.load", lambda *args, **kwargs: _fake_model(["LOW"]))
     predictor = CogniFlowPredictor()
     predictor.load()
     with pytest.raises(ValueError):
@@ -113,14 +136,39 @@ def test_predictor_rejects_missing_model_and_unknown_class(monkeypatch, tmp_path
         CogniFlowPredictor().load()
 
     _package(monkeypatch, tmp_path)
-    fake = type("Model", (), {"predict": lambda self, rows: [1.5]})()
+    fake = _fake_model([1.5])
     monkeypatch.setattr("skops.io.load", lambda *args, **kwargs: fake)
     predictor = CogniFlowPredictor()
     predictor.load()
     with pytest.raises(ValueError, match="unsupported"):
-        predictor.predict({"instances": [[1, 0, 0, 24, 1, 0]]})
+        predictor.predict(_payload([1, 0, 0, 24, 1, 0]))
 
 
 def test_predictor_rejects_inference_before_load():
     with pytest.raises(RuntimeError, match="not ready"):
-        CogniFlowPredictor().predict({"instances": [[1, 0, 0, 24, 1, 0]]})
+        CogniFlowPredictor().predict(_payload([1, 0, 0, 24, 1, 0]))
+
+
+def test_failed_reload_clears_readiness(monkeypatch, tmp_path):
+    model, _, _ = _package(monkeypatch, tmp_path)
+    monkeypatch.setattr("skops.io.load", lambda *args, **kwargs: _fake_model(["LOW"]))
+    predictor = CogniFlowPredictor()
+    predictor.load()
+    assert predictor.ready is True
+
+    model.unlink()
+    with pytest.raises(ValueError, match="unavailable"):
+        predictor.load()
+    assert predictor.ready is False
+    assert predictor.model is None
+    assert predictor.provenance is None
+
+
+def test_model_adapter_maps_invalid_client_input(monkeypatch):
+    predictor = CogniFlowPredictor()
+    predictor.ready = True
+    predictor.model = _fake_model(["LOW"])
+    predictor.provenance = {"model_name": "classifier"}
+    model = CogniFlowModel("classifier", predictor=predictor)
+    with pytest.raises(InvalidInput, match="exact feature names"):
+        model.predict({"instances": [[1, 0, 0, 24, 1, 0]]})

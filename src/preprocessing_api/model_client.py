@@ -41,10 +41,20 @@ _local_model_provenance: dict[str, Any] | None = None
 _ZERO_SHA256 = "0" * 64
 
 
-def kserve_payload(request: PredictionRequest) -> dict[str, list[list[float]]]:
+def kserve_payload(request: PredictionRequest) -> dict[str, Any]:
     """Build a V1 inference payload accepted by common KServe sklearn servers."""
 
-    return {"instances": [feature_vector(request.model_dump())]}
+    return {
+        "feature_names": list(FEATURE_NAMES),
+        "instances": [feature_vector(request.model_dump())],
+    }
+
+
+def _engineering_model_enabled() -> bool:
+    enabled = os.getenv("ALLOW_SYNTHETIC_ENGINEERING_MODEL", "false").lower() == "true"
+    if enabled and is_production():
+        raise RuntimeError("synthetic engineering models are prohibited in production")
+    return enabled
 
 
 def _extract_prediction(payload: dict[str, Any]) -> CognitiveLoadLevel:
@@ -115,7 +125,9 @@ _validated_package_manifest = validated_package_manifest
 
 
 def _expected_kserve_provenance() -> dict[str, str]:
+    engineering = _engineering_model_enabled()
     expected = {
+        "approval_status": "engineering_fixture" if engineering else "approved",
         "model_name": os.getenv("MODEL_NAME", ""),
         "model_version": os.getenv("MODEL_VERSION", ""),
         "registered_artifact_sha256": os.getenv("MODEL_ARTIFACT_SHA256", ""),
@@ -123,11 +135,16 @@ def _expected_kserve_provenance() -> dict[str, str]:
         "dataset_sha256": os.getenv("MODEL_DATASET_SHA256", ""),
         "feature_schema_version": os.getenv("MODEL_FEATURE_SCHEMA_VERSION", ""),
     }
+    if engineering:
+        expected["validation_scope"] = "synthetic_proxy_engineering_only"
     if any(not value for value in expected.values()):
         raise RuntimeError("KServe expected provenance is incomplete")
     if (
         not re.fullmatch(r"[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?", expected["model_name"])
-        or not re.fullmatch(r"[1-9][0-9]*", expected["model_version"])
+        or not (
+            re.fullmatch(r"[1-9][0-9]*", expected["model_version"])
+            or engineering and expected["model_version"] == "engineering-2b"
+        )
         or any(
             not re.fullmatch(r"[a-f0-9]{64}", expected[name])
             or expected[name] == _ZERO_SHA256

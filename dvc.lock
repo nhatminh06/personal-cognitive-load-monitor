@@ -87,7 +87,7 @@ stages:
       size: 1539617
     - path: reports/metrics.json
       hash: md5
-      md5: c2370cda4a8a70e275602797e85f62e0
+      md5: 6f849c963df8fd9225476f751a4f958d
       size: 7402
   drift_report:
     cmd: uv run --extra dev python scripts/generate_drift_report.py --reference
@@ -407,4 +407,46 @@ stages:
       hash: md5
       md5: f40a61241540f666e364def9786b40fb.dir
       size: 2276899
+      nfiles: 2
+  package_engineering_model:
+    cmd: uv run --extra dev python scripts/package_engineering_model.py
+      --source-model models/cognitive_load_model.joblib --report
+      reports/metrics.json --validation data/processed/validation.csv
+      --expected-source-sha256
+      1a65d25424963d185465183a8f589e30aa8a15b15218074c01e88c4bfab0d893
+      --output-dir build/module1-engineering-package
+    deps:
+    - path: data/processed/validation.csv
+      hash: md5
+      md5: 73ef967813119253ba3adbfc7bef18ac
+      size: 6640
+    - path: models/cognitive_load_model.joblib
+      hash: md5
+      md5: a7b46845606216830b42f2672ad18691
+      size: 1539617
+    - path: reports/metrics.json
+      hash: md5
+      md5: 6f849c963df8fd9225476f751a4f958d
+      size: 7402
+    - path: scripts/package_engineering_model.py
+      hash: md5
+      md5: 819de1830574db9dbed40a84ddb06892
+      size: 954
+    - path: src/cogniflow_kserve/engineering.py
+      hash: md5
+      md5: f7fc5ca8a2770fd333119d2f6ca9605e
+      size: 7194
+    params:
+      params.yaml:
+        model.output_path: models/cognitive_load_model.joblib
+        module1_evaluation.report_path: reports/metrics.json
+        module1_evaluation.validation_path: data/processed/validation.csv
+        module1_serving.package_path: build/module1-engineering-package
+        module1_serving.source_sha256:
+          1a65d25424963d185465183a8f589e30aa8a15b15218074c01e88c4bfab0d893
+    outs:
+    - path: build/module1-engineering-package
+      hash: md5
+      md5: 54aec7b7ddeee2bb69b1dd4f2190fdbe.dir
+      size: 4840390
       nfiles: 2
