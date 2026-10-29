@@ -15,6 +15,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from cogniflow_contracts import (
     BehavioralActivityEvent,
+    CvFeatureWindowEvent,
     EffortLabelEvent,
     SessionLifecycleEvent,
     effort_band,
@@ -61,6 +62,14 @@ _MIGRATIONS = (
     ALTER TABLE outbox ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE outbox ADD COLUMN last_attempt_at TEXT;
     CREATE INDEX activity_timeline ON activity_events(session_id, event_time);
+    """,
+    """
+    CREATE TABLE cv_events (
+      event_id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(session_id),
+      window_id TEXT NOT NULL UNIQUE REFERENCES windows(window_id),
+      idempotency_key TEXT NOT NULL UNIQUE, event_time TEXT NOT NULL, event_json TEXT NOT NULL
+    );
+    CREATE INDEX cv_timeline ON cv_events(session_id, event_time);
     """,
 )
 
@@ -135,7 +144,7 @@ class FocusSessionRepository:
 
     @staticmethod
     def _json(
-        event: SessionLifecycleEvent | EffortLabelEvent | BehavioralActivityEvent,
+        event: SessionLifecycleEvent | EffortLabelEvent | BehavioralActivityEvent | CvFeatureWindowEvent,
     ) -> str:
         return event.model_dump_json()
 
@@ -154,8 +163,9 @@ class FocusSessionRepository:
             "SELECT event_json FROM lifecycle_events WHERE event_id=? OR idempotency_key=? "
             "UNION ALL SELECT event_json FROM effort_labels WHERE event_id=? OR idempotency_key=? "
             "UNION ALL SELECT event_json FROM activity_events WHERE event_id=? OR idempotency_key=? "
+            "UNION ALL SELECT event_json FROM cv_events WHERE event_id=? OR idempotency_key=? "
             "LIMIT 1",
-            (str(event_id), key, str(event_id), key, str(event_id), key),
+            (str(event_id), key, str(event_id), key, str(event_id), key, str(event_id), key),
         ).fetchone()
         return row[0] if row else None
 
@@ -327,6 +337,38 @@ class FocusSessionRepository:
             )
         return json.loads(serialized), True
 
+    def add_cv(self, event: CvFeatureWindowEvent, owner: str) -> tuple[dict[str, Any], bool]:
+        serialized = self._json(event)
+        with self._write() as connection:
+            session = self._owned_session(connection, event.session_id, owner)
+            existing = self._existing(connection, event.event_id, event.idempotency_key)
+            if existing is not None:
+                if self._same_request(existing, serialized):
+                    return json.loads(existing), False
+                raise ConflictError("Event identity or idempotency key is already in use")
+            if session["state"] in {"session.started", "session.resumed"}:
+                self._materialize_windows(
+                    connection, event.session_id, session["state"],
+                    session["last_event_time"], min(event.window_end, datetime.now(UTC)),
+                )
+            window = connection.execute(
+                "SELECT window_start, window_end FROM windows WHERE window_id=? AND session_id=?",
+                (str(event.window_id), event.session_id),
+            ).fetchone()
+            if window is None or (event.window_start.isoformat(), event.window_end.isoformat()) != (
+                window["window_start"], window["window_end"]
+            ):
+                raise ConflictError("CV event must reference a completed session window")
+            try:
+                connection.execute(
+                    "INSERT INTO cv_events VALUES (?, ?, ?, ?, ?, ?)",
+                    (str(event.event_id), event.session_id, str(event.window_id),
+                     event.idempotency_key, event.event_time.isoformat(), serialized),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ConflictError("Window already has a CV event") from exc
+        return json.loads(serialized), True
+
     def pending_outbox(self, limit: int = 100) -> list[dict[str, Any]]:
         if not 1 <= limit <= 100:
             raise ValueError("outbox limit must be between 1 and 100")
@@ -386,7 +428,10 @@ class FocusSessionRepository:
             activity = [json.loads(row[0]) for row in connection.execute(
                 "SELECT event_json FROM activity_events WHERE session_id=?", (session_id,)
             )]
-        events = sorted(lifecycle + windows + labels + activity,
+            cv = [json.loads(row[0]) for row in connection.execute(
+                "SELECT event_json FROM cv_events WHERE session_id=?", (session_id,)
+            )]
+        events = sorted(lifecycle + windows + labels + activity + cv,
                         key=lambda item: (item["event_time"], item.get("sequence", 0)))
         return {"items": events[offset:offset + limit], "limit": limit, "offset": offset,
                 "total": len(events)}
