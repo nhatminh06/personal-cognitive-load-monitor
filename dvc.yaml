@@ -12,31 +12,42 @@ stages:
     outs:
       - data/raw/sample_data.csv
   train_model:
-    cmd: uv run --extra dev python scripts/train_model.py --input data/raw/sample_data.csv --output models/cognitive_load_model.joblib
+    cmd: uv run --extra dev python scripts/train_model.py --input ${data.raw_path} --output ${model.output_path} --report ${module1_evaluation.report_path} --train-output ${module1_evaluation.train_path} --validation-output ${module1_evaluation.validation_path} --audit-output ${module1_evaluation.audit_path} --train-fraction ${module1_evaluation.train_fraction} --validation-fraction ${module1_evaluation.validation_fraction} --random-seed ${module1_evaluation.random_seed} --experiment-name ${module1_evaluation.experiment_name} --tracking-uri ${module1_evaluation.tracking_uri}
     deps:
       - scripts/train_model.py
+      - src/cogniflow_data/training.py
       - src/data_generator.py
       - src/preprocessing_api/features.py
       - data/raw/sample_data.csv
     params:
       - model.output_path
-      - model.experiment_name
-      - model.registered_model_name
+      - module1_evaluation.random_seed
+      - module1_evaluation.train_fraction
+      - module1_evaluation.validation_fraction
+      - module1_evaluation.experiment_name
+      - module1_evaluation.train_path
+      - module1_evaluation.validation_path
+      - module1_evaluation.audit_path
+      - module1_evaluation.report_path
+      - module1_evaluation.tracking_uri
     outs:
       - data/processed/train.csv
-      - data/processed/test.csv
+      - data/processed/validation.csv
+      - data/processed/previously_observed.csv
       - models/cognitive_load_model.joblib
     metrics:
       - reports/metrics.json:
           cache: false
   drift_report:
-    cmd: uv run --extra dev python scripts/generate_drift_report.py --reference data/processed/train.csv --current data/processed/test.csv --output ${reports.drift_report}
+    cmd: uv run --extra dev python scripts/generate_drift_report.py --reference ${module1_evaluation.train_path} --current ${module1_evaluation.validation_path} --output ${reports.drift_report}
     deps:
       - scripts/generate_drift_report.py
       - data/processed/train.csv
-      - data/processed/test.csv
+      - data/processed/validation.csv
     params:
       - reports.drift_report
+      - module1_evaluation.train_path
+      - module1_evaluation.validation_path
     outs:
       - reports/evidently/data_drift.html:
           cache: false

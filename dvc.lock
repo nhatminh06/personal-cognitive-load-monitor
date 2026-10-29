@@ -27,6 +27,12 @@ stages:
   train_model:
     cmd: uv run --extra dev python scripts/train_model.py --input
       data/raw/sample_data.csv --output models/cognitive_load_model.joblib
+      --report reports/metrics.json --train-output data/processed/train.csv
+      --validation-output data/processed/validation.csv --audit-output
+      data/processed/previously_observed.csv --train-fraction 0.6
+      --validation-fraction 0.2 --random-seed 42 --experiment-name
+      cogniflow-module1-engineering-candidates --tracking-uri
+      sqlite:///data/processed/module1-evaluation/mlflow.db
     deps:
     - path: data/raw/sample_data.csv
       hash: md5
@@ -34,8 +40,12 @@ stages:
       size: 25104
     - path: scripts/train_model.py
       hash: md5
-      md5: 9971ed2a26d16b19604a494ca228798e
-      size: 6415
+      md5: d7ea2dc40c3aab5dfc962dfb1e6c78da
+      size: 17080
+    - path: src/cogniflow_data/training.py
+      hash: md5
+      md5: 15287159951839b8aa5ceddb650a2a12
+      size: 13522
     - path: src/data_generator.py
       hash: md5
       md5: 85ba66184277b063773185671c97ef9f
@@ -46,51 +56,66 @@ stages:
       size: 765
     params:
       params.yaml:
-        model.experiment_name: personal-cognitive-load-monitor
         model.output_path: models/cognitive_load_model.joblib
-        model.registered_model_name: cognitive-load-classifier
+        module1_evaluation.audit_path: data/processed/previously_observed.csv
+        module1_evaluation.experiment_name:
+          cogniflow-module1-engineering-candidates
+        module1_evaluation.random_seed: 42
+        module1_evaluation.report_path: reports/metrics.json
+        module1_evaluation.tracking_uri:
+          sqlite:///data/processed/module1-evaluation/mlflow.db
+        module1_evaluation.train_fraction: 0.6
+        module1_evaluation.train_path: data/processed/train.csv
+        module1_evaluation.validation_fraction: 0.2
+        module1_evaluation.validation_path: data/processed/validation.csv
     outs:
-    - path: data/processed/test.csv
+    - path: data/processed/previously_observed.csv
       hash: md5
-      md5: e9ce1efb124f98711b9919885e7e4de2
-      size: 6235
+      md5: 61c19b94cb09a525994518e72177b58b
+      size: 6631
     - path: data/processed/train.csv
       hash: md5
-      md5: d491f12f19682da82268756dc516d42e
-      size: 24788
+      md5: 032713681eb26a5532ad54d1fd34d31c
+      size: 19855
+    - path: data/processed/validation.csv
+      hash: md5
+      md5: 73ef967813119253ba3adbfc7bef18ac
+      size: 6640
     - path: models/cognitive_load_model.joblib
       hash: md5
-      md5: 7a600eaae6fa82f1bed7965ee285d2dc
-      size: 1866298
+      md5: a7b46845606216830b42f2672ad18691
+      size: 1539617
     - path: reports/metrics.json
       hash: md5
-      md5: 1f4b950075932d3522290800d04b5a26
-      size: 1974
+      md5: c2370cda4a8a70e275602797e85f62e0
+      size: 7402
   drift_report:
     cmd: uv run --extra dev python scripts/generate_drift_report.py --reference
-      data/processed/train.csv --current data/processed/test.csv --output
+      data/processed/train.csv --current data/processed/validation.csv --output
       reports/evidently/data_drift.html
     deps:
-    - path: data/processed/test.csv
-      hash: md5
-      md5: e9ce1efb124f98711b9919885e7e4de2
-      size: 6235
     - path: data/processed/train.csv
       hash: md5
-      md5: d491f12f19682da82268756dc516d42e
-      size: 24788
+      md5: 032713681eb26a5532ad54d1fd34d31c
+      size: 19855
+    - path: data/processed/validation.csv
+      hash: md5
+      md5: 73ef967813119253ba3adbfc7bef18ac
+      size: 6640
     - path: scripts/generate_drift_report.py
       hash: md5
       md5: 02214fe5c290a63707093551dd07dd4a
       size: 1617
     params:
       params.yaml:
+        module1_evaluation.train_path: data/processed/train.csv
+        module1_evaluation.validation_path: data/processed/validation.csv
         reports.drift_report: reports/evidently/data_drift.html
     outs:
     - path: reports/evidently/data_drift.html
       hash: md5
-      md5: edb356aaae3017b3620ceb45fe5c05a1
-      size: 3986357
+      md5: 27f6b74c5f2275630cd5843b12be88b3
+      size: 3989361
   historical_features:
     cmd: env PYTHONPATH=src uv run python scripts/build_historical_features.py
       --input tests/fixtures/historical_features.json --output
