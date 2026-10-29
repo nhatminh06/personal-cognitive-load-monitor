@@ -5,11 +5,12 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 from kserve import ModelRepository
-from kserve.errors import ModelNotReady
+from kserve.errors import InvalidInput, ModelNotReady
 from kserve.protocol.dataplane import DataPlane
 from kserve.protocol.rest.v1_endpoints import V1Endpoints
 
 from cogniflow_kserve import server
+from scripts.serve_engineering_model import _invalid_input_handler
 
 
 def test_metadata_endpoint_returns_only_loaded_verified_provenance(monkeypatch):
@@ -41,3 +42,10 @@ def test_kserve_020_liveness_and_model_readiness_contract():
         "name": "classifier",
         "ready": True,
     }
+
+
+def test_engineering_invalid_input_handler_returns_bounded_client_error():
+    response = asyncio.run(_invalid_input_handler(None, InvalidInput("invalid fixture")))
+
+    assert response.status_code == 400
+    assert response.body == b'{"error":"invalid fixture"}'
