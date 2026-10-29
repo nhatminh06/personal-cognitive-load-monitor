@@ -14,17 +14,24 @@ The immutable production chain is:
 
 ```text
 DVC dataset digest -> training run -> MLflow registered numeric version
--> independent approval metadata -> artifact-tree SHA-256 verification
+-> independently signed approval predicate -> artifact-tree SHA-256 verification
 -> .skops-only package -> OCI repository digest -> deployment -> prediction provenance
 ```
 
-`scripts/package_approved_model.py` checks the exact registry identity,
-`approval_status=approved`, approver/time, registered and downloaded tree
-digests, `.skops` format, dataset/git/schema provenance and canonical six
-features without deserializing the model. The serving processes then recheck
-the package manifest and model digest before loading. Missing, corrupt,
-unapproved or mismatched material fails closed; production never selects
-`demo_rule` implicitly.
+`scripts/package_approved_model.py` checks the exact registry identity, mutable
+`approval_status=approved`/approver/time tags, registered and downloaded tree
+digests, `.skops` format, and dataset/git/schema provenance without
+deserializing the model. These checks do **not** authenticate an approver:
+`scripts/approve_model_candidate.py` accepts a caller-supplied actor and writes
+approval tags with the same MLflow authority. Packaging and release therefore
+remain blocked until the trust-root and signed binding in
+[`model-selection-policy.md`](model-selection-policy.md) are implemented.
+
+Serving rechecks the unsigned package manifest and model digest before loading;
+that provides integrity after a trusted package is chosen, not independent
+authorization. A future release must verify a signed exact model tuple and bind
+it to the exact package and OCI digest. Missing or mismatched material fails
+closed; production never selects `demo_rule` implicitly.
 
 The existing candidate remains unchanged and unapproved. GCS is artifact
 storage; PostgreSQL is the required durable MLflow registry metadata store.

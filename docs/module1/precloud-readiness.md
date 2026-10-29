@@ -12,6 +12,23 @@ This report is the authoritative Module I pre-cloud status. Source, prior local
 runtime evidence, current offline checks, future isolated-kind evidence and
 future GKE evidence are deliberately separate.
 
+## Current model-selection correction
+
+The model-quality and authorization policy is now documented in
+[`model-selection-policy.md`](model-selection-policy.md). The current synthetic
+random forest is not selected or approved: its recorded accuracy/macro-F1
+(`0.88`/`0.8678356121965144`) are lower than the directly comparable logistic
+candidate (`0.96`/`0.9514687100893998`), and the pipeline has no separate
+validation split or predeclared selection rule. Mutable MLflow approval tags and
+a caller-supplied actor are not independent authorization. A signed approval
+predicate and signed model/package-to-image binding remain unimplemented.
+
+PR #30 is merged, but its local kind evidence decision still requires an
+independent reviewer. Model selection, scientific validation, release
+authorization, kind acceptance, GKE compatibility, and compatibility-matrix
+promotion remain separate gates. Nothing in this correction changes the
+**NO-GO** cloud decision below.
+
 ## Source and pull-request dependency
 
 The branch order is:
