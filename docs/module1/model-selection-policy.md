@@ -13,21 +13,20 @@ independently authenticated approval. Versions 8 and 10 are the only entries
 with the recorded dataset hash, synthetic label provenance, six-feature
 signature, evaluation artifact, and Git source tags; neither passes this policy.
 
-`reports/metrics.json` compares candidates on the same 500-row synthetic
-dataset, date-sorted 400/100 split, six ordered features, preprocessing path,
-and metric functions:
+`reports/metrics.json` now compares candidates on the same 500-row synthetic
+dataset, deterministic 60/20/20 timestamp-group split, six ordered features,
+train-only preprocessing path, and metric functions:
 
 | Candidate | Accuracy | Macro F1 | Interpretation |
 |---|---:|---:|---|
-| Rule-label identity check | 1.00 | 1.00 | `y_test` compared with itself; not a predictive baseline |
-| Dummy majority | 0.60 | 0.25 | Minimum predictive baseline |
-| Logistic regression | 0.96 | 0.9514687100893998 | Best recorded predictive candidate |
-| Registered random forest | 0.88 | 0.8678356121965144 | Selected by code without a recorded selection rule |
+| Dummy majority | 0.65 | 0.2626262626262626 | Minimum predictive baseline |
+| Logistic regression | 0.86 | 0.8036356678147722 | Linear scaled baseline |
+| Random forest | 0.90 | 0.8800607287449393 | Selected engineering candidate |
 
-The random forest is not justified by recorded performance. The logistic result
-does not automatically justify selecting logistic regression: one test partition
-is serving as model-selection evidence, there is no validation partition, and
-labels are derived from the same rule represented by the features.
+The random forest is justified only as the winner of this declared engineering
+comparison. The final 20% was previously observed and is an audit partition,
+not a blind independent test. Labels remain derived from a deterministic proxy
+rule represented by the features, so selection does not establish validity.
 
 ## Evidence gates
 
@@ -139,7 +138,8 @@ uv sync --frozen --all-extras
 uv run dvc status
 uv run dvc repro generate_data train_model drift_report
 sha256sum data/raw/sample_data.csv data/processed/train.csv \
-  data/processed/test.csv models/cognitive_load_model.joblib reports/metrics.json
+  data/processed/validation.csv data/processed/previously_observed.csv \
+  models/cognitive_load_model.joblib reports/metrics.json
 uv run dvc repro generate_data train_model drift_report
 uv run dvc status
 ```
@@ -152,9 +152,9 @@ predictions, metrics, membership, and documented serialization variance.
 
 ## Current blockers
 
-- no validation split or predeclared selection rule;
-- no group identity/overlap assertion; duplicate dates can cross the split;
-- selected random forest underperforms the logistic baseline;
+- no blind independent test partition or genuine-label external evaluation;
+- source data lacks subject/session identifiers, so person-level overlap cannot
+  be demonstrated even though the pipeline rejects overlap when identifiers exist;
 - versions 1–11 lack independently authenticated approval;
 - DVC does not bind an MLflow version or registered skops digest;
 - broad ambient dependency snapshots are not minimal serving locks;
