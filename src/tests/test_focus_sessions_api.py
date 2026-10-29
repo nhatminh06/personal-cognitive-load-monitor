@@ -104,6 +104,7 @@ def test_lifecycle_windows_labels_corrections_and_timeline(session_client):
 
     state = client.get(f"/sessions/{session_id}", headers=HEADERS).json()
     assert state["state"] == "session.completed"
+    assert state["confirmed_active_seconds"] == 11 * 60
     assert len(state["completed_windows"]) == 2
     window = state["completed_windows"][0]
     reported = START + timedelta(minutes=20)
@@ -169,6 +170,26 @@ def test_rejects_illegal_order_identity_and_incomplete_window(session_client):
     incomplete["effort_rating"] = 5
     assert client.post(f"/sessions/{session_id}/labels", json=incomplete,
                        headers=HEADERS).status_code == 409
+
+
+def test_active_window_refresh_is_server_authoritative(session_client, monkeypatch):
+    client, _ = session_client
+    session_id = "s-refresh"
+    started = lifecycle(session_id, "started", 1, START)
+    assert client.post("/sessions", json=started, headers=HEADERS).status_code == 201
+
+    class ServerClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return START + timedelta(minutes=6)
+
+    monkeypatch.setattr("preprocessing_api.sessions.datetime", ServerClock)
+    response = client.post(f"/sessions/{session_id}/windows/refresh", headers=HEADERS)
+    assert response.status_code == 200
+    assert len(response.json()["completed_windows"]) == 1
+    assert client.post(
+        f"/sessions/{session_id}/windows/refresh", headers=HEADERS
+    ).json()["completed_windows"] == response.json()["completed_windows"]
 
 
 def test_concurrent_transition_has_one_winner_and_rolls_back(tmp_path):

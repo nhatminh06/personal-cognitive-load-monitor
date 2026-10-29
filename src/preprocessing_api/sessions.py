@@ -120,11 +120,31 @@ async def add_activity_window(
     return result
 
 
+@router.get("/auth-check")
+async def session_auth_check(owner: str = Depends(authenticated_owner)):
+    """Validate focus-dashboard credentials without exposing owner identity."""
+
+    return {"authenticated": bool(owner)}
+
+
 @router.get("/{session_id}")
 async def get_session(session_id: SessionId, owner: str = Depends(authenticated_owner),
                 repository: FocusSessionRepository = Depends(get_session_repository)):
     try:
         return repository.session(session_id, owner)
+    except (NotFoundError, sqlite3.Error) as exc:
+        _raise_repository_error(exc)
+
+
+@router.post("/{session_id}/windows/refresh")
+async def refresh_session_windows(
+    session_id: SessionId, owner: str = Depends(authenticated_owner),
+    repository: FocusSessionRepository = Depends(get_session_repository),
+):
+    """Return session state after materializing full windows through server time."""
+
+    try:
+        return repository.refresh_windows(session_id, owner, datetime.now(UTC))
     except (NotFoundError, sqlite3.Error) as exc:
         _raise_repository_error(exc)
 
