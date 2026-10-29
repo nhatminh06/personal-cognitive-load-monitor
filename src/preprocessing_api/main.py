@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from cogniflow_data.api import router as event_router
+from cogniflow_focus.api import router as focus_inference_router
 from preprocessing_api.model_client import (
     predict_with_kserve,
     predict_with_local_model,
@@ -49,6 +50,7 @@ app.add_middleware(SecurityMiddleware)
 app.add_middleware(InferenceActivityMiddleware)
 app.include_router(event_router)
 app.include_router(session_router)
+app.include_router(focus_inference_router)
 
 
 @app.get("/")

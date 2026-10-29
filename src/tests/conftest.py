@@ -15,6 +15,14 @@ if str(SRC_DIR) not in sys.path:
 from preprocessing_api.main import app  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def isolate_api_key_environment(monkeypatch):
+    """Keep developer-shell credentials from changing test route semantics."""
+
+    monkeypatch.delenv("COGNIFLOW_API_KEY", raising=False)
+    monkeypatch.delenv("EVENT_API_KEY", raising=False)
+
+
 @pytest.fixture
 def client():
     """Use HTTPX's ASGI transport without TestClient's host-thread portal."""

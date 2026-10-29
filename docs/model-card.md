@@ -7,7 +7,10 @@ LOW/MEDIUM/HIGH projection are documented in
 [`focus-session/contracts.md`](focus-session/contracts.md). PR 5 produces only
 local experimental candidates as documented in
 [`focus-session/multimodal-experiments.md`](focus-session/multimodal-experiments.md).
-No focus-session model is approved, packaged, promoted, or served.
+PR 6 can package one synthetic candidate and serve it only in explicit local
+test-fixture mode, as documented in
+[`focus-session/model-packaging-serving.md`](focus-session/model-packaging-serving.md).
+No focus-session model is approved, registered, promoted, or production-served.
 
 > **This is not a medical, psychological, neurological, workplace-surveillance,
 > or diagnostic system.** It is an educational MLOps demonstration. Predictions

@@ -254,8 +254,8 @@ stages:
       size: 17467
     - path: src/cogniflow_data/multimodal.py
       hash: md5
-      md5: c34efff2c77340bc5e3d09f7acb5cfa3
-      size: 40431
+      md5: e0fecafa6d62b4f23764845fa1c91efa
+      size: 41463
     params:
       params.yaml:
         multimodal.samples: 90
@@ -283,8 +283,8 @@ stages:
       size: 2693
     - path: src/cogniflow_data/multimodal.py
       hash: md5
-      md5: c34efff2c77340bc5e3d09f7acb5cfa3
-      size: 40431
+      md5: e0fecafa6d62b4f23764845fa1c91efa
+      size: 41463
     params:
       params.yaml:
         multimodal.seed: 42
@@ -295,7 +295,7 @@ stages:
       size: 87300
     - path: data/processed/multimodal/dataset.manifest.json
       hash: md5
-      md5: 99b16e4f993b6e84918702a6785fc94f
+      md5: 31cac7018b9ccf8bdfd773cc29096590
       size: 34049
     - path: data/processed/multimodal/splits.json
       hash: md5
@@ -316,7 +316,7 @@ stages:
       size: 87300
     - path: data/processed/multimodal/dataset.manifest.json
       hash: md5
-      md5: 99b16e4f993b6e84918702a6785fc94f
+      md5: 31cac7018b9ccf8bdfd773cc29096590
       size: 34049
     - path: data/processed/multimodal/splits.json
       hash: md5
@@ -328,24 +328,58 @@ stages:
       size: 1239
     - path: src/cogniflow_data/multimodal.py
       hash: md5
-      md5: c34efff2c77340bc5e3d09f7acb5cfa3
-      size: 40431
+      md5: e0fecafa6d62b4f23764845fa1c91efa
+      size: 41463
     outs:
     - path: data/processed/multimodal/mlartifacts
       hash: md5
-      md5: 4c5f80448c80153930b73a11fb74d986.dir
+      md5: c5d92a29d5b18e80ec8be33a81b02c2d.dir
       size: 339693
       nfiles: 3
     - path: data/processed/multimodal/mlflow.db
       hash: md5
-      md5: fdd28da8b6d2c8eb32e52c7b475c8c29
+      md5: b02d6fd462b5c736514f143ec543f332
       size: 954368
     - path: models/multimodal
       hash: md5
-      md5: 11010e5fb32b16d8a11db626cabe5009.dir
-      size: 339693
-      nfiles: 3
+      md5: a679fad8cfa8544103250829ab21d193.dir
+      size: 4844054
+      nfiles: 6
     - path: reports/multimodal/engineering-validation.json
       hash: md5
-      md5: 1a88c60c2d8b1109ea810b4c1b4090bf
-      size: 14484
+      md5: 0e7b9b6bfd8b9826b67dc21c46ceb39e
+      size: 15219
+  focus_fixture_package:
+    cmd: env PYTHONPATH=src uv run python scripts/package_focus_model.py --model
+      models/multimodal/experiment-C.skops --report
+      reports/multimodal/engineering-validation.json --dataset-manifest
+      data/processed/multimodal/dataset.manifest.json --output-dir
+      models/focus-fixture --modality C --model-name focus-effort-fixture
+      --model-version 1
+    deps:
+    - path: data/processed/multimodal/dataset.manifest.json
+      hash: md5
+      md5: 31cac7018b9ccf8bdfd773cc29096590
+      size: 34049
+    - path: models/multimodal/experiment-C.skops
+      hash: md5
+      md5: 2d719d864f3a56f3c5f6fea86a3c8b2e
+      size: 2274029
+    - path: reports/multimodal/engineering-validation.json
+      hash: md5
+      md5: 0e7b9b6bfd8b9826b67dc21c46ceb39e
+      size: 15219
+    - path: scripts/package_focus_model.py
+      hash: md5
+      md5: 91319fdf7f2fdc478045436f29466dd9
+      size: 1099
+    - path: src/cogniflow_focus/package.py
+      hash: md5
+      md5: 5b7ca2f553db727d8b793f3a37860e66
+      size: 13043
+    outs:
+    - path: models/focus-fixture
+      hash: md5
+      md5: f40a61241540f666e364def9786b40fb.dir
+      size: 2276899
+      nfiles: 2
