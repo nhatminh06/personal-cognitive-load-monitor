@@ -23,7 +23,7 @@
       "python": "3.11.17",
       "scikit-learn": "1.9.1"
     },
-    "dvc_pipeline_sha256": "ff50ca93c5c424f5317492e97494b94dac1b6ef09ecf3f0a97ddfd6e439ac8ce",
+    "dvc_pipeline_sha256": "d9dae5b97fd63bfeb88eb5d30c8633d255d83f034ba2c3ad780ad06bbf26d21e",
     "feature_code_sha256": "fe3c4b7e3ebb8547dd01f67ae74ce2e04943763f29eb366538bbfad06aaddd1f",
     "feature_names": [
       "focus_minutes",
@@ -35,13 +35,21 @@
     ],
     "feature_schema_version": "1.0",
     "git_dirty": true,
-    "git_revision": "2e8bac71c76bcb5785db26e178797bb80948399d",
+    "git_revision": "f394f80f7e8209c28f195e64f1298b7ed058ee3a",
     "label_provenance": "synthetic_proxy",
     "random_seed": 42,
     "split_sha256": "1ed2886659daf196ca47a35f4e987006653fffdc786318a5e3496403c6893d23",
-    "training_code_sha256": "b91c9d8125d3533cb219e12c8589eb69dc4dceab753c70da767f464a399fb1bd"
+    "training_code_sha256": "8f9bf4a1236f7ee5675bc27f11d1730918beaed6108c5dbcfde71ef4200e2a2d"
   },
-  "mlflow_experiment": "cogniflow-module1-engineering-candidates",
+  "mlflow": {
+    "candidate_run_ids": {
+      "dummy_majority": "94e004420de2471d8ac2cc3ceccce40f",
+      "logistic_regression": "b3dea4963ac848b88ada7c8c5f190b1c",
+      "random_forest": "955e7b2acc9440f1985c820029e8a48f"
+    },
+    "experiment": "cogniflow-module1-engineering-candidates",
+    "selected_run_id": "955e7b2acc9440f1985c820029e8a48f"
+  },
   "models": {
     "dummy_majority": {
       "parameters": {

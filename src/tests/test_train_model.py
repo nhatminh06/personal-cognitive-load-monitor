@@ -194,10 +194,17 @@ def test_mlflow_is_isolated_and_records_lineage_without_registration(
     runs = client.search_runs([experiment.experiment_id])
     assert len(runs) == len(CANDIDATE_ORDER)
     assert not client.search_registered_models()
+    assert set(report["mlflow"]["candidate_run_ids"]) == set(CANDIDATE_ORDER)
+    assert report["mlflow"]["selected_run_id"] == report["mlflow"][
+        "candidate_run_ids"
+    ][report["selected_model"]]
     for run in runs:
         assert run.data.params["feature_schema_version"] == "1.0"
         assert run.data.params["validation_scope"] == "synthetic_proxy_engineering_only"
         assert len(run.data.params["split_sha256"]) == 64
         assert "validation_macro_f1" in run.data.metrics
+        assert report["mlflow"]["candidate_run_ids"][run.data.params["model_type"]] == (
+            run.info.run_id
+        )
     assert report["registry_mutation"] == "none"
     assert json.loads((tmp_path / "report.json").read_text())["selected_model"] == report["selected_model"]

@@ -48,6 +48,15 @@ def _source(tmp_path: Path) -> tuple[Path, Path, Path]:
                 "selected_model": "random_forest",
                 "validation_scope": "synthetic_proxy_engineering_only",
                 "exported_joblib_sha256": digest,
+                "mlflow": {
+                    "experiment": "cogniflow-module1-engineering-candidates",
+                    "candidate_run_ids": {
+                        "dummy_majority": "b" * 32,
+                        "logistic_regression": "c" * 32,
+                        "random_forest": "a" * 32,
+                    },
+                    "selected_run_id": "a" * 32,
+                },
                 "lineage": {
                     "dataset_sha256": "a" * 64,
                     "git_revision": "b" * 40,
@@ -88,6 +97,7 @@ def test_real_package_and_predictor_match_offline_model(monkeypatch, tmp_path):
         expected_source_sha256=source_digest,
     )
     assert manifest["approval_status"] == "engineering_fixture"
+    assert manifest["engineering_mlflow_run_id"] == "a" * 32
     assert manifest["approved_by"] is None
     assert skops.io.get_untrusted_types(
         file=package / "cognitive_load_model.skops"
@@ -114,6 +124,14 @@ def test_packaging_rejects_digest_report_and_unexpected_types(monkeypatch, tmp_p
         )
 
     payload = json.loads(report.read_text())
+    payload["mlflow"]["selected_run_id"] = "d" * 32
+    report.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="report is incompatible"):
+        package_engineering_model(
+            source, report, validation, tmp_path / "lineage", expected_source_sha256=digest
+        )
+
+    payload["mlflow"]["selected_run_id"] = "a" * 32
     payload["lineage"]["feature_names"] = ["wrong"]
     report.write_text(json.dumps(payload))
     with pytest.raises(ValueError, match="report is incompatible"):

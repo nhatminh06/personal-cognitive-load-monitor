@@ -323,8 +323,10 @@ def train(
 
         mlflow.set_tracking_uri(tracking_uri)
         _set_experiment(mlflow, tracking_uri, experiment_name)
+        run_ids: dict[str, str] = {}
         for name in CANDIDATE_ORDER:
-            with mlflow.start_run(run_name=name):
+            with mlflow.start_run(run_name=name) as run:
+                run_ids[name] = run.info.run_id
                 mlflow.log_params(
                     {
                         "model_type": name,
@@ -356,10 +358,15 @@ def train(
                     input_example=validation_frame[FEATURE_COLUMNS].head(2),
                     skops_trusted_types=["sklearn.tree._tree.Tree"],
                 )
-                if name == selected_name:
-                    mlflow.log_dict(report, "evaluation.json")
-        report["mlflow_experiment"] = experiment_name
+        report["mlflow"] = {
+            "experiment": experiment_name,
+            "candidate_run_ids": run_ids,
+            "selected_run_id": run_ids[selected_name],
+        }
         report["registry_mutation"] = "none"
+        mlflow.MlflowClient().log_dict(
+            run_ids[selected_name], report, "evaluation.json"
+        )
     else:
         report["mlflow_status"] = "not_configured"
         if os.getenv("REQUIRE_MLFLOW", "false").lower() == "true":

@@ -40,8 +40,8 @@ stages:
       size: 25104
     - path: scripts/train_model.py
       hash: md5
-      md5: d7ea2dc40c3aab5dfc962dfb1e6c78da
-      size: 17080
+      md5: b90ccb6fc291a2215bd42e1e50224ae4
+      size: 17304
     - path: src/cogniflow_data/training.py
       hash: md5
       md5: 15287159951839b8aa5ceddb650a2a12
@@ -87,8 +87,8 @@ stages:
       size: 1539617
     - path: reports/metrics.json
       hash: md5
-      md5: 6f849c963df8fd9225476f751a4f958d
-      size: 7402
+      md5: c74c92d6cbe5250f1e526bbf82799771
+      size: 7691
   drift_report:
     cmd: uv run --extra dev python scripts/generate_drift_report.py --reference
       data/processed/train.csv --current data/processed/validation.csv --output
@@ -104,8 +104,8 @@ stages:
       size: 6640
     - path: scripts/generate_drift_report.py
       hash: md5
-      md5: 02214fe5c290a63707093551dd07dd4a
-      size: 1617
+      md5: 67c38f92c5d98151bc48c1ed6f54bd1d
+      size: 1599
     params:
       params.yaml:
         module1_evaluation.train_path: data/processed/train.csv
@@ -114,7 +114,7 @@ stages:
     outs:
     - path: reports/evidently/data_drift.html
       hash: md5
-      md5: 27f6b74c5f2275630cd5843b12be88b3
+      md5: 19c14b88424e3b12564ab2e3f85bba55
       size: 3989361
   historical_features:
     cmd: env PYTHONPATH=src uv run python scripts/build_historical_features.py
@@ -426,16 +426,20 @@ stages:
       size: 1539617
     - path: reports/metrics.json
       hash: md5
-      md5: 6f849c963df8fd9225476f751a4f958d
-      size: 7402
+      md5: c74c92d6cbe5250f1e526bbf82799771
+      size: 7691
     - path: scripts/package_engineering_model.py
       hash: md5
       md5: 819de1830574db9dbed40a84ddb06892
       size: 954
     - path: src/cogniflow_kserve/engineering.py
       hash: md5
-      md5: f7fc5ca8a2770fd333119d2f6ca9605e
-      size: 7194
+      md5: 3925eb6881d16fbe5af4f8b04dd50b27
+      size: 7996
+    - path: src/preprocessing_api/features.py
+      hash: md5
+      md5: 95e43ee56e121e8162b6a72f21b9616a
+      size: 765
     params:
       params.yaml:
         model.output_path: models/cognitive_load_model.joblib
@@ -447,6 +451,6 @@ stages:
     outs:
     - path: build/module1-engineering-package
       hash: md5
-      md5: 54aec7b7ddeee2bb69b1dd4f2190fdbe.dir
-      size: 4840390
+      md5: cfd20cf1c6a9bfcfe9715d97d790ef50.dir
+      size: 4840457
       nfiles: 2

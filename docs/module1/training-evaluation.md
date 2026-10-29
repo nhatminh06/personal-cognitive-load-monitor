@@ -13,16 +13,17 @@ approves, packages, or promotes a model.
 
 ```fish
 uv sync --frozen --all-extras
-uv run dvc repro generate_data train_model drift_report
-uv run dvc repro package_engineering_model
-uv run dvc repro --dry train_model drift_report
+make module1-engineering-repro
 ```
 
 `reports/metrics.json` records dataset, split, pipeline-definition, parameter,
 Git, feature-schema, dependency, membership, candidate-parameter, validation,
-selection, audit-status, and exported-artifact identities. A clean second DVC
-run proves unchanged declared outputs; MLflow run IDs and timestamps are not DVC
-outputs. If local DVC objects are unavailable, restore them from the configured
+selection, audit-status, exported-artifact identities, and the three candidate
+MLflow run IDs. The selected run ID is copied into the engineering package as
+`engineering_mlflow_run_id`; `run_id` remains `not-registered`, so this does not
+imply registry mutation or approval. Run IDs change when training is deliberately
+re-executed, while predictions, metrics, and the joblib digest remain deterministic.
+A clean second DVC run proves unchanged declared outputs. If local DVC objects are unavailable, restore them from the configured
 local remote or regenerate only through declared stages—never copy unverified
 outputs from another worktree.
 
