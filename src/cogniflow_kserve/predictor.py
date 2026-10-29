@@ -76,12 +76,15 @@ class CogniFlowPredictor:
             values = [float(value) for value in row]
             if not all(math.isfinite(value) for value in values):
                 raise ValueError("features must be finite")
+            if any(not value.is_integer() for value in values[:3]):
+                raise ValueError("integer features must not be fractional")
             try:
                 request = PredictionRequest(
-                    focus_minutes=values[0],
-                    distraction_minutes=values[1],
-                    tasks_due=values[2],
+                    focus_minutes=int(values[0]),
+                    distraction_minutes=int(values[1]),
+                    tasks_due=int(values[2]),
                     hours_to_deadline=values[3],
+                    feature_as_of=None,
                 )
             except ValueError as exc:
                 raise ValueError("raw feature values violate the input contract") from exc

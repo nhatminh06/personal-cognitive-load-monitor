@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import argparse
+from http import HTTPStatus
 
+from fastapi.responses import JSONResponse
 from kserve.model_server import ModelServer, parser
+from kserve.protocol.rest import server as rest_server
 
 from cogniflow_kserve.engineering import validated_engineering_manifest
 from cogniflow_kserve.predictor import CogniFlowPredictor
 from cogniflow_kserve import server
 from cogniflow_kserve.server import CogniFlowModel
 from preprocessing_api.security import is_production
+
+
+async def _invalid_input_handler(_, exc: Exception) -> JSONResponse:
+    return JSONResponse(status_code=HTTPStatus.BAD_REQUEST, content={"error": str(exc)})
 
 
 def main() -> None:
@@ -23,6 +30,7 @@ def main() -> None:
     model = CogniFlowModel(args.model_name, predictor=predictor)
     model.load()
     server.model = model
+    rest_server.invalid_input_handler = _invalid_input_handler
     ModelServer().start([model])
 
 

@@ -11,15 +11,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MODEL_PACKAGE_PATH=/app/models/model-package.json
 
 WORKDIR /app
+ARG MODEL_PACKAGE_DIR=build/model-package
 COPY --from=uv /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
-COPY build/model-package/cognitive_load_model.skops ./models/cognitive_load_model.skops
-COPY build/model-package/model-package.json ./models/model-package.json
+COPY ${MODEL_PACKAGE_DIR}/cognitive_load_model.skops ./models/cognitive_load_model.skops
+COPY ${MODEL_PACKAGE_DIR}/model-package.json ./models/model-package.json
 RUN uv sync --frozen --extra kserve --no-dev --no-install-project \
     && python -m pip uninstall -y pip setuptools
 ENV PATH="/app/.venv/bin:${PATH}"
 
 COPY src ./src
+COPY scripts/serve_engineering_model.py ./scripts/serve_engineering_model.py
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
 USER appuser
 

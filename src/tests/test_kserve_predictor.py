@@ -90,6 +90,8 @@ def test_predictor_loads_verified_package_and_predicts(monkeypatch, tmp_path):
         _payload([1, 2]),
         _payload([True, 0, 0, 1, 1, 0]),
         _payload([float("inf"), 0, 0, 1, 1, 0]),
+        _payload([1.5, 0, 0, 1, 1, 0]),
+        _payload([1.0000000000001, 0, 0, 1, 1, 0]),
         {"feature_names": ["wrong"], "instances": [[1, 0, 0, 24, 1, 0]]},
         _payload([-1, 0, 0, 24, 0, 0]),
         _payload([1, 1, 0, 24, 1, 0]),

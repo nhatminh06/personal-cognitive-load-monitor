@@ -37,6 +37,17 @@ def test_standalone_inferenceservice_is_internal_and_restricted():
     assert container["resources"]["limits"] == {"cpu": "1", "memory": "1Gi"}
 
 
+def test_kserve_image_keeps_production_defaults_and_supports_engineering_package():
+    dockerfile = (ROOT / "Dockerfile.kserve").read_text()
+
+    assert "ARG MODEL_PACKAGE_DIR=build/model-package" in dockerfile
+    assert "COPY ${MODEL_PACKAGE_DIR}/cognitive_load_model.skops" in dockerfile
+    assert "COPY ${MODEL_PACKAGE_DIR}/model-package.json" in dockerfile
+    assert "COPY scripts/serve_engineering_model.py" in dockerfile
+    assert "USER appuser" in dockerfile
+    assert 'ENTRYPOINT ["python", "-m", "cogniflow_kserve.server"]' in dockerfile
+
+
 def test_helm_kserve_render_is_custom_digest_pinned_and_internal():
     rendered = subprocess.run(
         [
