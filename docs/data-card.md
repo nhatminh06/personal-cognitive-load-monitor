@@ -28,8 +28,8 @@ For each of `n_samples` rows (default 500, see `params.yaml`):
 3. `distraction_minutes = total_minutes - focus_minutes`.
 4. `tasks_due` ~ `randint(0, 10)`.
 5. `hours_to_deadline` ~ `uniform(0.5, 168.0)`.
-6. `date` = `reference_date - randint(0, 30) days` — a descriptive field only,
-   never used as a model feature.
+6. `date` = `start_date + 12 hours * row_index`, serialized to `YYYY-MM-DD` — a
+   split-order field, not a model feature. Two consecutive rows can share a date.
 
 ## Label generation — read this before trusting any accuracy number
 
@@ -54,16 +54,14 @@ the reported metrics do and do not show.
 ## Reproducibility
 
 - Random seed: `data.seed` in `params.yaml` (default `42`).
-- Reference date: `data.reference_date` in `params.yaml` (default
-  `"2026-01-01"`), passed explicitly so the "date" column doesn't change
-  between runs on different days. Before this was fixed, `data_generator.py`
-  used `datetime.now()` directly, which meant a `dvc repro` run today and the
-  same run tomorrow would report the raw CSV as changed even with an
-  identical seed — verified and fixed as part of this PR (see
-  [`verification.md`](verification.md) for the before/after `dvc repro`
-  evidence).
-- Verified locally: running `dvc repro` twice in a row with no source changes
-  reports `Data and pipelines are up to date` for all three stages.
+- Start timestamp: `data.start_date` in `params.yaml` (currently
+  `2025-01-01T00:00:00+00:00`).
+- DVC locks the generator, seed, start timestamp, raw CSV, processed splits,
+  joblib output, and metrics file. It does not bind an MLflow numeric version
+  or registered skops digest to that lock.
+- The current isolated review worktree does not have every locked output in its
+  local DVC cache. A fresh two-run reproduction has therefore not been claimed
+  by this documentation correction.
 
 Reproduce:
 
@@ -75,7 +73,7 @@ uv run --extra dev dvc repro
 
 | Field | Type | Range | Used as model feature? |
 |---|---|---|---|
-| `date` | string (YYYY-MM-DD) | last 30 days before `reference_date` | No — descriptive only |
+| `date` | string (YYYY-MM-DD) | starts at `data.start_date`; advances every two rows | No — split ordering only |
 | `focus_minutes` | int | ≥0 (generated 72–432) | Yes |
 | `distraction_minutes` | int | ≥0 (generated 24–336) | Yes |
 | `tasks_due` | int | 0–10 | Yes |
@@ -95,23 +93,25 @@ From `reports/metrics.json` (regenerate with `dvc repro` — do not treat this
 snapshot as fixed forever):
 
 ```json
-{"MEDIUM": 285, "LOW": 123, "HIGH": 92}
+{"MEDIUM": 305, "LOW": 120, "HIGH": 75}
 ```
 
-Classes are imbalanced (MEDIUM dominates); `train_model.py` uses
-`class_weight="balanced"` in the classifier and stratified train/test
-splitting to avoid the split itself introducing additional imbalance.
+The current report's test partition contains 24 LOW, 60 MEDIUM, and 16 HIGH
+rows. Classes are imbalanced; the selected random forest uses
+`class_weight="balanced"`. The split is not stratified: rows are sorted by
+`date`, then divided positionally at 80%. Because two rows can share a date, a
+date group can cross the split boundary. The current pipeline does not check
+group overlap because the synthetic rows contain no person or session identity.
 
 ## Known biases and limitations
 
 - **No real individual differences.** The generator has no concept of a
   specific person, chronotype, task type, or interruption cost — everything
   is drawn independently and uniformly within fixed ranges.
-- **No temporal or session structure.** Rows are independent; there is no
-  within-day or within-user correlation, so any train/test split is
-  equivalent to a random split (there is no user/session to leak across,
-  which is also why no user-based split is needed here — see
-  `notebooks/02_data_processing.ipynb` for that reasoning stated explicitly).
+- **No person or session structure.** Rows are generated independently and
+  cannot demonstrate person-level generalization. The chronological positional
+  split is not equivalent to an independently verified group split, and its
+  absence of identifiers prevents a group-overlap assertion.
 - **No demographic attributes exist**, so no fairness/bias claims across
   demographic groups can or should be made from this dataset.
 - **Label circularity** (above) means this dataset cannot support a claim of
@@ -120,16 +120,14 @@ splitting to avoid the split itself introducing additional imbalance.
 
 ## Privacy
 
-No personally identifiable information is collected, generated, or stored.
-There are no real users. If this project were ever extended to collect real
-behavioral data, see [`responsible-use.md`](responsible-use.md) for the
-opt-in, data-minimization, and consent requirements that would need to be
-implemented first — none of that collection infrastructure exists today.
+The legacy tracked training dataset contains no real users or personally
+identifiable information. Separate opt-in focus-session collection paths now
+exist, but their local/private records are not part of this dataset and are not
+evidence for this classifier. See [`responsible-use.md`](responsible-use.md).
 
 ## DVC versioning
 
 Tracked via `dvc.yaml` (`generate_data` → `train_model` → `drift_report`
-stages) and locked in `dvc.lock` after `dvc repro`. `.dvc/config` currently
-points `remote "storage"` at `s3://CHANGE_ME_DVC_BUCKET/...` — a placeholder,
-not a real, credentialed remote. No `dvc push` has been run against a real
-remote as part of this work; only local pipeline reproduction was verified.
+stages) and locked in `dvc.lock`. `.dvc/config` currently points `storage` to
+the local filesystem path `../../.dvc-storage`; availability of every locked
+object must be checked before attempting reproduction in an isolated worktree.
