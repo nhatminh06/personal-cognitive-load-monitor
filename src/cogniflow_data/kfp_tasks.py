@@ -241,6 +241,7 @@ def register_candidate(
                 "test_macro_f1": evaluation["test"]["macro_f1"],
             }
         )
+        mlflow.log_dict(manifest, "dataset-manifest.json")
         mlflow.log_dict(evaluation, "evaluation.json")
         model_info = mlflow.sklearn.log_model(
             selected,

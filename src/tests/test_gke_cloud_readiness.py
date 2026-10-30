@@ -345,6 +345,15 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert "release:\n    needs: test" in workflow
     assert "name: production-release" in workflow
     assert "id-token: write" in workflow
+    assert "model_run_id:" in workflow
+    approval = workflow.index("- name: Approve exact educational candidate after Environment review")
+    packaging = workflow.index("- name: Package independently approved model")
+    assert approval < packaging
+    assert "scripts/approve_model_candidate.py" in workflow
+    assert "--expected-run-id \"$MODEL_RUN_ID\"" in workflow
+    assert "--environment production-release" in workflow
+    assert "--actor" not in workflow
+    assert 'GITHUB_WORKFLOW_REF' in workflow
     assert "scripts/package_approved_model.py" in workflow
     assert "--provenance=mode=max --sbom=true" in workflow
     assert 'cosign sign "$reference"' in workflow
@@ -356,9 +365,9 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' in workflow
     assert "module1-build.json" in workflow
     for identity in (
-        "git_commit", "release_run_id", "model_name", "model_version",
+        "git_commit", "release_run_id", "model_name", "model_version", "model_run_id",
         "registered_artifact_sha256", "model_sha256", "dataset_sha256",
-        "model_git_revision", "feature_schema_version", "label_provenance",
+        "model_git_revision", "feature_schema_version", "label_provenance", "approval_scope",
         "api_image", "kserve_image",
     ):
         assert identity in workflow
