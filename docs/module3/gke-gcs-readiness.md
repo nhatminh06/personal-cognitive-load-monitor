@@ -10,7 +10,7 @@ One regional GKE Standard cluster hosts the bounded demonstration. The Terraform
 |---|---|---|
 | `cogniflow` | FastAPI and KServe Standard predictor | none; immutable images contain the approved serving package |
 | `kubeflow` | standalone KFP control plane and one serialized training run | KFP metadata PVC; export final run evidence |
-| `mlflow` | MLflow tracking/registry and metadata database | encrypted regional persistent disk plus backups; artifacts in private GCS |
+| `mlflow` | One private MLflow tracking/registry replica | SQLite metadata on a persistent disk; proxied artifacts in private GCS |
 | `knative-serving` / `knative-eventing` | Knative controllers, Broker and Triggers | Broker delivery state as provided by the pinned implementation |
 | `cogniflow-eventing` | persistent logging consumer, anomaly detector and alert sink | bounded PVCs for logs, detector state and transactional outbox |
 | `monitoring` | optional dashboards/collectors only when capacity remains | short bounded retention |
@@ -33,7 +33,7 @@ Resolve every image/chart to a registry digest and archive the resolution before
 | cert-manager | `1.18.2` | Matches Phase 5 verification; verify upstream support against the chosen GKE patch |
 | ingress-nginx | chart `4.15.1`, controller `1.15.1` | Upstream lists Kubernetes 1.34 support; the project is archived, so replacement is a post-demo decision |
 | External Secrets Operator | chart `2.13.0` | Namespaced Google Secret Manager delivery through Workload Identity |
-| MLflow / PostgreSQL | MLflow `3.17.2`; PostgreSQL `17.6` | Private services; resolve the PostgreSQL image and every transitive image to reviewed digests before plan |
+| MLflow | `3.17.2` from the digest-pinned KFP component image | One private replica; persistent SQLite registry metadata and GCS artifacts |
 | Cosign / Trivy | `3.1.4` / `0.76.1` | Deploy gate verifies keyless GitHub identity and scans the exact Artifact Registry digest |
 | Terraform Google provider | lock file `5.45.2` | `terraform validate` must pass using the committed lock |
 
@@ -43,14 +43,14 @@ GKE currently lists 1.34 in the Regular channel, but availability rolls out per 
 
 Terraform creates a dedicated private GCS Standard bucket for MLflow artifacts with uniform bucket-level access, public-access prevention, object versioning, a 30-day retention policy and deletion of noncurrent versions after 45 days. `force_destroy=false` prevents teardown from silently deleting evidence. The MLflow Google service account has bucket-local object administration; the KServe account has bucket-local read only. Kubernetes service accounts impersonate those identities through GKE Workload Identity. No JSON service-account key is accepted.
 
-MLflow's metadata database is not stored in GCS. The selected design is PostgreSQL 17.6 as one private `StatefulSet` with a 20 GiB encrypted regional persistent disk, PodDisruptionBudget, topology spread and no public Service. A daily `pg_dump --format=custom` CronJob writes through a dedicated backup identity to `backups/postgresql/YYYY-MM-DD/`, with 30-day retention and a monthly restore into an isolated validation database. Schema migration is a single pre-MLflow Job; SQLite is forbidden. Exact PostgreSQL and backup image digests, PVC StorageClass and restore transcript remain plan-time blockers.
+MLflow metadata and model-registry records are stored in one SQLite database on a 2 GiB `ReadWriteOnce` PVC. The one-replica Deployment uses `Recreate` and one MLflow worker so two processes cannot write the database concurrently. MLflow proxies client artifact traffic to `gs://<model_bucket>/artifacts`, using the existing `mlflow/mlflow` Workload Identity; KFP and the release client need private MLflow HTTP access rather than GCS credentials. This is sufficient for the serialized educational workflow, but is not highly available and must be replaced by a managed database before concurrent or production use. `deploy/gke/mlflow.yaml` intentionally has no ingress and must be rendered with an exact KFP/MLflow image digest, project ID and bucket name before apply.
 
 Artifact paths are immutable by convention: `candidates/<model>/<run-id>/<artifact-digest>/...` and `approved/<model>/<version>/<package-digest>/...`. The promotion record must include source revision, KFP run, dataset/schema/model/artifact/package SHA-256 values, approver and timestamp. KServe receives read-only access and deploys only an explicitly approved package; candidates remain non-deployable.
 
 ## Security boundaries
 
 - Private GKE nodes use a dedicated VPC/subnet, Private Google Access and logged Cloud NAT. The public control-plane endpoint is restricted to explicit `/32` operator/VPN ranges.
-- Dataplane V2 has NetworkPolicy enforcement built in. Terraform deliberately does not set the incompatible cluster `network_policy` field; GKE documents that explicitly enabling or disabling it with `ADVANCED_DATAPATH` fails. The checked-in namespace default-deny and workload policies allow only DNS, the Dataplane V2 metadata endpoint, KServe, Knative, monitoring and alert-sink flows.
+- Dataplane V2 has NetworkPolicy enforcement built in. Terraform deliberately does not set the incompatible cluster `network_policy` field; GKE documents that explicitly enabling or disabling it with `ADVANCED_DATAPATH` fails. The MLflow policy additionally permits outbound TCP 443 so the artifact proxy can reach GCS; without reviewed Private Google APIs DNS/VIP configuration this is broad HTTPS egress, not GCS-only enforcement. Other checked-in workload policies remain limited to DNS, the Dataplane V2 metadata endpoint, KServe, Knative, monitoring and alert-sink flows.
 - Images come from private Artifact Registry and are referenced by `sha256` digest. Node read is repository-scoped. Separate OIDC service accounts bind Artifact Registry publication to the protected `production-release` environment and cluster discovery to the protected `production` environment; neither uses a permanent key.
 - TLS and an externally created authentication Secret are mandatory for production ingress. Terraform creates only Secret Manager metadata, never a secret version. External Secrets Operator 2.13.0 uses the annotated `cogniflow-api` KSA/GSA to create only the namespaced `cogniflow-api` Secret from `cogniflow-api-key`; plaintext values never enter Terraform, Git or Helm values.
 - `deploy/gke/cogniflow-guardrails.yaml` applies restricted Pod Security Admission, default deny, ResourceQuota, LimitRange and a namespace-only deployer binding. Platform namespaces need their own reviewed policies before installation; no cluster-admin binding is accepted.
