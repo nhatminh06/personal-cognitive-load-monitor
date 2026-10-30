@@ -9,7 +9,7 @@ required_requests:
   gke_kfp_kserve_controllers: {cpu_millicores: 1400, memory_mib: 5120}
   knative_serving_networking_autoscaler: {cpu_millicores: 700, memory_mib: 2048}
   fastapi_and_predictor: {cpu_millicores: 700, memory_mib: 3072}
-  mlflow_and_postgresql: {cpu_millicores: 700, memory_mib: 4096}
+  mlflow_sqlite: {cpu_millicores: 100, memory_mib: 512}
   event_consumers: {cpu_millicores: 400, memory_mib: 1536}
   serialized_training_run: {cpu_millicores: 1400, memory_mib: 5120}
   managed_monitoring_agents: {cpu_millicores: 300, memory_mib: 1024}

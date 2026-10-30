@@ -67,6 +67,97 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "github_actions_release.email" in terraform
 
 
+def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
+    documents = list(yaml.safe_load_all((ROOT / "deploy/gke/mlflow.yaml").read_text()))
+    by_kind = {document["kind"]: document for document in documents}
+    deployment = by_kind["Deployment"]
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    args = container["args"]
+
+    assert set(by_kind) == {
+        "Namespace", "ServiceAccount", "PersistentVolumeClaim", "Deployment",
+        "Service", "NetworkPolicy",
+    }
+    assert by_kind["Service"]["spec"]["type"] == "ClusterIP"
+    assert deployment["spec"]["replicas"] == 1
+    assert deployment["spec"]["strategy"]["type"] == "Recreate"
+    assert container["image"] == "SET_MLFLOW_IMAGE"
+    assert "--backend-store-uri" in args
+    assert "--registry-store-uri" in args
+    assert args.count("sqlite:////mlflow/metadata/mlflow.db") == 2
+    assert "gs://SET_MLFLOW_BUCKET/artifacts" in args
+    assert "--serve-artifacts" in args
+    assert args[args.index("--workers") + 1] == "1"
+    allowed_hosts = args[args.index("--allowed-hosts") + 1]
+    assert allowed_hosts == (
+        "mlflow.mlflow.svc.cluster.local:5000,mlflow.mlflow.svc:5000,"
+        "mlflow:5000,localhost:5000,127.0.0.1:5000"
+    )
+    assert "*" not in allowed_hosts
+    assert all(
+        container[probe]["httpGet"] == {"path": "/health", "port": "http"}
+        for probe in ("startupProbe", "readinessProbe", "livenessProbe")
+    )
+    assert {mount["mountPath"] for mount in container["volumeMounts"]} >= {
+        "/mlflow/metadata", "/tmp",
+    }
+    assert by_kind["PersistentVolumeClaim"]["spec"]["accessModes"] == ["ReadWriteOnce"]
+    assert by_kind["ServiceAccount"]["metadata"]["annotations"] == {
+        "iam.gke.io/gcp-service-account": (
+            "cogniflow-mlflow@SET_PROJECT.iam.gserviceaccount.com"
+        )
+    }
+    policy = by_kind["NetworkPolicy"]
+    ingress_namespaces = {
+        source["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"]
+        for source in policy["spec"]["ingress"][0]["from"]
+    }
+    assert ingress_namespaces == {"mlflow", "kubeflow", "cogniflow-release"}
+    assert "Ingress" not in {document["kind"] for document in documents}
+
+    terraform = (ROOT / "infra/terraform/gke/main.tf").read_text()
+    assert 'role   = "roles/storage.objectAdmin"' in terraform
+    assert "serviceAccount:${var.project_id}.svc.id.goog[mlflow/mlflow]" in terraform
+    assert "force_destroy               = false" in terraform
+    assert "public_access_prevention    = \"enforced\"" in terraform
+    assert "uv sync --frozen --extra kubeflow" in (ROOT / "Dockerfile.kfp").read_text()
+    assert 'name = "google-cloud-storage"' in (ROOT / "uv.lock").read_text()
+
+
+def test_cloud_mlflow_clients_preserve_candidate_and_release_boundaries() -> None:
+    registration = (ROOT / "src/cogniflow_data/kfp_tasks.py").read_text()
+    packaging = (ROOT / "scripts/package_approved_model.py").read_text()
+    release = (ROOT / ".github/workflows/release.yaml").read_text()
+
+    assert '"approval_status": "candidate"' in registration
+    assert registration.count("mlflow.artifacts.download_artifacts") >= 2
+    assert 'tags.get("approval_status") != "approved"' in packaging
+    assert "registered MLflow artifact integrity verification failed" in packaging
+    assert "MLFLOW_TRACKING_URI" in release
+    assert "mlflow.register_model" not in release
+
+
+def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
+    variables = (ROOT / "infra/terraform/gke/variables.tf").read_text()
+    terraform = (ROOT / "infra/terraform/gke/main.tf").read_text()
+    budget = yaml.safe_load((ROOT / "deploy/gke/resource-budget.yaml").read_text())
+
+    assert 'default     = ["us-central1-a", "us-central1-b"]' in variables
+    assert 'variable "nodes_per_zone"' in variables
+    assert "default     = 1" in variables
+    assert "node_count = var.nodes_per_zone" in terraform
+    assert budget["node_pool"] == {
+        "nodes": 2,
+        "machine_type": "e2-standard-4",
+        "capacity": {"cpu_millicores": 8000, "memory_mib": 32768},
+        "system_reserve_percent": 20,
+    }
+    assert budget["required_requests"]["mlflow_sqlite"] == {
+        "cpu_millicores": 100,
+        "memory_mib": 512,
+    }
+
+
 def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_network() -> None:
     result = _render()
     assert result.returncode == 0, result.stderr

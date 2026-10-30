@@ -4,14 +4,14 @@
 
 ## Bounded topology
 
-The Terraform default is one regional Standard cluster with one `e2-standard-4` node in each of two `us-central1` zones: 8 vCPU and 32 GiB total. Private nodes use Cloud NAT. GCS and Artifact Registry are co-located. Required services are FastAPI, KServe Standard, Knative Eventing/Serving, one bounded KFP run, MLflow/PostgreSQL, the persistent logging consumer and anomaly detector/sink. GKE Managed Prometheus and Cloud Logging are the baseline; optional in-cluster dashboards install only after measured scheduling leaves restart headroom.
+The Terraform default is one regional Standard cluster with one `e2-standard-4` node in each of two `us-central1` zones: 8 vCPU and 32 GiB total. Private nodes use Cloud NAT. GCS and Artifact Registry are co-located. Required services are FastAPI, KServe Standard, Knative Eventing/Serving, one bounded KFP run, single-replica MLflow with persistent SQLite, the persistent logging consumer and anomaly detector/sink. GKE Managed Prometheus and Cloud Logging are the baseline; optional in-cluster dashboards install only after measured scheduling leaves restart headroom.
 
 | Capacity slice | Initial request envelope |
 |---|---:|
 | GKE/KFP/KServe/Knative controllers | 2.5–4 vCPU, 8–12 GiB |
 | one serialized training run | 2 vCPU, 4–6 GiB |
 | FastAPI + KServe predictor | 1–1.5 vCPU, 2–3 GiB |
-| MLflow + PostgreSQL | 1 vCPU, 3–4 GiB |
+| MLflow + SQLite | 0.1 vCPU, 0.5 GiB requested; 1 vCPU, 2 GiB limit |
 | event logging + anomaly detector/sink | 0.5–1 vCPU, 1–2 GiB |
 | system/restart headroom | at least 1 vCPU, 4 GiB |
 

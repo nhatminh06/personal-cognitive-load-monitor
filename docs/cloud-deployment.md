@@ -14,7 +14,7 @@ Required immutable inputs:
 - candidate lineage and approved package digests, only if an authorized owner has separately approved a model;
 - operator/VPN `/32`, owned hostname, certificate issuer and Secret Manager/Kubernetes secret-sync procedure.
 - fixed `/32` egress for the dedicated self-hosted deployment runner; GitHub-hosted runners are forbidden because their changing source ranges do not fit master-authorized networks;
-- approved project-scoped budget alerts, PostgreSQL/backup digests and a passing two-node resource-budget check.
+- approved project-scoped budget alerts, an exact KFP/MLflow image digest and a passing two-node resource-budget check.
 
 Stop if GitHub `main` is not branch-protected, the deploy environment lacks required reviewers, the fixed runner cannot reach the authorized endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
@@ -53,7 +53,7 @@ Only an authorized operator may apply the exact reviewed plan. Immediately confi
 
 Install pinned cert-manager, ingress-nginx, Knative Serving/Eventing, KServe Standard and standalone KFP in compatibility order. Resolve every deployed image ID and compare it with the evidence ledger. Reject mutable `master`, `latest` or SHA-shaped tags.
 
-Deploy the reviewed PostgreSQL 17.6 design and MLflow 3.17.2 privately by exact digest. Bind `mlflow/mlflow` to the Terraform MLflow Google service account. Prove a write/read round trip to `gs://<model_bucket>/candidates/...`, run the daily custom-format backup, and restore it into an isolated validation database before training. Install External Secrets Operator chart 2.13.0 by reviewed digest. Apply `deploy/gke/external-secret.yaml` before Helm; it can reconcile after Helm creates `cogniflow-api`. Verify only the expected Secret keys, without printing values.
+Render `deploy/gke/mlflow.yaml` with the project ID, Terraform bucket name and a KFP/MLflow image in exact `repository@sha256:<64 lowercase hex>` form; reject a tag or unresolved placeholder before apply. The single replica keeps registry metadata in SQLite on its PVC and proxies artifacts to GCS through the existing `mlflow/mlflow` Workload Identity. Before training acceptance, record the candidate run's GCS object names and generations from the Terraform bucket, then independently download the registered source through MLflow and compare its artifact-tree SHA-256 with the candidate tag. Proxy-backed registered sources may use `mlflow-artifacts:/`; they are not evidence of a literal `gs://` model-source URI. The protected release runner must execute in-cluster (or use a separately reviewed private connection) so `MLFLOW_TRACKING_URI=http://mlflow.mlflow.svc.cluster.local:5000` resolves; do not expose MLflow publicly. Install External Secrets Operator chart 2.13.0 by reviewed digest. Apply `deploy/gke/external-secret.yaml` before Helm; it can reconcile after Helm creates `cogniflow-api`. Verify only the expected Secret keys, without printing values.
 
 ## 5. Candidate training and explicit promotion
 
