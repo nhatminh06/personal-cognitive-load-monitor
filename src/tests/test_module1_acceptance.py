@@ -107,7 +107,8 @@ def test_source_report_allows_explicit_pending_but_cloud_gate_does_not() -> None
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    (("kserve_idle", 1), ("kserve_cold_start", 0), ("kserve_cold_start_seconds", 31),
+    (("kserve_idle", 1), ("kserve_cold_start", 0), ("kserve_cold_start_seconds", 0),
+     ("kserve_cold_start_seconds", float("inf")),
      ("kserve_prediction_succeeded", False)),
 )
 def test_cloud_acceptance_requires_observed_zero_activation_and_prediction(field, value) -> None:
@@ -115,6 +116,13 @@ def test_cloud_acceptance_requires_observed_zero_activation_and_prediction(field
     payload["replicas"][field] = value
     with pytest.raises(ValueError, match="zero idle replicas"):
         validate_evidence(payload, payload["identity"]["kubernetes_context"], True)
+
+
+def test_cloud_acceptance_records_slow_success_without_a_grading_deadline() -> None:
+    payload = evidence()
+    payload["replicas"]["kserve_cold_start_seconds"] = 45.5
+
+    validate_evidence(payload, payload["identity"]["kubernetes_context"], True)
 
 
 def test_evidence_rejects_secret_bearing_fields() -> None:

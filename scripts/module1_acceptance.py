@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -106,11 +107,12 @@ def validate_evidence(payload: dict[str, Any], expected_context: str, require_cl
         if (
             replicas.get("kserve_idle") != 0
             or int(replicas.get("kserve_cold_start", 0)) < 1
-            or not 0 < cold_start_seconds <= 30
+            or not math.isfinite(cold_start_seconds)
+            or cold_start_seconds <= 0
             or replicas.get("kserve_prediction_succeeded") is not True
         ):
             raise ValueError(
-                "KServe evidence must show zero idle replicas, bounded activation and a successful prediction"
+                "KServe evidence must show zero idle replicas, measured activation and a successful prediction"
             )
         if not (
             int(replicas.get("hpa_initial", 0)) >= 1

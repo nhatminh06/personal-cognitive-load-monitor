@@ -87,7 +87,13 @@ def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_networ
     assert deployment["spec"]["template"]["spec"]["securityContext"]["seccompProfile"] == {
         "type": "RuntimeDefault",
     }
+    assert {"secretRef": {"name": "cogniflow-api"}} in (
+        deployment["spec"]["template"]["spec"]["containers"][0]["envFrom"]
+    )
     ingress = next(document for document in documents if document["kind"] == "Ingress")
+    assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-secret"] == (
+        "cogniflow-ingress-basic-auth"
+    )
     assert ingress["spec"]["tls"][0]["secretName"] == "cogniflow-api-tls"
     assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-type"] == "basic"
     service = next(document for document in documents if document["kind"] == "Service")
@@ -243,6 +249,9 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     workflow = (ROOT / ".github/workflows/release.yaml").read_text()
 
     assert "workflow_dispatch:" in workflow
+    assert "test:\n    name: Test exact release commit" in workflow
+    assert "--cov-fail-under=81" in workflow
+    assert "release:\n    needs: test" in workflow
     assert "name: production-release" in workflow
     assert "id-token: write" in workflow
     assert "scripts/package_approved_model.py" in workflow
@@ -254,6 +263,14 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert "GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER" in workflow
     assert "GCP_RELEASE_SERVICE_ACCOUNT" in workflow
     assert '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' in workflow
+    assert "module1-build.json" in workflow
+    for identity in (
+        "git_commit", "release_run_id", "model_name", "model_version",
+        "registered_artifact_sha256", "model_sha256", "dataset_sha256",
+        "model_git_revision", "feature_schema_version", "label_provenance",
+        "api_image", "kserve_image",
+    ):
+        assert identity in workflow
 
 
 def test_knative_deploy_is_separately_gated_and_verifies_all_release_images() -> None:
@@ -275,9 +292,12 @@ def test_module1_deploy_is_manual_protected_oidc_and_knative_only() -> None:
     workflow = (ROOT / ".github/workflows/deploy-module1.yaml").read_text()
 
     assert "workflow_dispatch:" in workflow
+    assert "educational_demo:" in workflow
+    assert "not production qualification" in workflow
     assert "github.ref == 'refs/heads/main'" in workflow
     assert "name: module1-production" in workflow
     assert "id-token: write" in workflow
+    assert "actions: read" in workflow
     assert "google-github-actions/auth@" in workflow
     assert "GCP_WORKLOAD_IDENTITY_PROVIDER" in workflow
     assert "values.module1-knative.yaml" in workflow
@@ -287,9 +307,22 @@ def test_module1_deploy_is_manual_protected_oidc_and_knative_only() -> None:
     assert "scripts/module1_helm_guard.py" in workflow
     assert "scripts/module1_compatibility.py" in workflow
     assert "--require-qualified" in workflow
+    assert workflow.count("if: ${{ ! inputs.educational_demo }}") == 2
+    assert 'EDUCATIONAL_DEMO: ${{ inputs.educational_demo }}' in workflow
     assert "EXPECTED_GKE_CONTEXT" in workflow
     assert "helm get manifest cognitive-load-monitor" in workflow
     assert "enable-scale-to-zero" in workflow
+    assert "inferenceservices.serving.kserve.io services.serving.knative.dev" in workflow
+    assert '"0.21.0"' in workflow
+    assert '"1.23.0"' in workflow
+    assert '"1.31.3"' in workflow
+    assert '"1.21.2"' in workflow
+    assert '^1\\.34\\.[0-9]+' in workflow
+    assert 'if [[ "$EDUCATIONAL_DEMO" != "true" ]]' in workflow
+    assert 'if [[ "${{ inputs.educational_demo }}" == "true" ]]' in workflow
+    assert '--set-string "config.appEnv=educational_demo"' in workflow
+    assert '--set-string "config.kserveTimeoutSeconds=120"' in workflow
+    assert "proxy-read-timeout=180" in workflow
     assert "revision-response-start-timeout-seconds" in workflow
     assert "revision-idle-timeout-seconds" in workflow
     assert "kpa.autoscaling.knative.dev" in workflow
@@ -297,6 +330,44 @@ def test_module1_deploy_is_manual_protected_oidc_and_knative_only() -> None:
     assert "docker build" not in workflow
     assert "package_approved_model.py" not in workflow
     assert "approve_model_candidate.py" not in workflow
+    assert "release_run_id:" in workflow
+    assert '.path == ".github/workflows/release.yaml"' in workflow
+    assert '.conclusion == "success"' in workflow
+    assert "run-id: ${{ inputs.release_run_id }}" in workflow
+    assert "ref: ${{ steps.manifest.outputs.git_commit }}" in workflow
+    assert "steps.manifest.outputs.api_image" in workflow
+    assert "steps.manifest.outputs.kserve_image" in workflow
+    for unrelated_input in (
+        "inputs.api_image", "inputs.kserve_image", "inputs.model_name",
+        "inputs.model_version", "inputs.model_sha256",
+        "inputs.artifact_sha256", "inputs.dataset_sha256",
+    ):
+        assert unrelated_input not in workflow
+
+
+def test_module1_deploy_bootstraps_only_owned_native_cloud_secrets() -> None:
+    workflow = (ROOT / ".github/workflows/deploy-module1.yaml").read_text()
+
+    bootstrap = workflow.index("- name: Prepare owned native application Secrets")
+    deployment = workflow.index("- name: Deploy explicit Module I Knative mode")
+    assert bootstrap < deployment
+    for protected_input in (
+        "secrets.COGNIFLOW_API_KEY",
+        "secrets.COGNIFLOW_INGRESS_AUTH",
+        "secrets.COGNIFLOW_TLS_CERT",
+        "secrets.COGNIFLOW_TLS_KEY",
+    ):
+        assert protected_input in workflow
+    assert '--from-file=COGNIFLOW_API_KEY="$secret_dir/api-key"' in workflow
+    assert '--from-file=auth="$secret_dir/ingress-auth"' in workflow
+    assert "kubectl create secret tls cogniflow-api-tls" in workflow
+    assert 'trap \'rm -rf -- "$secret_dir"\' EXIT' in workflow
+    assert "Required protected credential is missing" in workflow
+    assert "Refusing to replace foreign-owned Secret" in workflow
+    assert "cogniflow.io/deployment-owner=module1-knative" in workflow
+    assert "--from-literal" not in workflow
+    assert "deploy/gke/external-secret.yaml" not in workflow
+    assert "ExternalSecret" not in workflow
 
 
 def test_production_knative_render_replaces_all_development_images() -> None:

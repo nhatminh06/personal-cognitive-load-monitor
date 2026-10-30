@@ -396,14 +396,17 @@ def test_security_headers_and_request_size_limit(client: TestClient):
     assert response.status_code == 413
 
 
-def test_production_prediction_authentication_fails_closed(client: TestClient, monkeypatch):
+@pytest.mark.parametrize("app_env", ["production", "educational_demo"])
+def test_production_prediction_authentication_fails_closed(
+    client: TestClient, monkeypatch, app_env: str
+):
     payload = {
         "focus_minutes": 1,
         "distraction_minutes": 1,
         "tasks_due": 1,
         "hours_to_deadline": 1,
     }
-    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("APP_ENV", app_env)
     monkeypatch.delenv("COGNIFLOW_API_KEY", raising=False)
     monkeypatch.delenv("EVENT_API_KEY", raising=False)
     assert client.post("/predict", json=payload).status_code == 503

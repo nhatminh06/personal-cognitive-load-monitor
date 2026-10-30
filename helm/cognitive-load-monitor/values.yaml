@@ -86,6 +86,7 @@ existingSecret: ""
 
 kserve:
   enabled: false
+  clusterLocal: false
   deploymentMode: Standard
   name: cognitive-load-classifier
   serviceAccount:

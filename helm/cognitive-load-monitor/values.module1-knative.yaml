@@ -4,6 +4,7 @@
 deploymentOwner: module1-knative
 
 kserve:
+  clusterLocal: true
   deploymentMode: Knative
   knativeAutoscaling:
     minScale: 0

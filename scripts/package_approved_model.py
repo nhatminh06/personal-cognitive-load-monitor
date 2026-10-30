@@ -38,6 +38,8 @@ def package_approved_model(
     candidate = client.get_model_version(model_name, version)
     if str(candidate.version) != version or candidate.name != model_name:
         raise ValueError("registry returned a different model identity")
+    if not candidate.run_id:
+        raise ValueError("registered model run identity is missing")
     tags = candidate.tags
     if tags.get("approval_status") != "approved" or not tags.get("approved_by") or not tags.get("approved_at"):
         raise ValueError("model version is not explicitly approved")

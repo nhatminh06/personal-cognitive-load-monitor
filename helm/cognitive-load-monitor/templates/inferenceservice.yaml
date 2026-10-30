@@ -28,6 +28,9 @@ metadata:
     {{- end }}
   labels:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
+    {{- if .Values.kserve.clusterLocal }}
+    networking.knative.dev/visibility: cluster-local
+    {{- end }}
 spec:
   predictor:
     serviceAccountName: {{ include "cognitive-load-monitor.kserveServiceAccountName" . }}

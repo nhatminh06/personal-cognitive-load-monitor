@@ -205,6 +205,20 @@ def test_kserve_timeout_configuration_is_bounded(monkeypatch, value):
         model_client._kserve_timeout()
 
 
+def test_kserve_timeout_extension_requires_educational_app_environment(monkeypatch):
+    monkeypatch.setenv("KSERVE_TIMEOUT_SECONDS", "120")
+    monkeypatch.setenv("APP_ENV", "production")
+    with pytest.raises(RuntimeError, match="at most 30"):
+        model_client._kserve_timeout()
+
+    monkeypatch.setenv("APP_ENV", "educational_demo")
+    assert model_client._kserve_timeout() == 120
+
+    monkeypatch.setenv("KSERVE_TIMEOUT_SECONDS", "181")
+    with pytest.raises(RuntimeError, match="at most 180"):
+        model_client._kserve_timeout()
+
+
 def test_kserve_prediction_requires_matching_provenance(monkeypatch):
     provenance = _kserve_environment(monkeypatch)
     provenance["model_version"] = "8"
