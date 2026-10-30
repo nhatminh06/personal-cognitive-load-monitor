@@ -101,9 +101,33 @@ def test_packaging_rejects_identity_digest_and_artifact_mismatch(monkeypatch, tm
         package_approved_model("model", "7", digest, tmp_path / "artifact-mismatch")
 
 
+def test_packaging_rejects_missing_run_identity(monkeypatch, tmp_path):
+    _, digest, candidate, client = registry(tmp_path)
+    candidate.run_id = None
+    monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
+
+    with pytest.raises(ValueError, match="run identity is missing"):
+        package_approved_model("model", "7", digest, tmp_path / "package")
+
+
 def test_packaging_rejects_incomplete_provenance(monkeypatch, tmp_path):
     artifact, digest, _, client = registry(tmp_path, params={"dataset_sha256": "1" * 64})
     monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
     monkeypatch.setattr("mlflow.artifacts.download_artifacts", lambda **_: str(artifact))
     with pytest.raises(ValueError, match="provenance is incomplete"):
+        package_approved_model("model", "7", digest, tmp_path / "package")
+
+
+def test_packaging_rejects_unsupported_feature_schema(monkeypatch, tmp_path):
+    params = {
+        "dataset_sha256": "1" * 64,
+        "git_revision": "2" * 40,
+        "feature_schema_version": "2.0",
+        "label_provenance": "synthetic_proxy",
+    }
+    artifact, digest, _, client = registry(tmp_path, params=params)
+    monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
+    monkeypatch.setattr("mlflow.artifacts.download_artifacts", lambda **_: str(artifact))
+
+    with pytest.raises(ValueError, match="feature schema is unsupported"):
         package_approved_model("model", "7", digest, tmp_path / "package")

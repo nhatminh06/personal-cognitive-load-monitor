@@ -200,8 +200,9 @@ def _kserve_timeout() -> float:
         value = float(os.getenv("KSERVE_TIMEOUT_SECONDS", "3"))
     except ValueError as exc:
         raise RuntimeError("KSERVE_TIMEOUT_SECONDS must be a finite number") from exc
-    if not math.isfinite(value) or not 0 < value <= 30:
-        raise RuntimeError("KSERVE_TIMEOUT_SECONDS must be greater than zero and at most 30")
+    maximum = 180 if os.getenv("APP_ENV", "development").strip().lower() == "educational_demo" else 30
+    if not math.isfinite(value) or not 0 < value <= maximum:
+        raise RuntimeError(f"KSERVE_TIMEOUT_SECONDS must be greater than zero and at most {maximum}")
     return value
 
 

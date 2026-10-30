@@ -3,32 +3,13 @@ name: Deploy Module I Knative acceptance release
 on:
   workflow_dispatch:
     inputs:
-      api_image:
-        description: Exact signed API Artifact Registry digest reference
+      educational_demo:
+        description: Confirm this is an authorized educational demonstration, not production qualification
         required: true
-        type: string
-      kserve_image:
-        description: Exact signed KServe Artifact Registry digest reference
-        required: true
-        type: string
-      model_name:
-        description: Independently approved model DNS label
-        required: true
-        type: string
-      model_version:
-        description: Independently approved positive MLflow model version
-        required: true
-        type: string
-      model_sha256:
-        description: Packaged model SHA-256
-        required: true
-        type: string
-      artifact_sha256:
-        description: Registered artifact-tree SHA-256
-        required: true
-        type: string
-      dataset_sha256:
-        description: Training dataset SHA-256
+        default: false
+        type: boolean
+      release_run_id:
+        description: Successful approved-production-release workflow run ID
         required: true
         type: string
       replace_existing_release:
@@ -59,12 +40,71 @@ jobs:
     environment:
       name: module1-production
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
+      - name: Verify successful model-bearing release run
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_RUN_ID" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid release run ID" >&2; exit 1; }
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}" \
+            --output "$RUNNER_TEMP/release-run.json"
+          jq -e '
+            .path == ".github/workflows/release.yaml" and
+            .event == "workflow_dispatch" and
+            .head_branch == "main" and
+            .status == "completed" and
+            .conclusion == "success" and
+            (.head_sha | test("^[a-f0-9]{40}$"))
+          ' "$RUNNER_TEMP/release-run.json" >/dev/null
+          echo "git_commit=$(jq -r .head_sha "$RUNNER_TEMP/release-run.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Download tested release manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-evidence-${{ steps.release.outputs.git_commit }}
+          path: ${{ runner.temp }}/module1-release
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.release_run_id }}
+
+      - name: Validate tested release manifest
+        id: manifest
+        env:
+          EXPECTED_COMMIT: ${{ steps.release.outputs.git_commit }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          MANIFEST: ${{ runner.temp }}/module1-release/module1-build.json
+        run: |
+          set -euo pipefail
+          jq -e --arg commit "$EXPECTED_COMMIT" --arg run_id "$RELEASE_RUN_ID" '
+            .schema_version == 1 and
+            .git_commit == $commit and .release_run_id == $run_id and
+            (.model_name | test("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")) and
+            (.model_version | test("^[1-9][0-9]*$")) and
+            (.registered_artifact_sha256 | test("^[a-f0-9]{64}$")) and
+            (.model_sha256 | test("^[a-f0-9]{64}$")) and
+            (.dataset_sha256 | test("^[a-f0-9]{64}$")) and
+            (.model_git_revision | test("^[a-f0-9]{40}$")) and
+            .feature_schema_version == "1.0" and
+            .label_provenance == "synthetic_proxy" and
+            (.api_image | test("^[a-z0-9-]+-docker\\.pkg\\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/[a-z0-9-]+/cognitive-load-api@sha256:[a-f0-9]{64}$")) and
+            (.kserve_image | test("^[a-z0-9-]+-docker\\.pkg\\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/[a-z0-9-]+/cogniflow-kserve@sha256:[a-f0-9]{64}$"))
+          ' "$MANIFEST" >/dev/null
+          for field in git_commit model_name model_version registered_artifact_sha256 model_sha256 dataset_sha256 api_image kserve_image; do
+            echo "${field}=$(jq -r --arg field "$field" '.[$field]' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+          done
+
       - name: Checkout exact deployment commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ steps.manifest.outputs.git_commit }}
           persist-credentials: false
 
       - name: Set up Python for deployment guards
@@ -73,6 +113,7 @@ jobs:
           python-version: "3.12"
 
       - name: Require an exact qualified serving matrix
+        if: ${{ ! inputs.educational_demo }}
         run: >-
           python scripts/module1_compatibility.py
           --matrix docs/module1/compatibility-matrix.json
@@ -80,13 +121,13 @@ jobs:
 
       - name: Validate immutable release inputs
         env:
-          API_IMAGE: ${{ inputs.api_image }}
-          KSERVE_IMAGE: ${{ inputs.kserve_image }}
-          MODEL_NAME: ${{ inputs.model_name }}
-          MODEL_VERSION: ${{ inputs.model_version }}
-          MODEL_SHA256: ${{ inputs.model_sha256 }}
-          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
-          DATASET_SHA256: ${{ inputs.dataset_sha256 }}
+          API_IMAGE: ${{ steps.manifest.outputs.api_image }}
+          KSERVE_IMAGE: ${{ steps.manifest.outputs.kserve_image }}
+          MODEL_NAME: ${{ steps.manifest.outputs.model_name }}
+          MODEL_VERSION: ${{ steps.manifest.outputs.model_version }}
+          MODEL_SHA256: ${{ steps.manifest.outputs.model_sha256 }}
+          ARTIFACT_SHA256: ${{ steps.manifest.outputs.registered_artifact_sha256 }}
+          DATASET_SHA256: ${{ steps.manifest.outputs.dataset_sha256 }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GAR_LOCATION: ${{ vars.GAR_LOCATION }}
         run: |
@@ -121,21 +162,34 @@ jobs:
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
 
       - name: Require pre-installed serving control planes
+        env:
+          EDUCATIONAL_DEMO: ${{ inputs.educational_demo }}
         run: |
-          kubectl wait --for=condition=Established crd/inferenceservices.serving.kserve.io --timeout=30s
+          for crd in inferenceservices.serving.kserve.io services.serving.knative.dev routes.serving.knative.dev configurations.serving.knative.dev revisions.serving.knative.dev; do
+            kubectl wait --for=condition=Established "crd/${crd}" --timeout=30s
+          done
           kubectl wait --for=condition=Available deployment/kserve-controller-manager -n kserve --timeout=60s
           kubectl wait --for=condition=Available deployment/controller -n knative-serving --timeout=60s
           kubectl wait --for=condition=Available deployment/autoscaler -n knative-serving --timeout=60s
           kubectl wait --for=condition=Available deployment/webhook -n knative-serving --timeout=60s
           kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=60s
+          kserve="$(kubectl get crd inferenceservices.serving.kserve.io -o jsonpath='{.metadata.annotations.controller-gen\.kubebuilder\.io/version}' | sed 's/^v//')"
+          knative="$(kubectl get deployment controller -n knative-serving -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')"
+          kubernetes="$(kubectl version -o json | jq -r '.serverVersion.gitVersion | sub("^v"; "")')"
+          istio="$(kubectl get deployment istiod -n istio-system -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}')"
+          cert_manager="$(kubectl get deployment cert-manager -n cert-manager -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')"
+          [[ "$kserve" == "0.21.0" && "$knative" == "1.23.0" && "$kubernetes" =~ ^1\.34\.[0-9]+ && "$istio" == "1.31.3" && "$cert_manager" == "1.21.2" ]] || { echo "Unsupported Module I serving stack" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.enable-scale-to-zero}')" == "true" ]] || { echo "Knative global scale-to-zero must be explicitly enabled" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.stable-window}')" == "60s" ]] || { echo "Unexpected Knative stable window" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.scale-to-zero-grace-period}')" == "30s" ]] || { echo "Unexpected Knative scale-to-zero grace period" >&2; exit 1; }
-          [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative Revision timeout" >&2; exit 1; }
-          [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-response-start-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative response-start timeout" >&2; exit 1; }
-          [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-idle-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative idle timeout" >&2; exit 1; }
+          if [[ "$EDUCATIONAL_DEMO" != "true" ]]; then
+            [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative Revision timeout" >&2; exit 1; }
+            [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-response-start-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative response-start timeout" >&2; exit 1; }
+            [[ "$(kubectl get configmap config-defaults -n knative-serving -o jsonpath='{.data.revision-idle-timeout-seconds}')" == "35" ]] || { echo "Unexpected Knative idle timeout" >&2; exit 1; }
+          fi
 
       - name: Match the live control plane to the approved inventory
+        if: ${{ ! inputs.educational_demo }}
         run: |
           scripts/capture_module1_runtime.sh --execute \
             --context "$(kubectl config current-context)" \
@@ -171,19 +225,71 @@ jobs:
       - name: Verify exact signed releases
         env:
           COSIGN_CERTIFICATE_IDENTITY_REGEXP: ${{ secrets.COSIGN_CERTIFICATE_IDENTITY_REGEXP }}
-          API_IMAGE: ${{ inputs.api_image }}
-          KSERVE_IMAGE: ${{ inputs.kserve_image }}
+          API_IMAGE: ${{ steps.manifest.outputs.api_image }}
+          KSERVE_IMAGE: ${{ steps.manifest.outputs.kserve_image }}
         run: bash scripts/verify_cloud_release.sh "$API_IMAGE" "$KSERVE_IMAGE"
+
+      - name: Prepare owned native application Secrets
+        env:
+          APP_HOST: ${{ secrets.APP_HOST }}
+          API_KEY: ${{ secrets.COGNIFLOW_API_KEY }}
+          INGRESS_AUTH: ${{ secrets.COGNIFLOW_INGRESS_AUTH }}
+          TLS_CERT: ${{ secrets.COGNIFLOW_TLS_CERT }}
+          TLS_KEY: ${{ secrets.COGNIFLOW_TLS_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          secret_dir="$(mktemp -d "$RUNNER_TEMP/module1-secrets.XXXXXX")"
+          trap 'rm -rf -- "$secret_dir"' EXIT
+
+          for variable in API_KEY INGRESS_AUTH TLS_CERT TLS_KEY; do
+            [[ -n "${!variable:-}" ]] || { echo "Required protected credential is missing: ${variable}" >&2; exit 1; }
+          done
+          [[ "$APP_HOST" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])$ ]] || { echo "Invalid application host" >&2; exit 1; }
+
+          printf '%s' "$API_KEY" > "$secret_dir/api-key"
+          printf '%s\n' "$INGRESS_AUTH" > "$secret_dir/ingress-auth"
+          printf '%s' "$TLS_CERT" > "$secret_dir/tls.crt"
+          printf '%s' "$TLS_KEY" > "$secret_dir/tls.key"
+          [[ "$(wc -l < "$secret_dir/ingress-auth")" == "1" ]]
+          grep -Eq '^[^:[:space:]]+:\$(2[aby]|apr1)\$' "$secret_dir/ingress-auth" || { echo "Ingress credential must be one bcrypt or APR1 htpasswd record" >&2; exit 1; }
+          openssl x509 -in "$secret_dir/tls.crt" -noout -checkend 0 >/dev/null
+          openssl x509 -in "$secret_dir/tls.crt" -noout -checkhost "$APP_HOST" >/dev/null
+          openssl pkey -in "$secret_dir/tls.key" -check -noout >/dev/null
+          cert_key="$(openssl x509 -in "$secret_dir/tls.crt" -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum | cut -d' ' -f1)"
+          private_key="$(openssl pkey -in "$secret_dir/tls.key" -pubout -outform DER | sha256sum | cut -d' ' -f1)"
+          [[ "$cert_key" == "$private_key" ]] || { echo "TLS certificate and private key do not match" >&2; exit 1; }
+
+          kubectl create namespace cogniflow --dry-run=client --output yaml | kubectl apply --filename - >/dev/null
+          for name in cogniflow-api cogniflow-ingress-basic-auth cogniflow-api-tls; do
+            if kubectl get secret "$name" --namespace cogniflow >/dev/null 2>&1; then
+              owner="$(kubectl get secret "$name" --namespace cogniflow --output jsonpath='{.metadata.labels.cogniflow\.io/deployment-owner}')"
+              [[ "$owner" == "module1-knative" ]] || { echo "Refusing to replace foreign-owned Secret: ${name}" >&2; exit 1; }
+            fi
+          done
+
+          kubectl create secret generic cogniflow-api --namespace cogniflow \
+            --from-file=COGNIFLOW_API_KEY="$secret_dir/api-key" --dry-run=client --output yaml \
+            | kubectl label --local --filename - cogniflow.io/deployment-owner=module1-knative app.kubernetes.io/managed-by=GitHub-Actions --output yaml \
+            | kubectl apply --filename - >/dev/null
+          kubectl create secret generic cogniflow-ingress-basic-auth --namespace cogniflow \
+            --from-file=auth="$secret_dir/ingress-auth" --dry-run=client --output yaml \
+            | kubectl label --local --filename - cogniflow.io/deployment-owner=module1-knative app.kubernetes.io/managed-by=GitHub-Actions --output yaml \
+            | kubectl apply --filename - >/dev/null
+          kubectl create secret tls cogniflow-api-tls --namespace cogniflow \
+            --cert="$secret_dir/tls.crt" --key="$secret_dir/tls.key" --dry-run=client --output yaml \
+            | kubectl label --local --filename - cogniflow.io/deployment-owner=module1-knative app.kubernetes.io/managed-by=GitHub-Actions --output yaml \
+            | kubectl apply --filename - >/dev/null
 
       - name: Deploy explicit Module I Knative mode
         env:
-          API_IMAGE: ${{ inputs.api_image }}
-          KSERVE_IMAGE: ${{ inputs.kserve_image }}
-          MODEL_NAME: ${{ inputs.model_name }}
-          MODEL_VERSION: ${{ inputs.model_version }}
-          MODEL_SHA256: ${{ inputs.model_sha256 }}
-          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
-          DATASET_SHA256: ${{ inputs.dataset_sha256 }}
+          API_IMAGE: ${{ steps.manifest.outputs.api_image }}
+          KSERVE_IMAGE: ${{ steps.manifest.outputs.kserve_image }}
+          MODEL_NAME: ${{ steps.manifest.outputs.model_name }}
+          MODEL_VERSION: ${{ steps.manifest.outputs.model_version }}
+          MODEL_SHA256: ${{ steps.manifest.outputs.model_sha256 }}
+          ARTIFACT_SHA256: ${{ steps.manifest.outputs.registered_artifact_sha256 }}
+          DATASET_SHA256: ${{ steps.manifest.outputs.dataset_sha256 }}
           APP_HOST: ${{ secrets.APP_HOST }}
           API_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.API_GOOGLE_SERVICE_ACCOUNT }}
           KSERVE_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.KSERVE_GOOGLE_SERVICE_ACCOUNT }}
@@ -196,6 +302,16 @@ jobs:
           API_DIGEST="${API_IMAGE##*@}"
           KSERVE_REPOSITORY="${KSERVE_IMAGE%@*}"
           KSERVE_DIGEST="${KSERVE_IMAGE##*@}"
+          educational_values=()
+          if [[ "${{ inputs.educational_demo }}" == "true" ]]; then
+            educational_values+=(
+              --set-string "config.appEnv=educational_demo"
+              --set-string "config.kserveTimeoutSeconds=120"
+              --set-string "ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-connect-timeout=180"
+              --set-string "ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout=180"
+              --set-string "ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout=180"
+            )
+          fi
           helm upgrade --install cognitive-load-monitor ./helm/cognitive-load-monitor \
             --namespace cogniflow --create-namespace --atomic --timeout 10m \
             --values ./helm/cognitive-load-monitor/values.gke.yaml \
@@ -213,11 +329,12 @@ jobs:
             --set-string "config.modelArtifactSha256=${ARTIFACT_SHA256}" \
             --set-string "config.modelDatasetSha256=${DATASET_SHA256}" \
             --set-string "ingress.hosts[0].host=${APP_HOST}" \
-            --set-string "ingress.tls[0].hosts[0]=${APP_HOST}"
+            --set-string "ingress.tls[0].hosts[0]=${APP_HOST}" \
+            "${educational_values[@]}"
 
       - name: Verify effective Knative Revision autoscaling
         env:
-          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_NAME: ${{ steps.manifest.outputs.model_name }}
         run: |
           set -euo pipefail
           kubectl wait --for=condition=Ready "inferenceservice/${MODEL_NAME}" --namespace cogniflow --timeout=10m

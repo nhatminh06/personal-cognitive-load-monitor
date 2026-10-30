@@ -87,6 +87,10 @@ def test_module1_knative_mode_renders_explicit_scale_to_zero_contract():
     ).stdout
 
     assert 'serving.kserve.io/deploymentMode: "Knative"' in rendered
+    assert "networking.knative.dev/visibility: cluster-local" in rendered
+    assert "networking.kserve.io/visibility" not in rendered
+    assert 'image: "us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cognitive-load-api@sha256:' in rendered
+    assert 'image: "us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cogniflow-kserve@sha256:' in rendered
     assert "autoscaling.knative.dev/class: kpa.autoscaling.knative.dev" in rendered
     assert 'autoscaling.knative.dev/min-scale: "0"' in rendered
     assert 'autoscaling.knative.dev/max-scale: "3"' in rendered
@@ -110,6 +114,42 @@ def test_standard_mode_keeps_short_kserve_timeout():
     ).stdout
     assert 'serving.kserve.io/deploymentMode: "Standard"' in rendered
     assert 'KSERVE_TIMEOUT_SECONDS: "3"' in rendered
+    assert "networking.knative.dev/visibility" not in rendered
+
+
+def test_cluster_local_routing_is_not_a_generic_default():
+    values = yaml.safe_load((CHART / "values.yaml").read_text())
+
+    assert values["kserve"]["clusterLocal"] is False
+
+
+def test_educational_demo_allows_bounded_cold_start_timeouts_only_in_scope():
+    command = [
+        "helm", "template", "module1", str(CHART), "--namespace", "cogniflow",
+        "-f", str(CHART / "values.gke.yaml"),
+        "-f", str(CHART / "values.module1-knative.yaml"),
+        "--set-string", "config.modelName=cognitive-load-classifier",
+        "--set-string", "config.modelVersion=1",
+        "--set-string", "config.kserveTimeoutSeconds=120",
+        *VALID_VALUES,
+    ]
+    production = subprocess.run(command, capture_output=True, text=True)
+    educational = subprocess.run(
+        [
+            *command,
+            "--set-string", "config.appEnv=educational_demo",
+            "--set-string", "ingress.annotations.nginx\\.ingress\\.kubernetes\\.io/proxy-read-timeout=180",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert production.returncode != 0
+    assert "at most 30" in production.stderr
+    assert educational.returncode == 0, educational.stderr
+    assert 'APP_ENV: "educational_demo"' in educational.stdout
+    assert 'KSERVE_TIMEOUT_SECONDS: "120"' in educational.stdout
+    assert 'nginx.ingress.kubernetes.io/proxy-read-timeout: "180"' in educational.stdout
 
 
 @pytest.mark.parametrize(

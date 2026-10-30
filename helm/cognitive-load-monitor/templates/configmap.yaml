@@ -5,8 +5,9 @@ metadata:
   labels:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
 data:
-  {{- if or (not (regexMatch "^[0-9]+(\\.[0-9]+)?$" (.Values.config.kserveTimeoutSeconds | toString))) (le (float64 .Values.config.kserveTimeoutSeconds) 0.0) (gt (float64 .Values.config.kserveTimeoutSeconds) 30.0) }}
-  {{- fail "config.kserveTimeoutSeconds must be greater than zero and at most 30" }}
+  {{- $educationalDemo := eq .Values.config.appEnv "educational_demo" }}
+  {{- if or (not (regexMatch "^[0-9]+(\\.[0-9]+)?$" (.Values.config.kserveTimeoutSeconds | toString))) (le (float64 .Values.config.kserveTimeoutSeconds) 0.0) (gt (float64 .Values.config.kserveTimeoutSeconds) 180.0) (and (not $educationalDemo) (gt (float64 .Values.config.kserveTimeoutSeconds) 30.0)) }}
+  {{- fail "config.kserveTimeoutSeconds must be at most 30, or at most 180 in educational_demo" }}
   {{- end }}
   APP_ENV: {{ .Values.config.appEnv | quote }}
   LOG_LEVEL: {{ .Values.config.logLevel | quote }}

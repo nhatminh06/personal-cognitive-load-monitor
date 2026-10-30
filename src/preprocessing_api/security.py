@@ -15,7 +15,10 @@ API_DOCS_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn
 
 
 def is_production() -> bool:
-    return os.getenv("APP_ENV", "development").strip().lower() == "production"
+    return os.getenv("APP_ENV", "development").strip().lower() in {
+        "production",
+        "educational_demo",
+    }
 
 
 async def require_api_key(x_api_key: str | None = Header(default=None)) -> None:

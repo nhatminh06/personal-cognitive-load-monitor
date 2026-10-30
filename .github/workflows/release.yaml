@@ -24,7 +24,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Test exact release commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+
+      - name: Run Pytest and enforce coverage above 80%
+        run: |
+          uv sync --frozen --all-extras
+          uv run ruff check src scripts
+          uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov=src/cogniflow_eventing --cov=src/cogniflow_anomaly --cov=src/cogniflow_kserve --cov=src/cogniflow_contracts --cov=src/cogniflow_sessions --cov=src/cogniflow_edge --cov=src/cogniflow_focus --cov-report=term-missing --cov-report=xml --cov-fail-under=81
+
   release:
+    needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64, cogniflow-release]
     environment:
@@ -127,6 +154,36 @@ jobs:
           cogniflow-event-consumer|Dockerfile.event-consumer
           cogniflow-anomaly-detector|Dockerfile.anomaly-detector
           IMAGES
+
+      - name: Record tested release identities
+        env:
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          api_image="$(grep -E '/cognitive-load-api@sha256:[a-f0-9]{64}$' build/release-evidence/images.txt)"
+          kserve_image="$(grep -E '/cogniflow-kserve@sha256:[a-f0-9]{64}$' build/release-evidence/images.txt)"
+          [[ "$(wc -l <<<"$api_image")" == "1" && "$(wc -l <<<"$kserve_image")" == "1" ]]
+          jq -n \
+            --arg git_commit "$GITHUB_SHA" \
+            --arg release_run_id "$GITHUB_RUN_ID" \
+            --arg model_name "$MODEL_NAME" \
+            --arg model_version "$MODEL_VERSION" \
+            --arg artifact_sha256 "$ARTIFACT_SHA256" \
+            --arg api_image "$api_image" \
+            --arg kserve_image "$kserve_image" \
+            --slurpfile package build/model-package/model-package.json \
+            '{schema_version: 1, git_commit: $git_commit, release_run_id: $release_run_id,
+              model_name: $model_name, model_version: $model_version,
+              registered_artifact_sha256: $artifact_sha256,
+              model_sha256: $package[0].packaged_model_sha256,
+              dataset_sha256: $package[0].dataset_sha256,
+              model_git_revision: $package[0].git_revision,
+              feature_schema_version: $package[0].feature_schema_version,
+              label_provenance: $package[0].label_provenance,
+              api_image: $api_image, kserve_image: $kserve_image}' \
+            > build/release-evidence/module1-build.json
 
       - name: Upload non-secret release evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
