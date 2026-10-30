@@ -18,14 +18,14 @@ DVC dataset digest -> training run -> MLflow registered numeric version
 -> .skops-only package -> OCI repository digest -> deployment -> prediction provenance
 ```
 
-`scripts/package_approved_model.py` checks the exact registry identity, mutable
-`approval_status=approved`/approver/time tags, registered and downloaded tree
-digests, `.skops` format, and dataset/git/schema provenance without
-deserializing the model. These checks do **not** authenticate an approver:
-`scripts/approve_model_candidate.py` accepts a caller-supplied actor and writes
-approval tags with the same MLflow authority. Packaging and release therefore
-remain blocked until the trust-root and signed binding in
-[`model-selection-policy.md`](model-selection-policy.md) are implemented.
+`scripts/package_approved_model.py` checks the exact registry/run identity,
+protected-workflow approval provenance, registered and downloaded tree digests,
+`.skops` format, and dataset/git/schema provenance without deserializing the
+model. The approval step runs only inside the existing `production-release`
+GitHub Environment and records the workflow run, repository, commit and scope.
+These tags preserve the GitHub deployment-review audit trail, but do not by
+themselves prove which person reviewed it; required-reviewer and prevent-self-
+review settings must be verified in GitHub before calling it independent.
 
 Serving rechecks the unsigned package manifest and model digest before loading;
 that provides integrity after a trusted package is chosen, not independent
@@ -33,8 +33,13 @@ authorization. A future release must verify a signed exact model tuple and bind
 it to the exact package and OCI digest. Missing or mismatched material fails
 closed; production never selects `demo_rule` implicitly.
 
-The existing candidate remains unchanged and unapproved. GCS is artifact
-storage; PostgreSQL is the required durable MLflow registry metadata store.
-Before cloud acceptance, choose the managed PostgreSQL instance, private
-connectivity, encryption, backup schedule, point-in-time recovery test and
-restore RTO/RPO. A GCS bucket does not replace registry metadata backups.
+The existing candidate remains unchanged and unapproved. The bounded cloud
+design stores registry metadata in persistent single-writer SQLite and artifacts
+in GCS; its availability and backup limitations are documented separately.
+
+The KFP training path consumes explicit feature, label and feature-manifest
+artifacts rather than a DVC checkout. Its MLflow run records those input hashes
+and the validated `dataset-manifest.json`; it must not invent a DVC revision.
+Module I's separate DVC evidence comes from the reviewed release commit's
+`dvc.yaml` and `dvc.lock` plus the existing reproducibility checks. Reviewers
+must compare those inputs with the KFP hashes before claiming the same dataset.

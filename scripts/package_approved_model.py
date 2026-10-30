@@ -22,6 +22,7 @@ KSERVE_MODEL_NAME_RE = re.compile(r"[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?")
 def package_approved_model(
     model_name: str,
     version: str,
+    expected_run_id: str,
     expected_artifact_digest: str,
     output_dir: Path,
 ) -> dict[str, object]:
@@ -29,6 +30,8 @@ def package_approved_model(
         raise ValueError("model name must be a lowercase DNS label of at most 63 characters")
     if not version.isdigit() or int(version) < 1:
         raise ValueError("a positive numeric model version is required")
+    if not re.fullmatch(r"[0-9a-f]{32}", expected_run_id):
+        raise ValueError("expected run ID must be a lowercase MLflow run ID")
     if not re.fullmatch(r"[0-9a-f]{64}", expected_artifact_digest):
         raise ValueError("expected artifact digest must be a lowercase SHA-256")
     if output_dir.exists():
@@ -38,13 +41,23 @@ def package_approved_model(
     candidate = client.get_model_version(model_name, version)
     if str(candidate.version) != version or candidate.name != model_name:
         raise ValueError("registry returned a different model identity")
-    if not candidate.run_id:
-        raise ValueError("registered model run identity is missing")
+    if candidate.run_id != expected_run_id:
+        raise ValueError("registered model run identity mismatch")
     tags = candidate.tags
     if tags.get("approval_status") != "approved" or not tags.get("approved_by") or not tags.get("approved_at"):
         raise ValueError("model version is not explicitly approved")
     if tags.get("registered_artifact_sha256") != expected_artifact_digest:
         raise ValueError("registered artifact digest tag mismatch")
+    if (
+        tags.get("approval_scope") != "synthetic_proxy_engineering_only"
+        or tags.get("approval_environment") != "production-release"
+        or tags.get("approved_by") != "github-environment:production-release"
+        or not tags.get("approval_repository")
+        or not tags.get("approval_workflow")
+        or not re.fullmatch(r"[0-9]+", tags.get("approval_workflow_run_id", ""))
+        or not re.fullmatch(r"[0-9a-f]{40}", tags.get("approval_git_commit", ""))
+    ):
+        raise ValueError("protected educational approval provenance is incomplete")
 
     artifact_dir = Path(mlflow.artifacts.download_artifacts(artifact_uri=candidate.source))
     if sha256_tree(artifact_dir) != expected_artifact_digest:
@@ -80,6 +93,12 @@ def package_approved_model(
         manifest: dict[str, object] = {
             "contract_version": "1.0",
             "approval_status": "approved",
+            "approval_scope": tags["approval_scope"],
+            "approval_repository": tags["approval_repository"],
+            "approval_workflow": tags["approval_workflow"],
+            "approval_workflow_run_id": tags["approval_workflow_run_id"],
+            "approval_git_commit": tags["approval_git_commit"],
+            "approval_environment": tags["approval_environment"],
             "model_name": model_name,
             "model_version": version,
             "run_id": candidate.run_id,
@@ -108,6 +127,7 @@ def main() -> None:
     parser.add_argument("--tracking-uri", required=True)
     parser.add_argument("--model-name", required=True)
     parser.add_argument("--version", required=True)
+    parser.add_argument("--expected-run-id", required=True)
     parser.add_argument("--expected-artifact-digest", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
@@ -117,6 +137,7 @@ def main() -> None:
             package_approved_model(
                 args.model_name,
                 args.version,
+                args.expected_run_id,
                 args.expected_artifact_digest,
                 args.output_dir,
             ),

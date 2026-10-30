@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import mlflow
 
 from cogniflow_data.kfp_tasks import (
     evaluate_and_select,
@@ -70,12 +71,13 @@ def evaluated(tmp_path: Path):
 def test_kfp_tasks_preserve_180_row_contract_and_candidate_registration(tmp_path: Path) -> None:
     manifest, selected, evaluation = evaluated(tmp_path)
     registration = tmp_path / "registration.json"
+    tracking_uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
     result = register_candidate(
         manifest,
         selected,
         evaluation,
         registration,
-        tracking_uri=f"sqlite:///{tmp_path / 'mlflow.db'}",
+        tracking_uri=tracking_uri,
         experiment="kfp-test",
         model_name="kfp-test-model",
         pipeline_name="cogniflow-kubeflow-training",
@@ -84,6 +86,15 @@ def test_kfp_tasks_preserve_180_row_contract_and_candidate_registration(tmp_path
     )
     assert result["approval_status"] == "candidate"
     assert len(result["registered_artifact_sha256"]) == 64
+    logged_manifest = Path(mlflow.artifacts.download_artifacts(
+        run_id=result["mlflow_run_id"],
+        artifact_path="dataset-manifest.json",
+        tracking_uri=tracking_uri,
+    ))
+    assert json.loads(logged_manifest.read_text())["feature_names"] == [
+        "focus_minutes", "distraction_minutes", "tasks_due", "hours_to_deadline",
+        "focus_ratio", "distraction_ratio",
+    ]
     provenance = record_provenance(
         manifest,
         evaluation,

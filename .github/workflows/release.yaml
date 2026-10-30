@@ -11,6 +11,10 @@ on:
         description: Approved positive MLflow model version
         required: true
         type: string
+      model_run_id:
+        description: Exact 32-character MLflow run ID
+        required: true
+        type: string
       artifact_sha256:
         description: Approved registered MLflow artifact-tree SHA-256
         required: true
@@ -69,13 +73,18 @@ jobs:
         env:
           MODEL_NAME: ${{ inputs.model_name }}
           MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_RUN_ID: ${{ inputs.model_run_id }}
           ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GAR_LOCATION: ${{ vars.GAR_LOCATION }}
         run: |
           [[ "$MODEL_NAME" =~ ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$ ]] || { echo "Model name must be a lowercase DNS label of at most 63 characters" >&2; exit 1; }
           [[ "$MODEL_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid model version" >&2; exit 1; }
+          [[ "$MODEL_RUN_ID" =~ ^[a-f0-9]{32}$ ]] || { echo "Invalid MLflow run ID" >&2; exit 1; }
           [[ "$ARTIFACT_SHA256" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid artifact digest" >&2; exit 1; }
+          [[ "$GITHUB_REPOSITORY" == "nhatminh06/personal-cognitive-load-monitor" ]] || { echo "Unexpected repository" >&2; exit 1; }
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "Release must run from main" >&2; exit 1; }
+          [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/release.yaml@refs/heads/main" ]] || { echo "Unexpected release workflow identity" >&2; exit 1; }
           [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
           [[ "$GAR_LOCATION" =~ ^[a-z]+-[a-z]+[0-9]$ ]] || { echo "Invalid Artifact Registry location" >&2; exit 1; }
 
@@ -107,17 +116,40 @@ jobs:
       - name: Install locked packaging dependencies
         run: uv sync --frozen --all-extras
 
+      - name: Approve exact educational candidate after Environment review
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_RUN_ID: ${{ inputs.model_run_id }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          uv run python scripts/approve_model_candidate.py \
+            --tracking-uri "$MLFLOW_TRACKING_URI" \
+            --model-name "$MODEL_NAME" \
+            --version "$MODEL_VERSION" \
+            --expected-run-id "$MODEL_RUN_ID" \
+            --expected-digest "$ARTIFACT_SHA256" \
+            --repository "$GITHUB_REPOSITORY" \
+            --workflow "$GITHUB_WORKFLOW_REF" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --git-commit "$GITHUB_SHA" \
+            --environment production-release \
+            --approve
+
       - name: Package independently approved model
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MODEL_NAME: ${{ inputs.model_name }}
           MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_RUN_ID: ${{ inputs.model_run_id }}
           ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
         run: |
           uv run python scripts/package_approved_model.py \
             --tracking-uri "$MLFLOW_TRACKING_URI" \
             --model-name "$MODEL_NAME" \
             --version "$MODEL_VERSION" \
+            --expected-run-id "$MODEL_RUN_ID" \
             --expected-artifact-digest "$ARTIFACT_SHA256" \
             --output-dir build/model-package
 
@@ -159,6 +191,7 @@ jobs:
         env:
           MODEL_NAME: ${{ inputs.model_name }}
           MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_RUN_ID: ${{ inputs.model_run_id }}
           ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
         run: |
           set -euo pipefail
@@ -170,13 +203,16 @@ jobs:
             --arg release_run_id "$GITHUB_RUN_ID" \
             --arg model_name "$MODEL_NAME" \
             --arg model_version "$MODEL_VERSION" \
+            --arg model_run_id "$MODEL_RUN_ID" \
             --arg artifact_sha256 "$ARTIFACT_SHA256" \
             --arg api_image "$api_image" \
             --arg kserve_image "$kserve_image" \
             --slurpfile package build/model-package/model-package.json \
             '{schema_version: 1, git_commit: $git_commit, release_run_id: $release_run_id,
               model_name: $model_name, model_version: $model_version,
+              model_run_id: $model_run_id,
               registered_artifact_sha256: $artifact_sha256,
+              approval_scope: $package[0].approval_scope,
               model_sha256: $package[0].packaged_model_sha256,
               dataset_sha256: $package[0].dataset_sha256,
               model_git_revision: $package[0].git_revision,

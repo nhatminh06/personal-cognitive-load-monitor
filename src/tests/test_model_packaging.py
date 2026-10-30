@@ -7,6 +7,8 @@ import pytest
 from cogniflow_data.training import sha256_tree
 from scripts.package_approved_model import package_approved_model
 
+RUN_ID = "a" * 32
+
 
 def registry(tmp_path, *, status="approved", name="model", version="7", params=None):
     artifact = tmp_path / "artifact"
@@ -18,16 +20,25 @@ def registry(tmp_path, *, status="approved", name="model", version="7", params=N
     digest = sha256_tree(artifact)
     tags = {
         "approval_status": status,
-        "approved_by": "owner",
         "approved_at": "2026-10-26T00:00:00+00:00",
         "registered_artifact_sha256": digest,
+        "approval_scope": "synthetic_proxy_engineering_only",
+        "approval_repository": "nhatminh06/personal-cognitive-load-monitor",
+        "approval_workflow": (
+            "nhatminh06/personal-cognitive-load-monitor/"
+            ".github/workflows/release.yaml@refs/heads/main"
+        ),
+        "approval_workflow_run_id": "1234",
+        "approval_git_commit": "3" * 40,
+        "approval_environment": "production-release",
+        "approved_by": "github-environment:production-release",
     }
     candidate = SimpleNamespace(
         name=name,
         version=version,
         tags=tags,
         source="models:/immutable-source",
-        run_id="run-1",
+        run_id=RUN_ID,
     )
     run = SimpleNamespace(
         data=SimpleNamespace(
@@ -54,11 +65,13 @@ def test_packages_exact_approved_artifact_without_loading(monkeypatch, tmp_path)
     monkeypatch.setattr("skops.io.load", lambda *args, **kwargs: pytest.fail("must not deserialize"))
 
     output = tmp_path / "package"
-    manifest = package_approved_model("model", "7", digest, output)
+    manifest = package_approved_model("model", "7", RUN_ID, digest, output)
 
     assert (output / "cognitive_load_model.skops").read_bytes() == b"verified-model"
     assert manifest["registered_artifact_sha256"] == digest
     assert manifest["approval_status"] == "approved"
+    assert manifest["approval_scope"] == "synthetic_proxy_engineering_only"
+    assert manifest["approval_workflow_run_id"] == "1234"
     assert manifest["packaged_model_sha256"] != digest
     assert manifest["model_version"] == "7"
 
@@ -68,7 +81,7 @@ def test_packaging_rejects_unapproved_version(monkeypatch, tmp_path, status):
     artifact, digest, _, client = registry(tmp_path, status=status)
     monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
     with pytest.raises(ValueError, match="not explicitly approved"):
-        package_approved_model("model", "7", digest, tmp_path / "package")
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "package")
 
 
 @pytest.mark.parametrize(
@@ -78,7 +91,7 @@ def test_packaging_rejects_unapproved_version(monkeypatch, tmp_path, status):
 def test_packaging_rejects_names_incompatible_with_kserve(monkeypatch, tmp_path, model_name):
     monkeypatch.setattr("mlflow.MlflowClient", lambda: pytest.fail("must fail before MLflow"))
     with pytest.raises(ValueError, match="lowercase DNS label"):
-        package_approved_model(model_name, "7", "a" * 64, tmp_path / "package")
+        package_approved_model(model_name, "7", RUN_ID, "a" * 64, tmp_path / "package")
 
 
 def test_packaging_rejects_identity_digest_and_artifact_mismatch(monkeypatch, tmp_path):
@@ -88,17 +101,17 @@ def test_packaging_rejects_identity_digest_and_artifact_mismatch(monkeypatch, tm
 
     candidate.name = "other"
     with pytest.raises(ValueError, match="different model identity"):
-        package_approved_model("model", "7", digest, tmp_path / "identity")
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "identity")
 
     candidate.name = "model"
     candidate.tags["registered_artifact_sha256"] = "0" * 64
     with pytest.raises(ValueError, match="digest tag mismatch"):
-        package_approved_model("model", "7", digest, tmp_path / "tag")
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "tag")
 
     candidate.tags["registered_artifact_sha256"] = digest
     (artifact / "model.skops").write_bytes(b"tampered")
     with pytest.raises(ValueError, match="integrity verification failed"):
-        package_approved_model("model", "7", digest, tmp_path / "artifact-mismatch")
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "artifact-mismatch")
 
 
 def test_packaging_rejects_missing_run_identity(monkeypatch, tmp_path):
@@ -106,8 +119,8 @@ def test_packaging_rejects_missing_run_identity(monkeypatch, tmp_path):
     candidate.run_id = None
     monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
 
-    with pytest.raises(ValueError, match="run identity is missing"):
-        package_approved_model("model", "7", digest, tmp_path / "package")
+    with pytest.raises(ValueError, match="run identity mismatch"):
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "package")
 
 
 def test_packaging_rejects_incomplete_provenance(monkeypatch, tmp_path):
@@ -115,7 +128,7 @@ def test_packaging_rejects_incomplete_provenance(monkeypatch, tmp_path):
     monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
     monkeypatch.setattr("mlflow.artifacts.download_artifacts", lambda **_: str(artifact))
     with pytest.raises(ValueError, match="provenance is incomplete"):
-        package_approved_model("model", "7", digest, tmp_path / "package")
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "package")
 
 
 def test_packaging_rejects_unsupported_feature_schema(monkeypatch, tmp_path):
@@ -130,4 +143,4 @@ def test_packaging_rejects_unsupported_feature_schema(monkeypatch, tmp_path):
     monkeypatch.setattr("mlflow.artifacts.download_artifacts", lambda **_: str(artifact))
 
     with pytest.raises(ValueError, match="feature schema is unsupported"):
-        package_approved_model("model", "7", digest, tmp_path / "package")
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "package")
