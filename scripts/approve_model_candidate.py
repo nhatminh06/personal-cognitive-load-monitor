@@ -16,6 +16,7 @@ from preprocessing_api.features import FEATURE_NAMES
 
 IMAGE_PATTERN = re.compile(r"^[a-z0-9./:_-]+@sha256:[0-9a-f]{64}$")
 REPOSITORY = "nhatminh06/personal-cognitive-load-monitor"
+OWNER = "nhatminh06"
 
 
 def approve_candidate(
@@ -29,6 +30,7 @@ def approve_candidate(
     workflow_run_id: str,
     git_commit: str,
     environment: str,
+    owner: str,
 ) -> None:
     if not re.fullmatch(r"[0-9a-f]{32}", expected_run_id):
         raise ValueError("expected run ID must be a lowercase MLflow run ID")
@@ -38,8 +40,8 @@ def approve_candidate(
         raise ValueError("approval Git commit must be a full SHA")
     if environment != "production-release":
         raise ValueError("approval requires the protected production-release environment")
-    if repository != REPOSITORY:
-        raise ValueError("approval requires the intended repository")
+    if repository != REPOSITORY or owner != OWNER:
+        raise ValueError("approval requires the intended repository owner")
     expected_workflow = f"{repository}/.github/workflows/release.yaml@refs/heads/main"
     if workflow != expected_workflow:
         raise ValueError("approval requires the main-branch release workflow")
@@ -94,13 +96,13 @@ def approve_candidate(
     if sha256_tree(Path(artifact_path)) != expected_digest:
         raise ValueError("registered artifact integrity verification failed")
     approval_tags = {
-        "approval_scope": "synthetic_proxy_engineering_only",
+        "approval_scope": "solo_owner_educational_decision",
         "approval_repository": repository,
         "approval_workflow": workflow,
         "approval_workflow_run_id": workflow_run_id,
         "approval_git_commit": git_commit,
         "approval_environment": environment,
-        "approved_by": f"github-environment:{environment}",
+        "approved_by": f"github-owner:{owner}",
         "approved_at": datetime.now(UTC).isoformat(),
     }
     for key, value in approval_tags.items():
@@ -121,6 +123,7 @@ def main() -> None:
     parser.add_argument("--workflow-run-id", required=True)
     parser.add_argument("--git-commit", required=True)
     parser.add_argument("--environment", required=True)
+    parser.add_argument("--owner", required=True)
     args = parser.parse_args()
     if not args.approve:
         raise SystemExit("approval requires the explicit --approve flag")
@@ -135,6 +138,7 @@ def main() -> None:
         workflow_run_id=args.workflow_run_id,
         git_commit=args.git_commit,
         environment=args.environment,
+        owner=args.owner,
     )
 
 

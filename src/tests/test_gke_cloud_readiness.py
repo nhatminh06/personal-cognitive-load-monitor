@@ -346,13 +346,17 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert "name: production-release" in workflow
     assert "id-token: write" in workflow
     assert "model_run_id:" in workflow
-    approval = workflow.index("- name: Approve exact educational candidate after Environment review")
-    packaging = workflow.index("- name: Package independently approved model")
+    approval = workflow.index("- name: Record exact solo-owner educational authorization")
+    packaging = workflow.index("- name: Package owner-authorized educational model")
     assert approval < packaging
     assert "scripts/approve_model_candidate.py" in workflow
     assert "--expected-run-id \"$MODEL_RUN_ID\"" in workflow
     assert "--environment production-release" in workflow
+    assert '--owner "$GITHUB_TRIGGERING_ACTOR"' in workflow
     assert "--actor" not in workflow
+    assert 'I authorize this solo-owner educational release' in workflow
+    assert '"$GITHUB_ACTOR" == "nhatminh06"' in workflow
+    assert '"$GITHUB_TRIGGERING_ACTOR" == "nhatminh06"' in workflow
     assert 'GITHUB_WORKFLOW_REF' in workflow
     assert "scripts/package_approved_model.py" in workflow
     assert "--provenance=mode=max --sbom=true" in workflow
