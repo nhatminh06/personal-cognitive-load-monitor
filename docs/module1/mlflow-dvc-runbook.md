@@ -14,24 +14,26 @@ The immutable production chain is:
 
 ```text
 DVC dataset digest -> training run -> MLflow registered numeric version
--> independently signed approval predicate -> artifact-tree SHA-256 verification
+-> solo-owner educational authorization metadata -> artifact-tree SHA-256 verification
 -> .skops-only package -> OCI repository digest -> deployment -> prediction provenance
 ```
 
-`scripts/package_approved_model.py` checks the exact registry/run identity,
-protected-workflow approval provenance, registered and downloaded tree digests,
-`.skops` format, and dataset/git/schema provenance without deserializing the
-model. The approval step runs only inside the existing `production-release`
-GitHub Environment and records the workflow run, repository, commit and scope.
-These tags preserve the GitHub deployment-review audit trail, but do not by
-themselves prove which person reviewed it; required-reviewer and prevent-self-
-review settings must be verified in GitHub before calling it independent.
+The manual `production-release` workflow requires an exact owner acknowledgment
+and binds authorization to the repository, owner identity, main revision, MLflow
+name/version/run and artifact digest. `scripts/package_approved_model.py` checks
+that solo-owner educational authorization plus the registered and downloaded
+tree digests, `.skops` format, dataset/git/schema provenance and canonical six
+features without deserializing the model. This is not independent review.
 
 Serving rechecks the unsigned package manifest and model digest before loading;
 that provides integrity after a trusted package is chosen, not independent
 authorization. A future release must verify a signed exact model tuple and bind
 it to the exact package and OCI digest. Missing or mismatched material fails
 closed; production never selects `demo_rule` implicitly.
+
+Versions carrying the earlier `synthetic_proxy_engineering_only` approval scope
+are intentionally not packageable by this contract. Register a new candidate
+version for an owner-authorized release; do not rewrite historical approval tags.
 
 The existing candidate remains unchanged and unapproved. The bounded cloud
 design stores registry metadata in persistent single-writer SQLite and artifacts

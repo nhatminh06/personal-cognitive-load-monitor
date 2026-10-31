@@ -49,15 +49,16 @@ def package_approved_model(
     if tags.get("registered_artifact_sha256") != expected_artifact_digest:
         raise ValueError("registered artifact digest tag mismatch")
     if (
-        tags.get("approval_scope") != "synthetic_proxy_engineering_only"
+        tags.get("approval_scope") != "solo_owner_educational_decision"
         or tags.get("approval_environment") != "production-release"
-        or tags.get("approved_by") != "github-environment:production-release"
-        or not tags.get("approval_repository")
-        or not tags.get("approval_workflow")
+        or tags.get("approved_by") != "github-owner:nhatminh06"
+        or tags.get("approval_repository") != "nhatminh06/personal-cognitive-load-monitor"
+        or tags.get("approval_workflow")
+        != "nhatminh06/personal-cognitive-load-monitor/.github/workflows/release.yaml@refs/heads/main"
         or not re.fullmatch(r"[0-9]+", tags.get("approval_workflow_run_id", ""))
         or not re.fullmatch(r"[0-9a-f]{40}", tags.get("approval_git_commit", ""))
     ):
-        raise ValueError("protected educational approval provenance is incomplete")
+        raise ValueError("solo-owner educational authorization provenance is incomplete")
 
     artifact_dir = Path(mlflow.artifacts.download_artifacts(artifact_uri=candidate.source))
     if sha256_tree(artifact_dir) != expected_artifact_digest:
@@ -82,6 +83,8 @@ def package_approved_model(
         raise ValueError("registered model provenance is incomplete")
     if params["feature_schema_version"] != "1.0":
         raise ValueError("registered model feature schema is unsupported")
+    if tags["approval_git_commit"] != params["git_revision"]:
+        raise ValueError("authorized revision and model provenance disagree")
 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output_dir.parent) as temporary:

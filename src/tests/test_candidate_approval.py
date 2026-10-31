@@ -74,6 +74,7 @@ def approve(digest):
         workflow_run_id="1234",
         git_commit=GIT_REVISION,
         environment="production-release",
+        owner="nhatminh06",
     )
 
 
@@ -109,8 +110,8 @@ def test_candidate_approval_requires_exact_identity_provenance_and_artifact(
     approve(digest)
 
     assert client.updated[-1] == ("model", "1", "approval_status", "approved")
-    assert ("model", "1", "approval_scope", "synthetic_proxy_engineering_only") in client.updated
-    assert ("model", "1", "approved_by", "github-environment:production-release") in client.updated
+    assert ("model", "1", "approval_scope", "solo_owner_educational_decision") in client.updated
+    assert ("model", "1", "approved_by", "github-owner:nhatminh06") in client.updated
 
 
 @pytest.mark.parametrize("change,message", [
@@ -155,4 +156,19 @@ def test_candidate_approval_rejects_unprotected_workflow_identity(monkeypatch):
             workflow_run_id="1234",
             git_commit=GIT_REVISION,
             environment="unprotected",
+            owner="nhatminh06",
+        )
+
+
+def test_candidate_approval_rejects_wrong_owner_before_mlflow(monkeypatch):
+    monkeypatch.setattr("mlflow.MlflowClient", lambda: pytest.fail("must fail before MLflow"))
+    with pytest.raises(ValueError, match="repository owner"):
+        approve_candidate(
+            "model", "1", RUN_ID, "d" * 64,
+            repository=REPOSITORY,
+            workflow=WORKFLOW,
+            workflow_run_id="1234",
+            git_commit=GIT_REVISION,
+            environment="production-release",
+            owner="someone-else",
         )

@@ -16,7 +16,7 @@ Required immutable inputs:
 - fixed `/32` egress for the dedicated self-hosted deployment runner; GitHub-hosted runners are forbidden because their changing source ranges do not fit master-authorized networks;
 - approved project-scoped budget alerts, an exact KFP/MLflow image digest and a passing two-node resource-budget check.
 
-Stop if GitHub `main` is not branch-protected, the deploy environment lacks required reviewers, the fixed runner cannot reach the authorized endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
+Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the fixed runner cannot reach the authorized endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
 ## 2. State and static preflight
 
@@ -59,7 +59,10 @@ Render `deploy/gke/mlflow.yaml` with the project ID, Terraform bucket name and a
 
 Submit one bounded KFP run by immutable component digest. Confirm all six tasks, dataset digest, KFP run ID and MLflow candidate tags. A successful run must remain `candidate`; it must not update an alias/stage used by serving.
 
-Pause for independent human review. If and only if the authorized owner approves the exact version, run the existing approval/package workflow, copy the verified package under `approved/.../<package-digest>/`, and record the approver and all lineage digests. Any digest mismatch stops deployment.
+Pause for the owner's explicit educational release decision. If and only if the
+repository owner acknowledges the exact name, version, run and digest, dispatch
+the existing approval/package workflow and record its lineage. This is not an
+independent review. Any identity, revision or digest mismatch stops the run.
 
 ## 6. Digest-pinned application deployment
 
@@ -67,8 +70,9 @@ An approved operator creates the Secret Manager secret version and the external 
 
 The manual `.github/workflows/release.yaml` job uses the separately protected
 `production-release` environment and a release-only Google service account. It
-does not approve models or deploy: `package_approved_model.py` first requires an
-independently approved exact MLflow version and artifact-tree digest. The job
+does not deploy. After the repository owner supplies the exact acknowledgment,
+it records a solo-owner educational authorization for the exact MLflow
+name/version/run and artifact-tree digest, then packages that same tuple. The job
 then builds the API, KServe, event-consumer and anomaly images once, resolves
 their Artifact Registry digests, emits BuildKit SBOM/provenance attestations,
 and uses Cosign 3.1.4 keyless signing with GitHub OIDC. It verifies each
@@ -76,8 +80,8 @@ signature and runs Trivy 0.76.1 against that same digest before retaining the
 non-secret evidence. The main-push job in `ci-cd.yaml` remains a GHCR CI build;
 it is not a production release.
 
-Provisioning the `cogniflow-release` runner, configuring required reviewers on
-`production-release`, and setting its `GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER`,
+Provisioning the `cogniflow-release` runner and setting its
+`GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER`,
 `GCP_RELEASE_SERVICE_ACCOUNT`, `MLFLOW_TRACKING_URI`, `GCP_PROJECT_ID`, and
 `GAR_LOCATION` values remain owner-controlled pending operations. The Terraform
 OIDC bindings separate the `production-release` publisher from the `production`

@@ -19,6 +19,10 @@ on:
         description: Approved registered MLflow artifact-tree SHA-256
         required: true
         type: string
+      owner_acknowledgment:
+        description: Type "I authorize this solo-owner educational release"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -75,6 +79,7 @@ jobs:
           MODEL_VERSION: ${{ inputs.model_version }}
           MODEL_RUN_ID: ${{ inputs.model_run_id }}
           ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          OWNER_ACKNOWLEDGMENT: ${{ inputs.owner_acknowledgment }}
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GAR_LOCATION: ${{ vars.GAR_LOCATION }}
         run: |
@@ -82,7 +87,9 @@ jobs:
           [[ "$MODEL_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid model version" >&2; exit 1; }
           [[ "$MODEL_RUN_ID" =~ ^[a-f0-9]{32}$ ]] || { echo "Invalid MLflow run ID" >&2; exit 1; }
           [[ "$ARTIFACT_SHA256" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid artifact digest" >&2; exit 1; }
+          [[ "$OWNER_ACKNOWLEDGMENT" == "I authorize this solo-owner educational release" ]] || { echo "Exact owner acknowledgment is required" >&2; exit 1; }
           [[ "$GITHUB_REPOSITORY" == "nhatminh06/personal-cognitive-load-monitor" ]] || { echo "Unexpected repository" >&2; exit 1; }
+          [[ "$GITHUB_ACTOR" == "nhatminh06" && "$GITHUB_TRIGGERING_ACTOR" == "nhatminh06" ]] || { echo "Only the repository owner may authorize or rerun a release" >&2; exit 1; }
           [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "Release must run from main" >&2; exit 1; }
           [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/release.yaml@refs/heads/main" ]] || { echo "Unexpected release workflow identity" >&2; exit 1; }
           [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
@@ -116,7 +123,7 @@ jobs:
       - name: Install locked packaging dependencies
         run: uv sync --frozen --all-extras
 
-      - name: Approve exact educational candidate after Environment review
+      - name: Record exact solo-owner educational authorization
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MODEL_NAME: ${{ inputs.model_name }}
@@ -135,9 +142,10 @@ jobs:
             --workflow-run-id "$GITHUB_RUN_ID" \
             --git-commit "$GITHUB_SHA" \
             --environment production-release \
+            --owner "$GITHUB_TRIGGERING_ACTOR" \
             --approve
 
-      - name: Package independently approved model
+      - name: Package owner-authorized educational model
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MODEL_NAME: ${{ inputs.model_name }}

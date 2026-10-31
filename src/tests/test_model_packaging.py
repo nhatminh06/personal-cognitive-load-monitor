@@ -22,16 +22,16 @@ def registry(tmp_path, *, status="approved", name="model", version="7", params=N
         "approval_status": status,
         "approved_at": "2026-10-26T00:00:00+00:00",
         "registered_artifact_sha256": digest,
-        "approval_scope": "synthetic_proxy_engineering_only",
+        "approval_scope": "solo_owner_educational_decision",
         "approval_repository": "nhatminh06/personal-cognitive-load-monitor",
         "approval_workflow": (
             "nhatminh06/personal-cognitive-load-monitor/"
             ".github/workflows/release.yaml@refs/heads/main"
         ),
         "approval_workflow_run_id": "1234",
-        "approval_git_commit": "3" * 40,
+        "approval_git_commit": "2" * 40,
         "approval_environment": "production-release",
-        "approved_by": "github-environment:production-release",
+        "approved_by": "github-owner:nhatminh06",
     }
     candidate = SimpleNamespace(
         name=name,
@@ -70,7 +70,7 @@ def test_packages_exact_approved_artifact_without_loading(monkeypatch, tmp_path)
     assert (output / "cognitive_load_model.skops").read_bytes() == b"verified-model"
     assert manifest["registered_artifact_sha256"] == digest
     assert manifest["approval_status"] == "approved"
-    assert manifest["approval_scope"] == "synthetic_proxy_engineering_only"
+    assert manifest["approval_scope"] == "solo_owner_educational_decision"
     assert manifest["approval_workflow_run_id"] == "1234"
     assert manifest["packaged_model_sha256"] != digest
     assert manifest["model_version"] == "7"
@@ -143,4 +143,13 @@ def test_packaging_rejects_unsupported_feature_schema(monkeypatch, tmp_path):
     monkeypatch.setattr("mlflow.artifacts.download_artifacts", lambda **_: str(artifact))
 
     with pytest.raises(ValueError, match="feature schema is unsupported"):
+        package_approved_model("model", "7", RUN_ID, digest, tmp_path / "package")
+
+
+def test_packaging_rejects_historical_approval_scope(monkeypatch, tmp_path):
+    _, digest, candidate, client = registry(tmp_path)
+    candidate.tags["approval_scope"] = "synthetic_proxy_engineering_only"
+    monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
+
+    with pytest.raises(ValueError, match="solo-owner educational authorization"):
         package_approved_model("model", "7", RUN_ID, digest, tmp_path / "package")
