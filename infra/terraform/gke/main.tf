@@ -265,6 +265,10 @@ resource "google_container_node_pool" "primary_nodes" {
     auto_repair  = true
     auto_upgrade = true
   }
+  upgrade_settings {
+    max_surge       = 0
+    max_unavailable = 1
+  }
 }
 
 resource "google_billing_budget" "demo" {

@@ -146,6 +146,8 @@ def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
     assert 'variable "nodes_per_zone"' in variables
     assert "default     = 1" in variables
     assert "node_count = var.nodes_per_zone" in terraform
+    assert "max_surge       = 0" in terraform
+    assert "max_unavailable = 1" in terraform
     assert budget["node_pool"] == {
         "nodes": 2,
         "machine_type": "e2-standard-4",
@@ -155,6 +157,12 @@ def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
     assert budget["required_requests"]["mlflow_sqlite"] == {
         "cpu_millicores": 100,
         "memory_mib": 512,
+    }
+    assert budget["sequential_runner_requests"] == {
+        "release_runner_and_rootless_buildkit": {
+            "cpu_millicores": 2000, "memory_mib": 5120,
+        },
+        "deployment_runner": {"cpu_millicores": 250, "memory_mib": 512},
     }
 
 
@@ -309,6 +317,11 @@ def test_cloud_guardrails_and_two_node_budget_are_enforceable() -> None:
 
 def test_deploy_uses_predictable_runner_and_verifies_exact_release() -> None:
     workflow = (ROOT / ".github/workflows/ci-cd.yaml").read_text()
+    deployment_workflows = [
+        workflow,
+        (ROOT / ".github/workflows/deploy-knative.yaml").read_text(),
+        (ROOT / ".github/workflows/deploy-module1.yaml").read_text(),
+    ]
     verifier = (ROOT / "scripts/verify_cloud_release.sh").read_text()
 
     assert "runs-on: [self-hosted, linux, x64, cogniflow-gke-deploy]" in workflow
@@ -316,6 +329,36 @@ def test_deploy_uses_predictable_runner_and_verifies_exact_release() -> None:
     assert "scripts/verify_cloud_release.sh" in workflow
     assert "cosign v3.1.4 is required" in verifier
     assert "Trivy 0.76.1 is required" in verifier
+    assert all("use_internal_ip: true" in item for item in deployment_workflows)
+
+
+def test_ephemeral_runners_are_bounded_separate_and_socketless() -> None:
+    path = ROOT / "deploy/gke/ephemeral-runners.yaml"
+    text = path.read_text()
+    documents = [item for item in yaml.safe_load_all(text) if item]
+    pods = {item["metadata"]["name"]: item for item in documents if item["kind"] == "Pod"}
+
+    assert set(pods) == {"cogniflow-release", "cogniflow-gke-deploy"}
+    assert {pod["metadata"]["namespace"] for pod in pods.values()} == {
+        "cogniflow-release", "cogniflow-deploy",
+    }
+    assert all(pod["spec"]["restartPolicy"] == "Never" for pod in pods.values())
+    assert all(not pod["spec"]["automountServiceAccountToken"] for pod in pods.values())
+    assert text.count("--ephemeral") == 2
+    assert "docker.sock" not in text
+    assert "privileged" not in text
+    assert "SET_ROOTLESS_BUILDKIT_IMAGE" in text
+    assert "mlflow" in text and "172.16.0.0/28" in text
+    for pod in pods.values():
+        for container in pod["spec"]["containers"]:
+            assert container["resources"]["requests"]
+            assert container["resources"]["limits"]
+            assert not container["securityContext"]["allowPrivilegeEscalation"]
+            assert container["securityContext"]["capabilities"]["drop"] == ["ALL"]
+
+    release = (ROOT / ".github/workflows/release.yaml").read_text()
+    assert "driver: remote" in release
+    assert "endpoint: tcp://127.0.0.1:1234" in release
 
 
 def test_ci_test_build_and_manual_deploy_boundaries_are_explicit() -> None:

@@ -7,13 +7,10 @@ machine_type      = "e2-standard-4"
 github_repository = "nhatminh06/personal-cognitive-load-monitor"
 billing_account_id = "000000-000000-000000" # Required only after budget approval.
 project_number     = "123456789012"
+monthly_budget_usd = 225 # Alert threshold only; it does not cap spend.
 master_authorized_networks = [
   {
     cidr_block   = "203.0.113.10/32" # Fixed operator/VPN address.
     display_name = "operator"
-  },
-  {
-    cidr_block   = "203.0.113.11/32" # Fixed egress of the dedicated deployment runner.
-    display_name = "deployment-runner"
   }
 ]

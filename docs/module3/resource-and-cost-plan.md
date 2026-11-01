@@ -39,7 +39,20 @@ The directly priced base is about `$0.376/hour` before disks, load balancing, st
 | Three-day contingency | 72 hours | **$45–$90** |
 | Accidental full month | 730 hours | **$300–$375+** |
 
-The Terraform `$100` project-scoped budget with alerts at 25/50/75/90/100% is a mandatory approved plan input, but budgets do not stop spend. Owner approval covers only the initial eight-hour window. Set an independent calendar expiry and check billing after each phase. The plan must use bounded fixtures, short log retention/exclusions, same-region data, repository cleanup rules reviewed against evidence retention, and no 100 GB benchmark.
+The Terraform `$225` project-scoped budget with alerts at 25/50/75/90/100% is a mandatory approved plan input, but budgets do not stop spend. Owner approval covers only the initial eight-hour window. Set an independent calendar expiry and check billing after each phase.
+
+| Trial allocation | Maximum |
+|---|---:|
+| Shared GKE/bootstrap and authenticated preflight | $45 |
+| Module III KFP, MLflow and KServe Standard | $60 |
+| Module I Knative demonstration | $35 |
+| Module II provisional cloud allowance | $45 |
+| Evidence export, teardown and retained resources | $20 |
+| One separately approved retry | $20 |
+| **Planned maximum** | **$225** |
+| **Unallocated contingency** | **$75** |
+
+The Module II allowance is planning capacity, not authorization to execute. Its required four cloud deployments and strict dataset larger than 100 GB remain unverified, so its topology and cost must be approved after instructor clarification. Do not claim the course project complete after Modules I and III, and do not spend the $75 contingency without a new decision.
 
 ## Teardown boundary
 

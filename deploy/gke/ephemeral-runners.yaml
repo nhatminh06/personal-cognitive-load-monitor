@@ -1,0 +1,166 @@
+# Replace SET_* image references with reviewed repository@sha256 values and
+# create each registration-token Secret only for the one authorized job.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cogniflow-release
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: github-runner, namespace: cogniflow-release}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cogniflow-release
+  namespace: cogniflow-release
+  labels: {app.kubernetes.io/name: cogniflow-release}
+spec:
+  restartPolicy: Never
+  serviceAccountName: github-runner
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: runner
+      image: SET_RELEASE_RUNNER_IMAGE
+      imagePullPolicy: IfNotPresent
+      command: [/bin/bash, -ceu]
+      args:
+        - |
+          ./config.sh --unattended --ephemeral --url https://github.com/nhatminh06/personal-cognitive-load-monitor --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels cogniflow-release --work /runner/_work
+          exec ./run.sh
+      env:
+        - name: RUNNER_TOKEN
+          valueFrom: {secretKeyRef: {name: github-runner-registration, key: token}}
+        - name: RUNNER_NAME
+          valueFrom: {fieldRef: {fieldPath: metadata.name}}
+      resources:
+        requests: {cpu: 500m, memory: 1Gi}
+        limits: {cpu: "1", memory: 2Gi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: work, mountPath: /runner/_work}
+        - {name: runner-temp, mountPath: /runner/_temp}
+    - name: buildkit
+      image: SET_ROOTLESS_BUILDKIT_IMAGE
+      imagePullPolicy: IfNotPresent
+      args: [--addr, tcp://0.0.0.0:1234]
+      resources:
+        requests: {cpu: 1500m, memory: 4Gi}
+        limits: {cpu: "3", memory: 8Gi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: buildkit-state, mountPath: /home/user/.local/share/buildkit}
+        - {name: buildkit-run, mountPath: /run/user/1000}
+  volumes:
+    - {name: work, emptyDir: {sizeLimit: 8Gi}}
+    - {name: runner-temp, emptyDir: {sizeLimit: 2Gi}}
+    - {name: buildkit-state, emptyDir: {sizeLimit: 12Gi}}
+    - {name: buildkit-run, emptyDir: {sizeLimit: 64Mi}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: cogniflow-release, namespace: cogniflow-release}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: cogniflow-release}}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: mlflow}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: mlflow}}
+      ports: [{protocol: TCP, port: 5000}]
+    # Kubernetes NetworkPolicy cannot select GitHub/GAR by DNS name. Verify the
+    # resolved destinations before the job; this rule permits HTTPS only.
+    - to: [{ipBlock: {cidr: 0.0.0.0/0}}]
+      ports: [{protocol: TCP, port: 443}]
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cogniflow-deploy
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: github-runner, namespace: cogniflow-deploy}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cogniflow-gke-deploy
+  namespace: cogniflow-deploy
+  labels: {app.kubernetes.io/name: cogniflow-gke-deploy}
+spec:
+  restartPolicy: Never
+  serviceAccountName: github-runner
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: runner
+      image: SET_DEPLOY_RUNNER_IMAGE
+      imagePullPolicy: IfNotPresent
+      command: [/bin/bash, -ceu]
+      args:
+        - |
+          ./config.sh --unattended --ephemeral --url https://github.com/nhatminh06/personal-cognitive-load-monitor --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels cogniflow-gke-deploy --work /runner/_work
+          exec ./run.sh
+      env:
+        - name: RUNNER_TOKEN
+          valueFrom: {secretKeyRef: {name: github-runner-registration, key: token}}
+        - name: RUNNER_NAME
+          valueFrom: {fieldRef: {fieldPath: metadata.name}}
+      resources:
+        requests: {cpu: 250m, memory: 512Mi}
+        limits: {cpu: "1", memory: 1Gi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: work, mountPath: /runner/_work}
+        - {name: runner-temp, mountPath: /runner/_temp}
+  volumes:
+    - {name: work, emptyDir: {sizeLimit: 2Gi}}
+    - {name: runner-temp, emptyDir: {sizeLimit: 1Gi}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: cogniflow-gke-deploy, namespace: cogniflow-deploy}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: cogniflow-gke-deploy}}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to: [{ipBlock: {cidr: 172.16.0.0/28}}]
+      ports: [{protocol: TCP, port: 443}]
+    - to: [{ipBlock: {cidr: 0.0.0.0/0}}]
+      ports: [{protocol: TCP, port: 443}]
