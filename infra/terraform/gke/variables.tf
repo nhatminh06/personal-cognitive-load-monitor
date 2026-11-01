@@ -87,7 +87,7 @@ variable "project_number" {
 variable "monthly_budget_usd" {
   type        = number
   description = "Demo budget alert amount; alerts do not cap spend."
-  default     = 100
+  default     = 225
 }
 
 variable "github_repository" {
@@ -96,7 +96,7 @@ variable "github_repository" {
 }
 
 variable "master_authorized_networks" {
-  description = "Fixed IPv4 /32 addresses allowed to reach the GKE control plane (operator/VPN and deployment-runner NAT only)."
+  description = "Fixed external operator/VPN IPv4 /32 addresses allowed to reach the public GKE control-plane endpoint. In-cluster deployment uses the internal endpoint."
   type = list(object({
     cidr_block   = string
     display_name = string

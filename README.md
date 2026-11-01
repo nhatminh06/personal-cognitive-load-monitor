@@ -47,7 +47,7 @@ It is designed to demonstrate how independently developed data and machine learn
 | Component | Status |
 |---|---|
 | Module I: MLOps Foundation | Implemented and locally validated |
-| Module II: Data Engineering & Streaming | Implemented and locally validated |
+| Module II: Data Engineering & Streaming | Implemented and locally validated; four cloud deployments and the >100 GB run remain unverified |
 | Security hardening, PR #6 | Merged |
 | Module III Phase 1: Historical feature contracts | Implemented and locally validated |
 | Module III Phase 2: Reproducible training and registry | Implemented and locally validated |

@@ -70,7 +70,7 @@ that needs equivalent integration evidence.
 
 Before any authorized run, independently confirm:
 
-1. an owner-approved billing account, budget, fixed runner `/32`, Terraform
+1. an owner-approved billing account, budget, fixed external operator `/32`, Terraform
    plan and protected remote-state remediation;
 2. the private GKE 1.34 context and cluster UID, two bounded `e2-standard-4`
    nodes, `metrics.k8s.io/v1beta1` availability, Dataplane V2 and Workload Identity;

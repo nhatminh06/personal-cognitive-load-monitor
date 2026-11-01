@@ -4,7 +4,7 @@
 
 ## 1. Owner approvals and release inputs
 
-Record approvals for project/billing account, `us-central1`, a maximum **$100** monthly budget alert (alerts do not cap spend), an eight-hour initial lifetime, remote state, IAM, DNS/TLS, image publication and the exact Terraform plan. Model approval is separate and is not granted here.
+Record approvals for project/billing account, `us-central1`, a maximum **$225** project budget alert (alerts do not cap spend), an eight-hour initial lifetime, remote state, IAM, DNS/TLS, image publication and the exact Terraform plan. Model approval is separate and is not granted here.
 
 Required immutable inputs:
 
@@ -13,10 +13,10 @@ Required immutable inputs:
 - API, KServe, event consumer and anomaly images in Artifact Registry by registry digest;
 - candidate lineage and approved package digests, only if an authorized owner has separately approved a model;
 - operator/VPN `/32`, owned hostname, certificate issuer and Secret Manager/Kubernetes secret-sync procedure.
-- fixed `/32` egress for the dedicated self-hosted deployment runner; GitHub-hosted runners are forbidden because their changing source ranges do not fit master-authorized networks;
+- fixed operator/VPN `/32` for public control-plane access. The in-cluster deployment runner uses the internal control-plane endpoint and does not add its Cloud NAT address to master-authorized networks;
 - approved project-scoped budget alerts, an exact KFP/MLflow image digest and a passing two-node resource-budget check.
 
-Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the fixed runner cannot reach the authorized endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
+Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the deployment runner cannot reach the internal endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
 ## 2. State and static preflight
 
@@ -38,7 +38,7 @@ Run `pytest -q src/tests/test_gke_cloud_readiness.py::test_cloud_guardrails_and_
 
 ## 3. Reviewed plan (still no apply)
 
-Create an untracked tfvars file from the example. Set the project, two zones in the same region, operator and dedicated-runner `/32` addresses, GitHub repository, owner-approved billing account and numeric project number. Terraform intentionally refuses a plan without the budget inputs.
+Create an untracked tfvars file from the example. Set the project, two zones in the same region, external operator `/32`, GitHub repository, owner-approved billing account and numeric project number. Terraform intentionally refuses a plan without the budget inputs.
 
 ```bash
 terraform -chdir=infra/terraform/gke plan -out=PR17-REVIEW-ONLY.tfplan
@@ -49,7 +49,11 @@ Review resource count, region, IAM members, private nodes, authorized networks, 
 
 ## 4. Authorized provisioning and cluster gates
 
-Only an authorized operator may apply the exact reviewed plan. Immediately confirm two private nodes, Workload Identity, Dataplane V2, Cloud Logging/Managed Prometheus, only reviewed `/32` control-plane networks, budget alerts and Artifact Registry/GCS public-access prevention. Dataplane V2 already enables policy enforcement; do not add the incompatible GKE `network_policy` switch. A bootstrap cluster administrator substitutes the reviewed project ID and applies `deploy/gke/cogniflow-guardrails.yaml`; the deployment identity then has namespace admin only. Apply the eventing namespace/policy before its workloads.
+Only an authorized operator may apply the exact reviewed plan. Immediately confirm two private nodes, Workload Identity, Dataplane V2, Cloud Logging/Managed Prometheus, only reviewed external operator `/32` control-plane networks, budget alerts and Artifact Registry/GCS public-access prevention. Dataplane V2 already enables policy enforcement; do not add the incompatible GKE `network_policy` switch. A bootstrap cluster administrator substitutes the reviewed project ID and applies `deploy/gke/cogniflow-guardrails.yaml`; the deployment identity then has namespace admin only. Apply the eventing namespace/policy before its workloads.
+
+The public endpoint remains enabled for the external operator. All three deployment workflows set `use_internal_ip: true`, so the in-cluster `cogniflow-gke-deploy` runner reaches the private control-plane CIDR directly. Cloud NAT is only outbound connectivity for private nodes and Pods to GitHub, Google OIDC endpoints and Artifact Registry; its automatically allocated address is not a control-plane allowlist input. The release runner also uses NAT for those HTTPS destinations and reaches MLflow through `mlflow.mlflow.svc.cluster.local` inside the cluster.
+
+Render `deploy/gke/ephemeral-runners.yaml` only after replacing every `SET_*_IMAGE` with a reviewed digest. Create the registration-token Secret separately in the relevant namespace, start one Pod for one authorized job, then delete the Pod and Secret and confirm GitHub removed the ephemeral registration. The release image must contain the pinned runner, Docker CLI/Buildx, Cosign 3.1.4, Trivy 0.76.1, `jq`, Python and `uv`; its rootless BuildKit sidecar serves only the Pod-local TCP endpoint. The deploy image needs the pinned runner, Google Cloud CLI, `kubectl`, Helm, Cosign and Trivy. Neither Pod receives a Kubernetes API service-account token or Docker socket. Prove rootless BuildKit under GKE's restricted Pod Security before release; failure is a stop condition, not permission to mount a host Docker socket.
 
 Install pinned cert-manager, ingress-nginx, Knative Serving/Eventing, KServe Standard and standalone KFP in compatibility order. Resolve every deployed image ID and compare it with the evidence ledger. Reject mutable `master`, `latest` or SHA-shaped tags.
 
@@ -144,3 +148,12 @@ If monitoring does not fit after required workloads, retain GKE Managed Promethe
 ## 8. Failure, teardown and evidence
 
 Do not destroy on test failure. First export non-secret logs, rendered manifests, KFP/MLflow lineage, alert evidence, image digests, utilization and cost. Teardown needs a separately reviewed plan and explicit owner approval. Remove releases, external load balancers/IPs and NAT, then the cluster. A GCS retention policy cannot be shortened and protected object versions can outlive compute teardown; keep the bucket/state, record its earliest deletion date and residual storage/operation cost, and schedule an owner-approved follow-up. `force_destroy=false` and cluster deletion protection deliberately require conscious changes. Confirm the billing console has no unintended cluster, disk, IP, NAT or load balancer and keep budget alerts active until all retained resources are gone.
+
+### Session start, pause and resume
+
+1. Start: check billing/quota and the reviewed plan, restore `nodes_per_zone=1`, wait for exactly two Ready nodes, then verify the MLflow PVC/SQLite health, GCS access, KFP, KServe Standard and Knative before registering one runner.
+2. Pause: stop all jobs, export current evidence, delete the runner Pod/Secret, record PVC/PV/disk/reclaim-policy and load-balancer state, then explicitly approve a regional node-pool resize to zero. This pauses node VMs only; the control plane, disks, GCS, Artifact Registry, load balancers, NAT addresses and logs can remain billable.
+3. The manual resize is deliberate Terraform drift from `nodes_per_zone=1`. Do not apply Terraform while paused: it would recreate nodes. Resume by resizing to one node per zone, wait for two Ready nodes, verify the zonal MLflow disk reattaches and SQLite/GCS/KFP state is healthy, then require a no-change plan before further infrastructure work.
+4. `emptyDir` and runner state are disposable. MLflow metadata survives only on its PVC; before teardown, take a consistent SQLite backup and export KFP/Helm/resource inventories, exact image/signature/scan evidence, GCS generations, checksums and billing evidence.
+5. Authorized teardown: remove external Services/ingress and wait for load-balancer cleanup; delete runner registrations; verify backups; delete PVCs and wait for `Delete`-policy disks or inventory `Retain` disks; separately review/apply `deletion_protection=false`; then separately approve destroy. Do not expect the versioned, retained, `force_destroy=false` model bucket or the separately bootstrapped Terraform-state bucket to disappear.
+6. Finish with authenticated read-only inventories for clusters, VMs, disks/snapshots, forwarding rules, IPs, routers/NAT, GCS versions, Artifact Registry, Secret Manager, DNS and logging. Keep alerts active until billing shows only explicitly retained resources.
