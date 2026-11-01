@@ -22,7 +22,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.11"
-  IMAGE_NAME: ghcr.io/${{ github.repository }}/cognitive-load-api
+  IMAGE_NAME: ghcr.io/${{ github.repository }}/cognitive-load-api-ci-demo
   HELM_RELEASE: cognitive-load-monitor
 
 jobs:

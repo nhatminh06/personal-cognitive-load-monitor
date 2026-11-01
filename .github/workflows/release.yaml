@@ -167,7 +167,7 @@ jobs:
           cosign version | grep -q 'GitVersion.*v3.1.4' || { echo "cosign v3.1.4 is required" >&2; exit 1; }
           trivy --version | grep -q 'Version: 0.76.1' || { echo "Trivy 0.76.1 is required" >&2; exit 1; }
 
-      - name: Build, attest, sign, verify, and scan exact images
+      - name: Build, scan, sign, and verify exact images
         env:
           REGISTRY: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/cogniflow-images
           COSIGN_YES: "true"
@@ -180,13 +180,13 @@ jobs:
               --provenance=mode=max --sbom=true --metadata-file "$metadata" .
             digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' "$metadata")
             reference="${REGISTRY}/${name}@${digest}"
+            trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+              --format json --output "build/release-evidence/${name}.trivy.json" "$reference"
             cosign sign "$reference"
             cosign verify \
               --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yaml@refs/heads/main$" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com \
               "$reference" > "build/release-evidence/${name}.cosign.json"
-            trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
-              --format json --output "build/release-evidence/${name}.trivy.json" "$reference"
             printf '%s\n' "$reference" >> build/release-evidence/images.txt
           done <<'IMAGES'
           cognitive-load-api|Dockerfile.model-serving
