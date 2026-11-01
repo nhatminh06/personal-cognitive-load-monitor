@@ -159,9 +159,7 @@ def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
         "memory_mib": 512,
     }
     assert budget["sequential_runner_requests"] == {
-        "release_runner_and_rootless_buildkit": {
-            "cpu_millicores": 2000, "memory_mib": 5120,
-        },
+        "private_packaging_runner": {"cpu_millicores": 500, "memory_mib": 1024},
         "deployment_runner": {"cpu_millicores": 250, "memory_mib": 512},
     }
 
@@ -343,11 +341,18 @@ def test_ephemeral_runners_are_bounded_separate_and_socketless() -> None:
         "cogniflow-release", "cogniflow-deploy",
     }
     assert all(pod["spec"]["restartPolicy"] == "Never" for pod in pods.values())
+    assert all(pod["spec"]["activeDeadlineSeconds"] == 14400 for pod in pods.values())
     assert all(not pod["spec"]["automountServiceAccountToken"] for pod in pods.values())
     assert text.count("--ephemeral") == 2
+    assert text.count("unset RUNNER_TOKEN") == 2
+    assert text.count("/runner/_temp/registered") == 4
     assert "docker.sock" not in text
     assert "privileged" not in text
-    assert "SET_ROOTLESS_BUILDKIT_IMAGE" in text
+    assert "Unconfined" not in text
+    assert "--oci-worker-no-process-sandbox" not in text
+    assert "buildkit" not in text.lower()
+    assert "SET_RELEASE_RUNNER_IMAGE" in text
+    assert "SET_DEPLOY_RUNNER_IMAGE" in text
     assert "mlflow" in text and "172.16.0.0/28" in text
     for pod in pods.values():
         for container in pod["spec"]["containers"]:
@@ -357,8 +362,10 @@ def test_ephemeral_runners_are_bounded_separate_and_socketless() -> None:
             assert container["securityContext"]["capabilities"]["drop"] == ["ALL"]
 
     release = (ROOT / ".github/workflows/release.yaml").read_text()
-    assert "driver: remote" in release
-    assert "endpoint: tcp://127.0.0.1:1234" in release
+    assert "driver: remote" not in release
+    assert "endpoint: tcp://127.0.0.1:1234" not in release
+    assert "package:\n    name: Authorize and package private model" in release
+    assert "runs-on: ubuntu-latest" in release
 
 
 def test_ci_test_build_and_manual_deploy_boundaries_are_explicit() -> None:
@@ -385,7 +392,8 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert "workflow_dispatch:" in workflow
     assert "test:\n    name: Test exact release commit" in workflow
     assert "--cov-fail-under=81" in workflow
-    assert "release:\n    needs: test" in workflow
+    assert "release:\n    name: Build, scan, sign, and record release" in workflow
+    assert "needs: [test, package]" in workflow
     assert "name: production-release" in workflow
     assert "id-token: write" in workflow
     assert "model_run_id:" in workflow
@@ -402,6 +410,14 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert '"$GITHUB_TRIGGERING_ACTOR" == "nhatminh06"' in workflow
     assert 'GITHUB_WORKFLOW_REF' in workflow
     assert "scripts/package_approved_model.py" in workflow
+    assert workflow.index("scripts/package_approved_model.py") < workflow.index(
+        "actions/upload-artifact"
+    )
+    assert "scripts/verify_release_package.py" in workflow
+    assert "EXPECTED_PACKAGE_SHA256: ${{ needs.package.outputs.package_sha256 }}" in workflow
+    assert "retention-days: 1" in workflow
+    assert "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in workflow
+    assert "aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567" in workflow
     assert "--provenance=mode=max --sbom=true" in workflow
     assert 'cosign sign "$reference"' in workflow
     assert 'trivy image --severity HIGH,CRITICAL' in workflow
@@ -414,7 +430,7 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert "module1-build.json" in workflow
     for identity in (
         "git_commit", "release_run_id", "model_name", "model_version", "model_run_id",
-        "registered_artifact_sha256", "model_sha256", "dataset_sha256",
+        "registered_artifact_sha256", "package_sha256", "model_sha256", "dataset_sha256",
         "model_git_revision", "feature_schema_version", "label_provenance", "approval_scope",
         "api_image", "kserve_image",
     ):

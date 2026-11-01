@@ -1,4 +1,4 @@
-# Replace SET_* image references with reviewed repository@sha256 values and
+# Replace SET_* runner image references with reviewed repository@sha256 values and
 # create each registration-token Secret only for the one authorized job.
 apiVersion: v1
 kind: Namespace
@@ -22,13 +22,15 @@ metadata:
   labels: {app.kubernetes.io/name: cogniflow-release}
 spec:
   restartPolicy: Never
+  activeDeadlineSeconds: 14400
+  terminationGracePeriodSeconds: 30
   serviceAccountName: github-runner
   automountServiceAccountToken: false
   securityContext:
     runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
     seccompProfile: {type: RuntimeDefault}
   containers:
     - name: runner
@@ -38,6 +40,8 @@ spec:
       args:
         - |
           ./config.sh --unattended --ephemeral --url https://github.com/nhatminh06/personal-cognitive-load-monitor --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels cogniflow-release --work /runner/_work
+          unset RUNNER_TOKEN
+          touch /runner/_temp/registered
           exec ./run.sh
       env:
         - name: RUNNER_TOKEN
@@ -47,30 +51,19 @@ spec:
       resources:
         requests: {cpu: 500m, memory: 1Gi}
         limits: {cpu: "1", memory: 2Gi}
+      readinessProbe:
+        exec: {command: [/usr/bin/test, -f, /runner/_temp/registered]}
+        periodSeconds: 2
+        failureThreshold: 120
       securityContext:
         allowPrivilegeEscalation: false
         capabilities: {drop: [ALL]}
       volumeMounts:
         - {name: work, mountPath: /runner/_work}
         - {name: runner-temp, mountPath: /runner/_temp}
-    - name: buildkit
-      image: SET_ROOTLESS_BUILDKIT_IMAGE
-      imagePullPolicy: IfNotPresent
-      args: [--addr, tcp://0.0.0.0:1234]
-      resources:
-        requests: {cpu: 1500m, memory: 4Gi}
-        limits: {cpu: "3", memory: 8Gi}
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities: {drop: [ALL]}
-      volumeMounts:
-        - {name: buildkit-state, mountPath: /home/user/.local/share/buildkit}
-        - {name: buildkit-run, mountPath: /run/user/1000}
   volumes:
     - {name: work, emptyDir: {sizeLimit: 8Gi}}
     - {name: runner-temp, emptyDir: {sizeLimit: 2Gi}}
-    - {name: buildkit-state, emptyDir: {sizeLimit: 12Gi}}
-    - {name: buildkit-run, emptyDir: {sizeLimit: 64Mi}}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -114,13 +107,15 @@ metadata:
   labels: {app.kubernetes.io/name: cogniflow-gke-deploy}
 spec:
   restartPolicy: Never
+  activeDeadlineSeconds: 14400
+  terminationGracePeriodSeconds: 30
   serviceAccountName: github-runner
   automountServiceAccountToken: false
   securityContext:
     runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
     seccompProfile: {type: RuntimeDefault}
   containers:
     - name: runner
@@ -130,6 +125,8 @@ spec:
       args:
         - |
           ./config.sh --unattended --ephemeral --url https://github.com/nhatminh06/personal-cognitive-load-monitor --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels cogniflow-gke-deploy --work /runner/_work
+          unset RUNNER_TOKEN
+          touch /runner/_temp/registered
           exec ./run.sh
       env:
         - name: RUNNER_TOKEN
@@ -139,6 +136,10 @@ spec:
       resources:
         requests: {cpu: 250m, memory: 512Mi}
         limits: {cpu: "1", memory: 1Gi}
+      readinessProbe:
+        exec: {command: [/usr/bin/test, -f, /runner/_temp/registered]}
+        periodSeconds: 2
+        failureThreshold: 120
       securityContext:
         allowPrivilegeEscalation: false
         capabilities: {drop: [ALL]}

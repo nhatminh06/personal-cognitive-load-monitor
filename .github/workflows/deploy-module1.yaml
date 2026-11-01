@@ -89,6 +89,7 @@ jobs:
             (.model_name | test("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")) and
             (.model_version | test("^[1-9][0-9]*$")) and
             (.registered_artifact_sha256 | test("^[a-f0-9]{64}$")) and
+            (.package_sha256 | test("^[a-f0-9]{64}$")) and
             (.model_sha256 | test("^[a-f0-9]{64}$")) and
             (.dataset_sha256 | test("^[a-f0-9]{64}$")) and
             (.model_git_revision | test("^[a-f0-9]{40}$")) and
@@ -97,7 +98,7 @@ jobs:
             (.api_image | test("^[a-z0-9-]+-docker\\.pkg\\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/[a-z0-9-]+/cognitive-load-api@sha256:[a-f0-9]{64}$")) and
             (.kserve_image | test("^[a-z0-9-]+-docker\\.pkg\\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/[a-z0-9-]+/cogniflow-kserve@sha256:[a-f0-9]{64}$"))
           ' "$MANIFEST" >/dev/null
-          for field in git_commit model_name model_version registered_artifact_sha256 model_sha256 dataset_sha256 api_image kserve_image; do
+          for field in git_commit model_name model_version registered_artifact_sha256 package_sha256 model_sha256 dataset_sha256 api_image kserve_image; do
             echo "${field}=$(jq -r --arg field "$field" '.[$field]' "$MANIFEST")" >> "$GITHUB_OUTPUT"
           done
 

@@ -105,7 +105,6 @@ def package_approved_model(
             "model_name": model_name,
             "model_version": version,
             "run_id": candidate.run_id,
-            "registered_source": candidate.source,
             "registered_artifact_sha256": expected_artifact_digest,
             "packaged_model_sha256": packaged_digest,
             "dataset_sha256": params["dataset_sha256"],
