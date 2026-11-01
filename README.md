@@ -42,7 +42,7 @@ It is designed to demonstrate how independently developed data and machine learn
 
 ## Project Status
 
-**Last verified: October 26, 2026**
+**Last verified: October 31, 2026**
 
 | Component | Status |
 |---|---|
@@ -60,12 +60,13 @@ It is designed to demonstrate how independently developed data and machine learn
 | Local Docker and data pipelines | Runtime tested |
 | Helm and local Terraform/kind | Runtime validated |
 | GKE/GCS cloud readiness | Private-node Terraform, least-privilege Workload Identity, private/versioned GCS and TLS/digest-pinned Helm are statically validated |
+| Protected production release | Source-ready; never executed end to end |
 | GKE, GCS-backed MLflow runtime and full demo video | Not deployed or recorded |
 | 100 GB performance benchmark | Not performed |
 
 ### Verification highlights
 
-- **291 Python tests passed**, with **88.76% combined coverage** across API, data, Eventing, anomaly and KServe packages against an 81% enforcement threshold.
+- **576 Python tests passed** in the latest hosted GitHub Actions run on `main`, with **86.90% combined coverage** across the tested application packages against an 81% enforcement threshold.
 - Four Jupyter notebooks executed successfully.
 - DVC pipeline stages reproduced or validated as up to date.
 - Spark/Delta/S3A, Trino and dbt integration tested using real local services.
@@ -617,7 +618,7 @@ flowchart LR
     Tests["Ruff + Pytest + Coverage"]
     Gate{"Trusted main?"}
     Package["MLflow Model Packaging"]
-    Image["Build & Publish to GHCR"]
+    Image["Build CI Demo Image to GHCR"]
     Manual["Explicit Manual Deploy"]
     Cloud["GKE / Helm"]
 
@@ -625,7 +626,7 @@ flowchart LR
     Tests --> Gate
     Gate -->|"Yes"| Package
     Package --> Image
-    Image -. "Only with approved dispatch" .-> Manual
+    Tests -. "Separate approved dispatch" .-> Manual
     Manual --> Cloud
 ```
 
@@ -634,9 +635,9 @@ The workflow:
 - Runs tests for pull requests and configured pushes.
 - Enforces the 81% minimum coverage threshold.
 - Restricts image publication to trusted `main` events.
-- Trains, registers, and retrieves a model through an ephemeral CI MLflow server before packaging.
-- Tags release images using the full commit SHA.
-- Captures the published registry digest for immutable Helm deployment.
+- Trains and tracks an isolated engineering candidate through an ephemeral CI MLflow server without approving or promoting it.
+- Tags the non-release CI demo image using the full commit SHA and publishes it under the distinct `cognitive-load-api-ci-demo` name.
+- Captures the CI demo digest for traceability; deployment validation accepts only protected Artifact Registry release digests.
 - Limits cloud deployment to an explicit manual workflow on `main`, subject to environment controls.
 - Does not run a GKE deployment merely because a pull request was merged.
 

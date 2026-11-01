@@ -362,6 +362,7 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
     assert "--provenance=mode=max --sbom=true" in workflow
     assert 'cosign sign "$reference"' in workflow
     assert 'trivy image --severity HIGH,CRITICAL' in workflow
+    assert workflow.index("trivy image") < workflow.index('cosign sign "$reference"')
     assert "kubectl" not in workflow
     assert "helm upgrade" not in workflow
     assert "GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER" in workflow
@@ -375,6 +376,22 @@ def test_release_is_manual_approval_gated_and_never_deploys() -> None:
         "api_image", "kserve_image",
     ):
         assert identity in workflow
+
+
+def test_ci_demo_image_is_distinct_and_release_bases_are_pinned() -> None:
+    ci = (ROOT / ".github/workflows/ci-cd.yaml").read_text()
+    assert "cognitive-load-api-ci-demo" in ci
+    assert "build:\n    name: Build and push Docker image\n    needs: test" in ci
+    assert "deploy:\n    name: Manual deploy to Kubernetes with Helm\n    needs: test" in ci
+
+    for name in (
+        "Dockerfile.model-serving",
+        "Dockerfile.kserve",
+        "Dockerfile.event-consumer",
+        "Dockerfile.anomaly-detector",
+    ):
+        dockerfile = (ROOT / name).read_text()
+        assert all("@sha256:" in line for line in dockerfile.splitlines() if line.startswith("FROM "))
 
 
 def test_knative_deploy_is_separately_gated_and_verifies_all_release_images() -> None:
