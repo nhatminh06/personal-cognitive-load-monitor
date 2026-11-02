@@ -1,3 +1,4 @@
 self-hosted-runner:
   labels:
     - cogniflow-gke-deploy
+    - cogniflow-release

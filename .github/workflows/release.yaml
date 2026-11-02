@@ -58,7 +58,8 @@ jobs:
           uv run ruff check src scripts
           uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov=src/cogniflow_eventing --cov=src/cogniflow_anomaly --cov=src/cogniflow_kserve --cov=src/cogniflow_contracts --cov=src/cogniflow_sessions --cov=src/cogniflow_edge --cov=src/cogniflow_focus --cov-report=term-missing --cov-report=xml --cov-fail-under=81
 
-  release:
+  package:
+    name: Authorize and package private model
     needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64, cogniflow-release]
@@ -66,7 +67,8 @@ jobs:
       name: production-release
     permissions:
       contents: read
-      id-token: write
+    outputs:
+      package_sha256: ${{ steps.verify_package.outputs.package_sha256 }}
     steps:
       - name: Checkout exact release commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -80,8 +82,6 @@ jobs:
           MODEL_RUN_ID: ${{ inputs.model_run_id }}
           ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
           OWNER_ACKNOWLEDGMENT: ${{ inputs.owner_acknowledgment }}
-          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          GAR_LOCATION: ${{ vars.GAR_LOCATION }}
         run: |
           [[ "$MODEL_NAME" =~ ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$ ]] || { echo "Model name must be a lowercase DNS label of at most 63 characters" >&2; exit 1; }
           [[ "$MODEL_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid model version" >&2; exit 1; }
@@ -92,29 +92,6 @@ jobs:
           [[ "$GITHUB_ACTOR" == "nhatminh06" && "$GITHUB_TRIGGERING_ACTOR" == "nhatminh06" ]] || { echo "Only the repository owner may authorize or rerun a release" >&2; exit 1; }
           [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "Release must run from main" >&2; exit 1; }
           [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/release.yaml@refs/heads/main" ]] || { echo "Unexpected release workflow identity" >&2; exit 1; }
-          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
-          [[ "$GAR_LOCATION" =~ ^[a-z]+-[a-z]+[0-9]$ ]] || { echo "Invalid Artifact Registry location" >&2; exit 1; }
-
-      - name: Authenticate to Google Cloud with GitHub OIDC
-        id: auth
-        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_RELEASE_SERVICE_ACCOUNT }}
-          token_format: access_token
-
-      - name: Log in to Artifact Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ${{ vars.GAR_LOCATION }}-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
-
-      - name: Connect Buildx to rootless BuildKit
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
-        with:
-          driver: remote
-          endpoint: tcp://127.0.0.1:1234
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -167,6 +144,114 @@ jobs:
             --expected-artifact-digest "$ARTIFACT_SHA256" \
             --output-dir build/model-package
 
+      - name: Verify transferable package
+        id: verify_package
+        env:
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_RUN_ID: ${{ inputs.model_run_id }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          python scripts/verify_release_package.py \
+            --package build/model-package \
+            --model-name "$MODEL_NAME" \
+            --model-version "$MODEL_VERSION" \
+            --run-id "$MODEL_RUN_ID" \
+            --git-revision "$GITHUB_SHA" \
+            --artifact-sha256 "$ARTIFACT_SHA256" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Transfer verified package to hosted release job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: approved-model-package-${{ github.run_id }}
+          path: build/model-package
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Build, scan, sign, and record release
+    needs: [test, package]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download approved model package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: approved-model-package-${{ github.run_id }}
+          path: build/model-package
+
+      - name: Set up Python for package verification
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Fail closed on transferred package mismatch
+        env:
+          MODEL_NAME: ${{ inputs.model_name }}
+          MODEL_VERSION: ${{ inputs.model_version }}
+          MODEL_RUN_ID: ${{ inputs.model_run_id }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          EXPECTED_PACKAGE_SHA256: ${{ needs.package.outputs.package_sha256 }}
+        run: |
+          python scripts/verify_release_package.py \
+            --package build/model-package \
+            --model-name "$MODEL_NAME" \
+            --model-version "$MODEL_VERSION" \
+            --run-id "$MODEL_RUN_ID" \
+            --git-revision "$GITHUB_SHA" \
+            --artifact-sha256 "$ARTIFACT_SHA256" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --expected-package-sha256 "$EXPECTED_PACKAGE_SHA256"
+
+      - name: Validate hosted release target
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+        run: |
+          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
+          [[ "$GAR_LOCATION" =~ ^[a-z]+-[a-z]+[0-9]$ ]] || { echo "Invalid Artifact Registry location" >&2; exit 1; }
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        id: auth
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_RELEASE_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ vars.GAR_LOCATION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Set up hosted Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+
+      - name: Install Cosign 3.1.4
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.4
+
+      - name: Install Trivy 0.76.1
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.76.1
+          cache: false
+
       - name: Require pinned release tools
         run: |
           docker buildx version
@@ -207,6 +292,7 @@ jobs:
           MODEL_VERSION: ${{ inputs.model_version }}
           MODEL_RUN_ID: ${{ inputs.model_run_id }}
           ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          PACKAGE_SHA256: ${{ needs.package.outputs.package_sha256 }}
         run: |
           set -euo pipefail
           api_image="$(grep -E '/cognitive-load-api@sha256:[a-f0-9]{64}$' build/release-evidence/images.txt)"
@@ -219,6 +305,7 @@ jobs:
             --arg model_version "$MODEL_VERSION" \
             --arg model_run_id "$MODEL_RUN_ID" \
             --arg artifact_sha256 "$ARTIFACT_SHA256" \
+            --arg package_sha256 "$PACKAGE_SHA256" \
             --arg api_image "$api_image" \
             --arg kserve_image "$kserve_image" \
             --slurpfile package build/model-package/model-package.json \
@@ -226,6 +313,7 @@ jobs:
               model_name: $model_name, model_version: $model_version,
               model_run_id: $model_run_id,
               registered_artifact_sha256: $artifact_sha256,
+              package_sha256: $package_sha256,
               approval_scope: $package[0].approval_scope,
               model_sha256: $package[0].packaged_model_sha256,
               dataset_sha256: $package[0].dataset_sha256,

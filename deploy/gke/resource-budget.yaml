@@ -14,7 +14,7 @@ required_requests:
   serialized_training_run: {cpu_millicores: 1400, memory_mib: 5120}
   managed_monitoring_agents: {cpu_millicores: 300, memory_mib: 1024}
 sequential_runner_requests:
-  release_runner_and_rootless_buildkit: {cpu_millicores: 2000, memory_mib: 5120}
+  private_packaging_runner: {cpu_millicores: 500, memory_mib: 1024}
   deployment_runner: {cpu_millicores: 250, memory_mib: 512}
 # Gate: required requests must fit after the 20% system reserve. Optional
 # dashboards are excluded and must not be installed without a new budget. The

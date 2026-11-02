@@ -6,6 +6,7 @@ import pytest
 
 from cogniflow_data.training import sha256_tree
 from scripts.package_approved_model import package_approved_model
+from scripts.verify_release_package import verify_package
 
 RUN_ID = "a" * 32
 
@@ -74,6 +75,51 @@ def test_packages_exact_approved_artifact_without_loading(monkeypatch, tmp_path)
     assert manifest["approval_workflow_run_id"] == "1234"
     assert manifest["packaged_model_sha256"] != digest
     assert manifest["model_version"] == "7"
+    assert "registered_source" not in manifest
+
+    package_digest = verify_package(
+        output,
+        model_name="model",
+        model_version="7",
+        run_id=RUN_ID,
+        git_revision="2" * 40,
+        artifact_sha256=digest,
+        workflow_run_id="1234",
+    )
+    with pytest.raises(ValueError, match="transferred package digest mismatch"):
+        verify_package(
+            output,
+            model_name="model",
+            model_version="7",
+            run_id=RUN_ID,
+            git_revision="2" * 40,
+            artifact_sha256=digest,
+            workflow_run_id="1234",
+            expected_package_sha256="0" * 64,
+        )
+    assert len(package_digest) == 64
+
+
+def test_transfer_verification_rejects_tampering(monkeypatch, tmp_path):
+    artifact, digest, _, client = registry(tmp_path)
+    monkeypatch.setattr("mlflow.MlflowClient", lambda: client)
+    monkeypatch.setattr("mlflow.artifacts.download_artifacts", lambda **_: str(artifact))
+    output = tmp_path / "package"
+    package_approved_model("model", "7", RUN_ID, digest, output)
+
+    model = output / "cognitive_load_model.skops"
+    model.chmod(0o644)
+    model.write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="packaged model digest mismatch"):
+        verify_package(
+            output,
+            model_name="model",
+            model_version="7",
+            run_id=RUN_ID,
+            git_revision="2" * 40,
+            artifact_sha256=digest,
+            workflow_run_id="1234",
+        )
 
 
 @pytest.mark.parametrize("status", ["candidate", "rejected"])

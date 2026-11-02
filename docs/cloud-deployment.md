@@ -53,7 +53,19 @@ Only an authorized operator may apply the exact reviewed plan. Immediately confi
 
 The public endpoint remains enabled for the external operator. All three deployment workflows set `use_internal_ip: true`, so the in-cluster `cogniflow-gke-deploy` runner reaches the private control-plane CIDR directly. Cloud NAT is only outbound connectivity for private nodes and Pods to GitHub, Google OIDC endpoints and Artifact Registry; its automatically allocated address is not a control-plane allowlist input. The release runner also uses NAT for those HTTPS destinations and reaches MLflow through `mlflow.mlflow.svc.cluster.local` inside the cluster.
 
-Render `deploy/gke/ephemeral-runners.yaml` only after replacing every `SET_*_IMAGE` with a reviewed digest. Create the registration-token Secret separately in the relevant namespace, start one Pod for one authorized job, then delete the Pod and Secret and confirm GitHub removed the ephemeral registration. The release image must contain the pinned runner, Docker CLI/Buildx, Cosign 3.1.4, Trivy 0.76.1, `jq`, Python and `uv`; its rootless BuildKit sidecar serves only the Pod-local TCP endpoint. The deploy image needs the pinned runner, Google Cloud CLI, `kubectl`, Helm, Cosign and Trivy. Neither Pod receives a Kubernetes API service-account token or Docker socket. Prove rootless BuildKit under GKE's restricted Pod Security before release; failure is a stop condition, not permission to mount a host Docker socket.
+Render `deploy/gke/ephemeral-runners.yaml` only after replacing every `SET_*_IMAGE` with a reviewed digest. Create the registration-token Secret separately in the relevant namespace, start one Pod for one authorized job, then delete the Pod and Secret and confirm GitHub removed the ephemeral registration. The private packaging image needs only the pinned runner plus the prerequisites for the SHA-pinned Python and uv setup actions. The deploy image needs the pinned runner, Google Cloud CLI, `kubectl`, Helm, Cosign and Trivy. Neither Pod receives a Kubernetes API service-account token or Docker socket.
+
+### Runner image and bootstrap gate
+
+Read-only registry inspection on 2026-11-01 identified this maintained upstream amd64 runner base:
+
+- runner base: `ghcr.io/actions/actions-runner@sha256:0ce3288e48b012a83685998f683a2ae0cbd284fa722c090dda0af5443215cf30` from the attested multi-platform `2.338.2` index `sha256:759a1d94a15b05941aba5196974ff43fe15b4cbba29b694b35cbc32a1166b232`;
+
+This is an evidence input, not a ready replacement for either `SET_*` value. The base supplies Actions Runner 2.338.2, Docker CLI 29.9.2, Buildx 0.38.1, Git, curl and `jq`, and runs as UID 1001; the manifests now match that UID. A derived packaging image must prove the pinned Python and uv setup actions execute without privilege. A derived deploy image must additionally prove Google Cloud CLI, `kubectl` compatible with GKE 1.34, Helm, Cosign 3.1.4 and Trivy 0.76.1. Build and scan those images through a separately approved bootstrap path, then record their own amd64 digests before replacing the placeholders.
+
+The protected workflow is split at the network boundary. The restricted `cogniflow-release` Pod performs the solo-owner authorization and reads private MLflow to produce exactly `cognitive_load_model.skops` and `model-package.json`. It computes a package-tree SHA-256 as a job output and uploads only those two files for one day. A GitHub-hosted job downloads the artifact, independently validates its exact file set, model digest, package-tree digest and complete approval/model identity, then builds, scans, signs and verifies the images. The artifact contains no token, credential or MLflow tracking URI. This removes BuildKit from GKE rather than weakening Restricted Pod Security.
+
+Obtain a one-hour repository registration token only immediately before the approved job and stream it directly into the namespaced `github-runner-registration` Secret; do not place it in shell history, a manifest, a command argument or a file. Apply one runner Pod, wait for its readiness marker, then delete the Secret. The startup script unsets `RUNNER_TOKEN` before `run.sh`, preventing job steps from inheriting it. Default labels add `self-hosted`, `Linux` and `X64`; the manifest adds exactly `cogniflow-release` or `cogniflow-gke-deploy`. `--ephemeral` accepts one job, the four-hour Pod deadline bounds abandoned runs, and the operator deletes the completed Pod and confirms the GitHub registration disappeared. A Pod that registers but never accepts a job requires explicit runner removal through GitHub before retrying.
 
 Install pinned cert-manager, ingress-nginx, Knative Serving/Eventing, KServe Standard and standalone KFP in compatibility order. Resolve every deployed image ID and compare it with the evidence ledger. Reject mutable `master`, `latest` or SHA-shaped tags.
 
@@ -72,12 +84,14 @@ independent review. Any identity, revision or digest mismatch stops the run.
 
 An approved operator creates the Secret Manager secret version and the external Kubernetes Secrets without printing values. Render first; the checked-in sentinels must fail closed.
 
-The manual `.github/workflows/release.yaml` job uses the separately protected
-`production-release` environment and a release-only Google service account. It
-does not deploy. After the repository owner supplies the exact acknowledgment,
-it records a solo-owner educational authorization for the exact MLflow
-name/version/run and artifact-tree digest, then packages that same tuple. The job
-then builds the API, KServe, event-consumer and anomaly images once, resolves
+The manual `.github/workflows/release.yaml` jobs use the separately protected
+`production-release` environment and do not deploy. After the repository owner
+supplies the exact acknowledgment, the in-cluster job records a solo-owner
+educational authorization for the exact MLflow name/version/run and artifact-tree
+digest, packages that same tuple and transfers the independently hashed two-file
+package with one-day retention. The hosted job verifies that package, then uses
+the release-only Google service account to build the API, KServe, event-consumer
+and anomaly images once, resolves
 their Artifact Registry digests, emits BuildKit SBOM/provenance attestations,
 and uses Cosign 3.1.4 keyless signing with GitHub OIDC. It verifies each
 signature and runs Trivy 0.76.1 against that same digest before retaining the
@@ -85,9 +99,10 @@ non-secret evidence. The main-push job in `ci-cd.yaml` remains a GHCR CI build;
 it is not a production release.
 
 Provisioning the `cogniflow-release` runner and setting its
-`GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER`,
-`GCP_RELEASE_SERVICE_ACCOUNT`, `MLFLOW_TRACKING_URI`, `GCP_PROJECT_ID`, and
-`GAR_LOCATION` values remain owner-controlled pending operations. The Terraform
+`MLFLOW_TRACKING_URI` secret remain owner-controlled pending operations. The hosted
+job receives `GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_RELEASE_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`, and `GAR_LOCATION` through the
+protected environment. The Terraform
 OIDC bindings separate the `production-release` publisher from the `production`
 deployer and bind each impersonation grant to its environment. On the dedicated
 deploy runner, `scripts/verify_cloud_release.sh` re-verifies the release identity
