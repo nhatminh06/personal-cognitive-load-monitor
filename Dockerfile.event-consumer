@@ -7,11 +7,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN groupadd --gid 10001 cogniflow \
     && useradd --uid 10001 --gid 10001 --no-create-home cogniflow
 WORKDIR /app
-COPY requirements-event-consumer.txt .
+COPY requirements-event-consumer.lock .
 RUN apt-get update \
     && apt-get upgrade --yes \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --requirement requirements-event-consumer.txt \
+    && pip install --no-cache-dir --disable-pip-version-check \
+        --require-hashes --only-binary=:all: \
+        --requirement requirements-event-consumer.lock \
     && pip uninstall --yes pip setuptools wheel
 COPY src/cogniflow_eventing src/cogniflow_eventing
 COPY src/preprocessing_api/__init__.py src/preprocessing_api/__init__.py

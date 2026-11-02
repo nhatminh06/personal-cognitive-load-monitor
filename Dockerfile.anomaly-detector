@@ -5,9 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app/src
 RUN groupadd --gid 10001 cogniflow && useradd --uid 10001 --gid 10001 --no-create-home cogniflow
 WORKDIR /app
-COPY requirements-anomaly-detector.txt .
+COPY requirements-anomaly-detector.lock .
 RUN apt-get update && apt-get upgrade --yes && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --requirement requirements-anomaly-detector.txt \
+    && pip install --no-cache-dir --disable-pip-version-check \
+        --require-hashes --only-binary=:all: \
+        --requirement requirements-anomaly-detector.lock \
     && pip uninstall --yes pip setuptools wheel
 COPY src/cogniflow_anomaly src/cogniflow_anomaly
 COPY src/cogniflow_eventing src/cogniflow_eventing
