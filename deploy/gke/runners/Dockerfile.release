@@ -1,0 +1,16 @@
+FROM packages AS packages
+FROM ghcr.io/actions/actions-runner@sha256:0ce3288e48b012a83685998f683a2ae0cbd284fa722c090dda0af5443215cf30 AS release
+
+USER root
+COPY --from=packages /libbrotli1_1.1.0-2ubuntu0.1_amd64.deb /tmp/libbrotli1.deb
+RUN echo "70b188a86d81f30d7510aab30e25d638ed5037dded6691af1533952b71ac61de  /tmp/libbrotli1.deb" | sha256sum -c - \
+    && dpkg -i /tmp/libbrotli1.deb \
+    && rm -f /tmp/libbrotli1.deb \
+    && rm -f /usr/bin/containerd /usr/bin/containerd-shim-runc-v2 /usr/bin/ctr \
+        /usr/bin/docker /usr/bin/docker-init /usr/bin/docker-proxy /usr/bin/dockerd \
+        /usr/bin/runc /usr/bin/sudo /usr/local/lib/docker/cli-plugins/docker-buildx \
+    && rm -rf /home/runner/externals/node20/lib/node_modules \
+        /home/runner/externals/node24/lib/node_modules \
+    && deluser runner sudo \
+    && deluser runner docker
+USER 1001:1001
