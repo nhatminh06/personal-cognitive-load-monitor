@@ -368,6 +368,32 @@ def test_ephemeral_runners_are_bounded_separate_and_socketless() -> None:
     assert "runs-on: ubuntu-latest" in release
 
 
+def test_private_packaging_runner_is_pinned_minimal_and_job_scoped() -> None:
+    dockerfile = (ROOT / "deploy/gke/runners/Dockerfile.release").read_text()
+    workflow = (ROOT / ".github/workflows/release.yaml").read_text()
+    manifest = (ROOT / "deploy/gke/ephemeral-runners.yaml").read_text()
+
+    assert dockerfile.count("FROM ") == 2
+    assert dockerfile.count("@sha256:") == 1
+    assert "AS release" in dockerfile
+    assert "USER 1001:1001" in dockerfile
+    assert "libbrotli1_1.1.0-2ubuntu0.1_amd64.deb" in dockerfile
+    assert "70b188a86d81f30d7510aab30e25d638ed5037dded6691af1533952b71ac61de" in dockerfile
+    for removed in ("dockerd", "containerd", "runc", "docker-buildx", "/usr/bin/sudo"):
+        assert removed in dockerfile
+    for deployment_tool in ("kubectl", "helm", "cosign", "trivy"):
+        assert deployment_tool not in dockerfile.lower()
+
+    package_job = workflow[workflow.index("package:\n"):workflow.index("release:\n")]
+    assert "runs-on: [self-hosted, linux, x64, cogniflow-release]" in package_job
+    assert "actions/setup-python@" in package_job
+    assert "astral-sh/setup-uv@" in package_job
+    assert "scripts/package_approved_model.py" in package_job
+    assert "docker/build-push-action" not in package_job
+    assert "SET_RELEASE_RUNNER_IMAGE" in manifest
+    assert "SET_DEPLOY_RUNNER_IMAGE" in manifest
+
+
 def test_ci_test_build_and_manual_deploy_boundaries_are_explicit() -> None:
     workflow = (ROOT / ".github/workflows/ci-cd.yaml").read_text()
 
