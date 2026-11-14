@@ -1,6 +1,6 @@
 # Module I isolated KServe qualification
 
-Status: **BLOCKED**. No disposable cluster qualification was run and no candidate is `QUALIFIED`.
+Status: **BLOCKED**. Bounded Kubernetes 1.35 API/CRD admission passed, but no candidate is `QUALIFIED` without controller and workload runtime evidence.
 
 ## Immutable upstream candidate
 
@@ -8,7 +8,7 @@ The candidate is Kubeflow Community Distribution commit
 [`f121d4bdf99e0afa87ecaf3a06289a03a73f3ee0`](https://github.com/kubeflow/community-distribution/tree/f121d4bdf99e0afa87ecaf3a06289a03a73f3ee0),
 not mutable `master`. Its manifests declare KServe 0.21.0, Knative Serving 1.23.0,
 Istio 1.31.3 and cert-manager 1.21.2. The disposable cluster is separately pinned to
-Kubernetes 1.34.11 by the kind node image digest in `qualification/module1/install.sh`.
+Kubernetes 1.35.8 by the kind node image digest in `qualification/module1/install.sh`.
 The matrix policy is exact-patch and explicitly sets `gke_accepted: false`; no other kind
 patch or GKE build is equivalent to this qualification.
 
@@ -28,13 +28,13 @@ The dedicated [`kserve_test.yaml`](https://github.com/kubeflow/community-distrib
 installs a real stack and runs real sklearn `InferenceService` predictions. Successful PR
 runs exist, including [run 40484164700](https://github.com/kubeflow/community-distribution/actions/runs/40484164700).
 There is no successful `master` KServe run for the pinned commit. The workflow currently
-creates its default kind version rather than Kubernetes 1.34; the repository's full matrix
+creates its default kind version rather than the repository's exact Kubernetes patch; its full matrix
 tests 1.35 and 1.37. Its curl test also accepts HTTP 404/503 on an authenticated route and
 temporarily applies an allow-all workload `AuthorizationPolicy`. Those facts are useful
 upstream evidence, but none proves CogniFlow readiness, strict prediction success,
-scale-to-zero, cold activation, Kubernetes 1.34, or GKE.
+scale-to-zero, cold activation, CogniFlow, or GKE.
 
-Kubernetes 1.34 is supported by the pinned kind image, but GKE remains unverified. The
+Kubernetes 1.35 API/CRD admission passed with the pinned kind image, but controller reconciliation and GKE remain unverified. The
 distribution has a GKE Istio CNI overlay because GKE's CNI path differs; the kind run does
 not validate that overlay, GKE Dataplane V2 NetworkPolicy behavior, Workload Identity,
 managed control-plane constraints, or the exact intended GKE patch version. A later,
@@ -78,8 +78,8 @@ disposable run, verify the context name after installation, and then:
    the 16 GiB local budget. Every `kubectl` operation is bound to
    `kind-cogniflow-module1-qualification`; kind writes only to the private
    `NEW_PRIVATE_DIRECTORY/kubeconfig`, never the user's default kubeconfig.
-   Use kubectl 1.34.11 when possible; qualification rejects a client more than one minor
-   from the Kubernetes 1.34.11 server. The host's kubectl 1.37.1 is unsupported for this run.
+   Use kubectl 1.35.9 when possible; qualification rejects a client more than one minor
+   from the Kubernetes 1.35.8 server. The host's kubectl 1.37.1 is unsupported for this run.
 2. Generate `build/model-package` with
    `PYTHONPATH=src uv run python scripts/generate_qualification_model.py build/model-package`; build the
    KServe image locally, load it into kind, and set `KSERVE_IMAGE` to its immutable

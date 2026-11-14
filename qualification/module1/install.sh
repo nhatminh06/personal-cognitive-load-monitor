@@ -7,7 +7,7 @@ set -euo pipefail
 }
 
 commit=f121d4bdf99e0afa87ecaf3a06289a03a73f3ee0
-node_image=kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d
+node_image=kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
 cluster=cogniflow-module1-qualification
 context=kind-cogniflow-module1-qualification
 evidence=$3

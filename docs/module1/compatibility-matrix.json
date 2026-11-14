@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-27",
+  "as_of": "2026-11-14",
   "qualification_status": "BLOCKED",
   "selected_candidate": null,
   "candidates": [
@@ -47,11 +47,11 @@
       "id": "kubeflow-community-f121d4bd",
       "kserve": "0.21.0",
       "knative_serving": "1.23.0",
-      "kubernetes": {"policy": "exact", "version": "1.34.11", "gke_accepted": false},
+      "kubernetes": {"policy": "exact", "version": "1.35.8", "gke_accepted": false},
       "networking": "istio-1.31.3",
       "cert_manager": "1.21.2",
       "support_status": "needs-integration-qualification",
-      "integration_evidence": "Upstream PR workflows exercise real InferenceServices, but the pinned commit has no successful master KServe run and does not validate Kubernetes 1.34, GKE, CogniFlow, scale-to-zero or strict 200-only routing",
+      "integration_evidence": "On Kubernetes 1.35.8, 70 pinned cert-manager, Istio, Knative Serving/Eventing and KServe CRDs became Established and the pinned control-plane plus CogniFlow manifests passed server-side dry-run admission. Controller reconciliation, InferenceService runtime, scale-to-zero, strict 200-only routing, KFP and GKE remain unverified",
       "security_findings": ["upstream test applies a test-only allow-all predictor AuthorizationPolicy", "upstream manifests use mutable image tags; live immutable digests and CVE scan evidence remain required", "GHSA-v824-8gxh-pgjw requires review before production authorization"],
       "suitable": false,
       "source": {

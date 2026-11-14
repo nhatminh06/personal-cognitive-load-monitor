@@ -77,6 +77,12 @@ def test_runtime_capture_uses_api_group_in_resource_identity():
     assert 'app\\.kubernetes\\.io/version' in capture
     assert 'operator\\.istio\\.io/version' not in capture
     assert '"$kserve" == 0.21.0' in capture
+    assert '"$kubernetes" == 1.35.8' in capture
+
+
+def test_qualification_uses_digest_pinned_kubernetes_135_image():
+    install = (QUALIFICATION / "install.sh").read_text()
+    assert "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0" in install
 
 
 def test_qualification_rejects_unsupported_kubectl_skew():

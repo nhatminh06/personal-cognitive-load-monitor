@@ -56,6 +56,7 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "spark" not in terraform.lower()
     cluster = (ROOT / "infra/terraform/gke/main.tf").read_text()
     variables = (ROOT / "infra/terraform/gke/variables.tf").read_text()
+    assert 'min_master_version  = "1.35"' in cluster
     assert "network_policy {" not in cluster
     assert 'can(regex("^[0-9.]+/32$", network.cidr_block))' in variables
     assert "roles/container.developer" not in terraform
@@ -523,7 +524,7 @@ def test_module1_deploy_is_manual_protected_oidc_and_knative_only() -> None:
     assert '"1.23.0"' in workflow
     assert '"1.31.3"' in workflow
     assert '"1.21.2"' in workflow
-    assert '^1\\.34\\.[0-9]+' in workflow
+    assert '^1\\.35\\.[0-9]+' in workflow
     assert 'if [[ "$EDUCATIONAL_DEMO" != "true" ]]' in workflow
     assert 'if [[ "${{ inputs.educational_demo }}" == "true" ]]' in workflow
     assert '--set-string "config.appEnv=educational_demo"' in workflow

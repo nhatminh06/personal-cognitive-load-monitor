@@ -180,7 +180,7 @@ jobs:
           kubernetes="$(kubectl version -o json | jq -r '.serverVersion.gitVersion | sub("^v"; "")')"
           istio="$(kubectl get deployment istiod -n istio-system -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}')"
           cert_manager="$(kubectl get deployment cert-manager -n cert-manager -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')"
-          [[ "$kserve" == "0.21.0" && "$knative" == "1.23.0" && "$kubernetes" =~ ^1\.34\.[0-9]+ && "$istio" == "1.31.3" && "$cert_manager" == "1.21.2" ]] || { echo "Unsupported Module I serving stack" >&2; exit 1; }
+          [[ "$kserve" == "0.21.0" && "$knative" == "1.23.0" && "$kubernetes" =~ ^1\.35\.[0-9]+ && "$istio" == "1.31.3" && "$cert_manager" == "1.21.2" ]] || { echo "Unsupported Module I serving stack" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.enable-scale-to-zero}')" == "true" ]] || { echo "Knative global scale-to-zero must be explicitly enabled" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.stable-window}')" == "60s" ]] || { echo "Unexpected Knative stable window" >&2; exit 1; }
           [[ "$(kubectl get configmap config-autoscaler -n knative-serving -o jsonpath='{.data.scale-to-zero-grace-period}')" == "30s" ]] || { echo "Unexpected Knative scale-to-zero grace period" >&2; exit 1; }
@@ -254,6 +254,8 @@ jobs:
           printf '%s' "$TLS_CERT" > "$secret_dir/tls.crt"
           printf '%s' "$TLS_KEY" > "$secret_dir/tls.key"
           [[ "$(wc -l < "$secret_dir/ingress-auth")" == "1" ]]
+          # Dollar signs are literal htpasswd separators.
+          # shellcheck disable=SC2016
           grep -Eq '^[^:[:space:]]+:\$(2[aby]|apr1)\$' "$secret_dir/ingress-auth" || { echo "Ingress credential must be one bcrypt or APR1 htpasswd record" >&2; exit 1; }
           openssl x509 -in "$secret_dir/tls.crt" -noout -checkend 0 >/dev/null
           openssl x509 -in "$secret_dir/tls.crt" -noout -checkhost "$APP_HOST" >/dev/null
