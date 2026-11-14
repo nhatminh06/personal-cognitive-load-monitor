@@ -90,6 +90,19 @@ variable "monthly_budget_usd" {
   default     = 225
 }
 
+variable "budget_notification_channel_ids" {
+  type        = list(string)
+  description = "Owner-approved Cloud Monitoring email notification channel resource names for budget alerts."
+
+  validation {
+    condition = length(var.budget_notification_channel_ids) > 0 && length(var.budget_notification_channel_ids) <= 5 && alltrue([
+      for channel in var.budget_notification_channel_ids :
+      can(regex("^projects/([0-9]+|[a-z][a-z0-9-]{4,28}[a-z0-9])/notificationChannels/[0-9]+$", channel))
+    ])
+    error_message = "Provide at least one full Monitoring email notification channel resource name; do not put email addresses in Terraform."
+  }
+}
+
 variable "github_repository" {
   description = "GitHub repo allowed to assume the deployer identity, as \"owner/repo\" (e.g. \"nhatminh06/personal-cognitive-load-monitor\")."
   type        = string

@@ -22,6 +22,7 @@ metadata:
   name: mlflow-metadata
   namespace: mlflow
 spec:
+  storageClassName: cogniflow-retain-rwo
   accessModes: [ReadWriteOnce]
   resources:
     requests:

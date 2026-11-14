@@ -1,9 +1,12 @@
-# Copy to backend.tf only after a separately bootstrapped state bucket exists.
-# The bucket must enforce uniform access and public-access prevention, enable
-# versioning and retention, and grant state access only to Terraform operators.
+# Copy to backend.tf only after the owner supplies and separately bootstraps a
+# globally unique bucket named pnm-cognitive-load-cogniflow-tfstate-OWNER_SUFFIX.
+# Require uniform access, public-access prevention, versioning, 90-day cleanup
+# of noncurrent versions, force_destroy=false, and bucket-local objectAdmin for
+# only the approved Terraform operator identities. Do not set a bucket retention
+# policy: the GCS backend must delete its short-lived .tflock object to unlock.
 terraform {
   backend "gcs" {
-    bucket = "REPLACE_WITH_DEDICATED_TERRAFORM_STATE_BUCKET"
+    bucket = "pnm-cognitive-load-cogniflow-tfstate-OWNER_SUFFIX"
     prefix = "cogniflow/gke"
   }
 }

@@ -41,6 +41,11 @@ The directly priced base is about `$0.376/hour` before disks, load balancing, st
 
 The Terraform `$225` project-scoped budget with alerts at 25/50/75/90/100% is a mandatory approved plan input, but budgets do not stop spend. Owner approval covers only the initial eight-hour window. Set an independent calendar expiry and check billing after each phase.
 
+The alert thresholds are `$56.25`, `$112.50`, `$168.75`, `$202.50` and
+`$225.00`. Terraform requires at least one owner-created Cloud Monitoring email
+notification channel and disables implicit IAM-role recipients, so the reviewed
+recipient set is explicit without storing email addresses in this repository.
+
 | Trial allocation | Maximum |
 |---|---:|
 | Shared GKE/bootstrap and authenticated preflight | $45 |

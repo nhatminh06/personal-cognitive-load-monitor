@@ -12,6 +12,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: {name: anomaly-state, namespace: cogniflow-eventing}
 spec:
+  storageClassName: cogniflow-delete-rwo
   accessModes: [ReadWriteOnce]
   resources: {requests: {storage: 256Mi}}
 ---
@@ -19,6 +20,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: {name: anomaly-alerts, namespace: cogniflow-eventing}
 spec:
+  storageClassName: cogniflow-delete-rwo
   accessModes: [ReadWriteOnce]
   resources: {requests: {storage: 256Mi}}
 ---

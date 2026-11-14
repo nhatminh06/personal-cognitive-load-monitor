@@ -289,4 +289,8 @@ resource "google_billing_budget" "demo" {
       threshold_percent = threshold_rules.value
     }
   }
+  all_updates_rule {
+    monitoring_notification_channels = var.budget_notification_channel_ids
+    disable_default_iam_recipients   = true
+  }
 }

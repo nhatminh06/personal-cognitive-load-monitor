@@ -25,6 +25,11 @@ not define a deployment-runner image.
 
 ## Deployment-runner blockers
 
+The last verified deployment-runner candidate remains **NO-GO** with 13 HIGH
+findings under the unchanged mandatory Trivy gate. The dependency blockers
+below are not a waiver or a reduced count; publish and registration remain
+forbidden until an exact rebuilt image reports zero HIGH/CRITICAL findings.
+
 | Binary | Finding | Fixed component version | Review when |
 |---|---|---|---|
 | Cosign 3.1.4 | CVE-2026-111943 | Go 1.27.3 | A newer official Cosign release embeds the fix |

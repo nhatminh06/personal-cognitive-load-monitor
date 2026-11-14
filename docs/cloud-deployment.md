@@ -18,9 +18,50 @@ Required immutable inputs:
 
 Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the deployment runner cannot reach the internal endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
+The deployment-runner image remains **NO-GO**: its unchanged mandatory Trivy
+gate reports 13 HIGH findings. Do not publish, register or use that runner until
+the exact rebuilt image passes the existing unsuppressed HIGH/CRITICAL policy.
+
+### Owner-supplied activation values
+
+No placeholder below authorizes activation or deployment.
+
+| Value | Required decision | Gate |
+|---|---|---|
+| Billing account ID | Exact owner-approved account to link to `pnm-cognitive-load` | Before trial activation |
+| Numeric project number | Confirm it resolves to `pnm-cognitive-load` | Before budget plan |
+| Budget recipients | One to five real email recipients, created as Monitoring email channels; put only their channel resource names in tfvars | Before budget plan |
+| Terraform-state bucket | Globally unique `pnm-cognitive-load-cogniflow-tfstate-OWNER_SUFFIX` name | Before backend bootstrap |
+| State bootstrap identity | Named temporary principal allowed to create/configure the bucket and IAM | Before backend bootstrap |
+| State operator identities | Exact `user:`, `group:` or `serviceAccount:` members receiving bucket-local object administration | Before backend bootstrap |
+| Operator network | Fixed external IPv4 `/32` and display name | Before GKE plan |
+| GKE version | Exact Regular-channel 1.35 patch available in both selected zones | Before GKE plan |
+| DNS/TLS | Application hostname, certificate source and owner | Before ingress deployment |
+| Operating window | Start time, eight-hour stop deadline and person monitoring spend | Before activation |
+| Backup/teardown ownership | Named backup verifier, pause operator and teardown approver | Before activation |
+| `$75` contingency | Keep unapproved, or record a separate dated approval and purpose | Before any contingency spend |
+
 ## 2. State and static preflight
 
-Do not inspect, move or reuse ignored local state. Its recorded `0644` permissions must be remediated by its owner. Bootstrap the dedicated state bucket separately, review its IAM/retention, then copy `infra/terraform/gke/backend.tf.example` to the deliberately untracked `backend.tf` and initialize with migration disabled until approved.
+Do not inspect, move or reuse ignored local state. Its recorded `0644` permissions must be remediated by its owner. Bootstrap the dedicated state bucket separately, review its IAM/version recovery, then copy `infra/terraform/gke/backend.tf.example` to the deliberately untracked `backend.tf` and initialize with migration disabled until approved.
+
+The state bucket name must be globally unique and owner-supplied, following
+`pnm-cognitive-load-cogniflow-tfstate-OWNER_SUFFIX`. It must use Standard
+storage in `us-central1`, uniform bucket-level access, public-access prevention,
+object versioning, `force_destroy=false`, and lifecycle deletion of noncurrent
+versions only after 90 days. Grant bucket-local `roles/storage.objectAdmin`
+only to the named Terraform operator identities; the separate bootstrap
+identity needs temporary bucket/IAM administration and must be removed after
+handoff. Do not add a bucket retention policy: the GCS backend supports locking
+by creating and deleting a `.tflock` object, which retention would prevent from
+being deleted promptly.
+
+Recovery is owner-operated and never automatic: stop every Terraform writer,
+preserve a fresh `terraform state pull` outside the repository with mode `0600`,
+identify the intended noncurrent object generation, compare lineage and serial,
+then obtain approval before restoring it. Never use `terraform state push
+-force` as a routine recovery step. Keep the state bucket after compute teardown
+until recovery evidence and the 90-day version window have been reviewed.
 
 ```bash
 terraform -chdir=infra/terraform/gke fmt -check -recursive
@@ -38,7 +79,13 @@ Run `pytest -q src/tests/test_gke_cloud_readiness.py::test_cloud_guardrails_and_
 
 ## 3. Reviewed plan (still no apply)
 
-Create an untracked tfvars file from the example. Set the project, two zones in the same region, external operator `/32`, GitHub repository, owner-approved billing account and numeric project number. Terraform intentionally refuses a plan without the budget inputs.
+Create an untracked tfvars file from the example. Set the project, two zones in the same region, external operator `/32`, GitHub repository, owner-approved billing account, numeric project number and full resource names for one to five owner-created Cloud Monitoring **email** notification channels. Terraform intentionally refuses a plan without the budget inputs. Email addresses stay in Cloud Monitoring, not Terraform or Git; implicit Billing IAM recipients are disabled.
+
+The `$225` Terraform budget covers only the planned allocation. The separate
+`$75` contingency is not added to the alert amount and is not authorized by
+activation approval; spending it requires a new owner decision. Thresholds are
+25/50/75/90/100% (`$56.25/$112.50/$168.75/$202.50/$225.00`) and alerts do not
+stop or throttle resources.
 
 ```bash
 terraform -chdir=infra/terraform/gke plan -out=PR17-REVIEW-ONLY.tfplan
@@ -49,7 +96,30 @@ Review resource count, region, IAM members, private nodes, authorized networks, 
 
 ## 4. Authorized provisioning and cluster gates
 
-Only an authorized operator may apply the exact reviewed plan. Immediately confirm two private nodes, Workload Identity, Dataplane V2, Cloud Logging/Managed Prometheus, only reviewed external operator `/32` control-plane networks, budget alerts and Artifact Registry/GCS public-access prevention. Dataplane V2 already enables policy enforcement; do not add the incompatible GKE `network_policy` switch. A bootstrap cluster administrator substitutes the reviewed project ID and applies `deploy/gke/cogniflow-guardrails.yaml`; the deployment identity then has namespace admin only. Apply the eventing namespace/policy before its workloads.
+Only an authorized operator may apply the exact reviewed plan. Immediately confirm two private nodes, Workload Identity, Dataplane V2, Cloud Logging/Managed Prometheus, only reviewed external operator `/32` control-plane networks, budget alerts and Artifact Registry/GCS public-access prevention. Dataplane V2 already enables policy enforcement; do not add the incompatible GKE `network_policy` switch. A bootstrap cluster administrator substitutes the reviewed project ID and applies `deploy/gke/cogniflow-guardrails.yaml` and `deploy/gke/storageclasses.yaml`; the deployment identity then has namespace admin only. Apply the eventing namespace/policy before its workloads.
+
+The cluster administrator must complete this ordered storage gate before
+applying `deploy/gke/mlflow.yaml` or dispatching `deploy-knative.yaml`:
+
+```bash
+kubectl apply -f deploy/gke/storageclasses.yaml
+test "$(kubectl get storageclass cogniflow-retain-rwo -o jsonpath='{.provisioner}|{.reclaimPolicy}|{.volumeBindingMode}')" = 'pd.csi.storage.gke.io|Retain|WaitForFirstConsumer'
+test "$(kubectl get storageclass cogniflow-delete-rwo -o jsonpath='{.provisioner}|{.reclaimPolicy}|{.volumeBindingMode}')" = 'pd.csi.storage.gke.io|Delete|WaitForFirstConsumer'
+```
+
+Stop if either check fails. The namespace-scoped deployment identities must not
+receive cluster-scoped StorageClass creation rights. After the gate passes,
+render and apply MLflow; only then may the protected Eventing workflow create
+its four PVCs using the already-installed Delete class.
+
+`cogniflow-retain-rwo` and `cogniflow-delete-rwo` both use the GKE PD CSI
+driver, balanced persistent disks and `WaitForFirstConsumer`. MLflow selects the
+Retain class because its SQLite database is the registry record. Eventing
+selects Delete because its bounded SQLite stores are exported before PVC
+deletion. These are zonal `ReadWriteOnce` disks: a Pod is constrained to the
+disk's selected zone and cannot fail over to the other zone without a backup
+restore or a separately approved regional-disk design. Record the PV zone,
+disk ID and reclaim policy before pause or teardown.
 
 The public endpoint remains enabled for the external operator. All three deployment workflows set `use_internal_ip: true`, so the in-cluster `cogniflow-gke-deploy` runner reaches the private control-plane CIDR directly. Cloud NAT is only outbound connectivity for private nodes and Pods to GitHub, Google OIDC endpoints and Artifact Registry; its automatically allocated address is not a control-plane allowlist input. The release runner also uses NAT for those HTTPS destinations and reaches MLflow through `mlflow.mlflow.svc.cluster.local` inside the cluster.
 
