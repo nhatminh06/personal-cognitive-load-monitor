@@ -22,10 +22,10 @@ That integration-tested set is unusable for this demonstration:
 |---|---|---|---|
 | KServe 0.20.0 + Knative 1.21.1 + Istio 1.27.1 + cert-manager 1.17.0 | exact KServe dependency lock | Knative, Istio and upstream cert-manager are EOL; cert-manager supports only Kubernetes through 1.33; Istio 1.27.1 is in published affected ranges | Rejected |
 | KServe 0.21.0 + the same dependency set | exact KServe dependency lock | same blockers | Rejected |
-| KServe 0.21.0 + Knative 1.23.0 + Istio 1.31.3 + cert-manager 1.21.0 + GKE 1.34.12-gke.1153000 | each component is individually supported; KServe publishes no evidence for the substituted integration | exact images/manifests still need digest inventory and scanning; the GKE patch must be confirmed in `us-central1` | Needs isolated qualification; not deployable |
+| KServe 0.21.0 + Knative 1.23.0 + Istio 1.31.3 + cert-manager 1.21.2 + Kubernetes 1.35.8 | API/CRD admission passed locally; KServe publishes no evidence for the substituted integration | controller and workload runtime remain unqualified; the exact GKE patch must be confirmed in `us-central1` | Needs full isolated qualification; not deployable |
 
-GKE Regular offers Kubernetes 1.34 and newer, while Knative 1.23 requires at
-least Kubernetes 1.34. Version overlap is necessary but does not establish
+Knative 1.23 requires at least Kubernetes 1.34, and the pinned stack passed bounded
+Kubernetes 1.35 API admission. Version overlap is necessary but does not establish
 KServe compatibility. The protected workflow therefore runs
 `module1_compatibility.py --require-qualified` before OIDC and fails closed.
 Do not mark the matrix `QUALIFIED` until an isolated exact-stack rehearsal
@@ -57,7 +57,7 @@ Concrete unblock options, in preference order:
    Knative, networking and cert-manager releases, then re-run this review;
 2. obtain explicit upstream KServe evidence for the exact substituted candidate;
 3. with separate human authorization, qualify the candidate on a disposable,
-   isolated Kubernetes 1.34 environment using immutable manifests/images and
+   isolated Kubernetes 1.35 environment using immutable manifests/images and
    the same custom runtime, then discard it. Record installation, CRD conversion,
    controller readiness, Revision propagation, routing and positive→0→positive inference.
 
@@ -72,7 +72,7 @@ Before any authorized run, independently confirm:
 
 1. an owner-approved billing account, budget, fixed external operator `/32`, Terraform
    plan and protected remote-state remediation;
-2. the private GKE 1.34 context and cluster UID, two bounded `e2-standard-4`
+2. the private GKE 1.35 context and cluster UID, two bounded `e2-standard-4`
    nodes, `metrics.k8s.io/v1beta1` availability, Dataplane V2 and Workload Identity;
 3. reviewed KServe, Knative Serving/networking and cert-manager versions and
    immutable controller image IDs;

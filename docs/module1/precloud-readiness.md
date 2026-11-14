@@ -100,7 +100,7 @@ Distribution commit `f121d4bdf99e0afa87ecaf3a06289a03a73f3ee0`:
 - Knative Serving 1.23.0;
 - Istio 1.31.3;
 - cert-manager 1.21.2;
-- exact disposable Kubernetes 1.34.11, with `gke_accepted: false`.
+- exact disposable Kubernetes 1.35.8, with `gke_accepted: false`.
 
 The prepared inventory requires 15 workloads and 38 CRDs. It intentionally omits
 the KServe UI, local-model node agent and disabled kernel-cache node agent. The latter's
@@ -275,7 +275,7 @@ Other results:
 1. **Human source review:** approve PR #21, integrate it, rebase/retarget PR #22,
    confirm the combined scope and pass final CI.
 2. **Disposable installation authorization:** approve the exact pinned commit,
-   Kubernetes 1.34.11 node image, 12 GiB expected peak, 30 GiB free disk, new
+   Kubernetes 1.35.8 node image, 12 GiB expected peak, 30 GiB free disk, new
    external evidence directory and exact cluster/context name.
 3. **Disposable qualification authorization:** separately approve building a
    local-only synthetic `.skops` image, loading it into that cluster and running

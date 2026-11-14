@@ -86,7 +86,7 @@ istio=$("${k[@]}" get deployment istiod -n istio-system \
   -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}')
 cert_manager=$("${k[@]}" get deployment cert-manager -n cert-manager \
   -o jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' | sed 's/^v//')
-[[ "$kserve" == 0.21.0 && "$knative" == 1.23.0 && "$kubernetes" == 1.34.11 \
+[[ "$kserve" == 0.21.0 && "$knative" == 1.23.0 && "$kubernetes" == 1.35.8 \
   && "$istio" == 1.31.3 && "$cert_manager" == 1.21.2 ]] || {
   echo "live serving versions do not match the pinned qualification stack" >&2
   exit 1

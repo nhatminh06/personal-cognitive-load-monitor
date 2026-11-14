@@ -187,7 +187,7 @@ resource "google_container_cluster" "primary" {
   networking_mode     = "VPC_NATIVE"
   datapath_provider   = "ADVANCED_DATAPATH"
   deletion_protection = true
-  min_master_version  = "1.34"
+  min_master_version  = "1.35"
 
   remove_default_node_pool = true
   initial_node_count       = 1
