@@ -11,6 +11,7 @@ metadata:
   name: activity-events
   namespace: cogniflow-eventing
 spec:
+  storageClassName: cogniflow-delete-rwo
   accessModes: [ReadWriteOnce]
   resources:
     requests:

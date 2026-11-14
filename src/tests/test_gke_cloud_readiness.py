@@ -57,6 +57,9 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     cluster = (ROOT / "infra/terraform/gke/main.tf").read_text()
     variables = (ROOT / "infra/terraform/gke/variables.tf").read_text()
     assert 'min_master_version  = "1.35"' in cluster
+    assert "channel in var.budget_notification_channel_ids" in variables
+    assert "monitoring_notification_channels = var.budget_notification_channel_ids" in cluster
+    assert "disable_default_iam_recipients   = true" in cluster
     assert "network_policy {" not in cluster
     assert 'can(regex("^[0-9.]+/32$", network.cidr_block))' in variables
     assert "roles/container.developer" not in terraform
@@ -66,6 +69,23 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert 'attribute.environment/production-knative"' in terraform
     assert 'attribute.environment/module1-production"' in terraform
     assert "github_actions_release.email" in terraform
+
+    backend = (ROOT / "infra/terraform/gke/backend.tf.example").read_text()
+    assert 'prefix = "cogniflow/gke"' in backend
+    assert "force_destroy=false" in backend
+    assert "90-day" in backend
+    assert "Do not set a bucket retention" in backend
+
+    runbook = (ROOT / "docs/cloud-deployment.md").read_text()
+    assert "13 HIGH findings" in runbook
+    assert "13 HIGH\nfindings" in (ROOT / "deploy/gke/runners/README.md").read_text()
+    assert "The separate\n`$75` contingency" in runbook
+    assert "cogniflow-retain-rwo" in runbook
+    assert "cogniflow-delete-rwo" in runbook
+    storage_gate = runbook.index("kubectl apply -f deploy/gke/storageclasses.yaml")
+    assert storage_gate < runbook.index("render and apply MLflow")
+    assert storage_gate < runbook.index("protected Eventing workflow create")
+    assert "namespace-scoped deployment identities must not" in runbook
 
 
 def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
@@ -103,6 +123,9 @@ def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
         "/mlflow/metadata", "/tmp",
     }
     assert by_kind["PersistentVolumeClaim"]["spec"]["accessModes"] == ["ReadWriteOnce"]
+    assert by_kind["PersistentVolumeClaim"]["spec"]["storageClassName"] == (
+        "cogniflow-retain-rwo"
+    )
     assert by_kind["ServiceAccount"]["metadata"]["annotations"] == {
         "iam.gke.io/gcp-service-account": (
             "cogniflow-mlflow@SET_PROJECT.iam.gserviceaccount.com"
@@ -123,6 +146,36 @@ def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
     assert "public_access_prevention    = \"enforced\"" in terraform
     assert "uv sync --frozen --extra kubeflow" in (ROOT / "Dockerfile.kfp").read_text()
     assert 'name = "google-cloud-storage"' in (ROOT / "uv.lock").read_text()
+
+
+def test_gke_storage_classes_make_placement_and_reclaim_policy_explicit() -> None:
+    classes = {
+        document["metadata"]["name"]: document
+        for document in yaml.safe_load_all(
+            (ROOT / "deploy/gke/storageclasses.yaml").read_text()
+        )
+    }
+    assert set(classes) == {"cogniflow-retain-rwo", "cogniflow-delete-rwo"}
+    assert {item["provisioner"] for item in classes.values()} == {
+        "pd.csi.storage.gke.io"
+    }
+    assert {item["volumeBindingMode"] for item in classes.values()} == {
+        "WaitForFirstConsumer"
+    }
+    assert classes["cogniflow-retain-rwo"]["reclaimPolicy"] == "Retain"
+    assert classes["cogniflow-delete-rwo"]["reclaimPolicy"] == "Delete"
+
+    for name in ("consumer.yaml", "dead-letter.yaml", "anomaly.yaml"):
+        claims = [
+            document
+            for document in yaml.safe_load_all((ROOT / "deploy/knative" / name).read_text())
+            if document and document["kind"] == "PersistentVolumeClaim"
+        ]
+        assert claims
+        assert all(
+            claim["spec"]["storageClassName"] == "cogniflow-delete-rwo"
+            for claim in claims
+        )
 
 
 def test_cloud_mlflow_clients_preserve_candidate_and_release_boundaries() -> None:
