@@ -239,12 +239,7 @@ def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_networ
     assert {"secretRef": {"name": "cogniflow-api"}} in (
         deployment["spec"]["template"]["spec"]["containers"][0]["envFrom"]
     )
-    ingress = next(document for document in documents if document["kind"] == "Ingress")
-    assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-secret"] == (
-        "cogniflow-ingress-basic-auth"
-    )
-    assert ingress["spec"]["tls"][0]["secretName"] == "cogniflow-api-tls"
-    assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-type"] == "basic"
+    assert "Ingress" not in {document["kind"] for document in documents}
     service = next(document for document in documents if document["kind"] == "Service")
     assert service["spec"]["type"] == "ClusterIP"
     policy = next(document for document in documents if document["kind"] == "NetworkPolicy")
@@ -287,7 +282,7 @@ def test_gke_helm_fails_closed_on_placeholder_digest_and_missing_tls() -> None:
         capture_output=True,
         text=True,
     )
-    no_tls = _render("--set", "ingress.tls=null")
+    no_tls = _render("--set", "ingress.enabled=true", "--set", "ingress.tls=null")
 
     assert placeholder.returncode != 0
     assert "non-placeholder" in placeholder.stderr
@@ -367,7 +362,9 @@ def test_cloud_guardrails_and_two_node_budget_are_enforceable() -> None:
 
 def test_publication_candidate_ci_has_no_release_or_cloud_execution() -> None:
     workflows = ROOT / ".github/workflows"
-    assert {path.name for path in workflows.glob("*.yaml")} == {"ci-cd.yaml"}
+    assert {path.name for path in workflows.glob("*.yaml")} == {
+        "ci-cd.yaml", "release-qualification.yaml",
+    }
     ci = (workflows / "ci-cd.yaml").read_text()
     assert "pull_request:" in ci
     assert "uv run ruff check src scripts" in ci

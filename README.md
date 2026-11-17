@@ -34,6 +34,10 @@ The API publisher is best effort. The detector persists canonical event content 
 
 Kubernetes manifests have static and offline validation history. This publication candidate does not claim a current Kubernetes runtime, GKE deployment, cloud registry release, or approved production model. Cloud and image publication workflows are intentionally absent pending separate qualification and authorization.
 
+M10 adds a read-only, manually triggered **source qualification** workflow and
+fail-closed offline release-identity checks. It does not restore cloud or image
+publication. See the [M10 assessment](docs/m10-offline-cloud-release-preparation.md).
+
 ## Run locally
 
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).

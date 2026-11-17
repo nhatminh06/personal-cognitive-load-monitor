@@ -31,7 +31,8 @@ Resolve every image/chart to a registry digest and archive the resolution before
 | Knative Eventing | `1.23.0` | Matches Phase 6/7 evidence and checked-in manifest checksums |
 | Knative Serving | `1.23.0` | Same Kubernetes compatibility line as Eventing; record every resolved controller image digest |
 | cert-manager | `1.18.2` | Matches Phase 5 verification; verify upstream support against the chosen GKE patch |
-| ingress-nginx | chart `4.15.1`, controller `1.15.1` | Upstream lists Kubernetes 1.35 support; the project is archived, so replacement is a post-demo decision |
+| ingress-nginx | retired March 2026 | `FAIL`: disabled in GKE values; it must not be installed |
+| GKE Gateway API | exact managed GatewayClass unresolved | `NEEDS_RUNTIME`: requires TLS, IAP, Cloud Armor rate limits, route isolation and NetworkPolicy validation together |
 | External Secrets Operator | chart `2.13.0` | Namespaced Google Secret Manager delivery through Workload Identity |
 | MLflow | `3.17.2` from the digest-pinned KFP component image | One private replica; persistent SQLite registry metadata and GCS artifacts |
 | Cosign / Trivy | `3.1.4` / `0.76.1` | Deploy gate verifies keyless GitHub identity and scans the exact Artifact Registry digest |

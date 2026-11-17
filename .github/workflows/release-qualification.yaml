@@ -1,0 +1,91 @@
+name: Offline release qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      exact_commit:
+        description: Full commit SHA selected in the workflow ref picker
+        required: true
+        type: string
+      owner_acknowledgement:
+        description: Type QUALIFY_ONLY_NO_PUBLISH_OR_DEPLOY
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m10-qualification-${{ inputs.exact_commit }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-source-only:
+    environment: m10-release-qualification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Bind owner acknowledgement to the selected commit
+        env:
+          EXPECTED_COMMIT: ${{ inputs.exact_commit }}
+          ACKNOWLEDGEMENT: ${{ inputs.owner_acknowledgement }}
+          SELECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_COMMIT" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$EXPECTED_COMMIT" == "$SELECTED_COMMIT" ]]
+          [[ "$ACKNOWLEDGEMENT" == "QUALIFY_ONLY_NO_PUBLISH_OR_DEPLOY" ]]
+
+      - name: Check out the exact commit without credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.exact_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+
+      - name: Run source qualification gates
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-extras
+          uv run ruff check src scripts
+          uv run pytest src/tests \
+            --cov=src/preprocessing_api \
+            --cov=src/cogniflow_data \
+            --cov=src/cogniflow_eventing \
+            --cov=src/cogniflow_anomaly \
+            --cov=src/cogniflow_kserve \
+            --cov=src/cogniflow_contracts \
+            --cov=src/cogniflow_sessions \
+            --cov=src/cogniflow_edge \
+            --cov=src/cogniflow_focus \
+            --cov-fail-under=81
+
+      - name: Install checksum-pinned Gitleaks 8.30.0
+        run: |
+          set -euo pipefail
+          asset=gitleaks_8.30.0_linux_x64.tar.gz
+          curl -fsSL --retry 3 "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/$asset" -o "$RUNNER_TEMP/$asset"
+          echo "79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e  $RUNNER_TEMP/$asset" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" gitleaks
+
+      - name: Scan the exact selected source tree and commit
+        env:
+          EXACT_COMMIT: ${{ inputs.exact_commit }}
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/gitleaks" dir . --config .gitleaks.toml --redact --no-banner
+          git diff --quiet "$EXACT_COMMIT^{commit}" --
+
+      - name: Stop before image, registry, signing, or cloud operations
+        run: |
+          echo "PASS_OFFLINE: source qualification only"
+          echo "BLOCKED: image scan/signature and cloud runtime require later authorization"

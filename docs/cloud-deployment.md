@@ -1,6 +1,10 @@
 # GKE/GCS deployment and final-demo runbook
 
-**Status:** planning and offline validation only, 2026-10-26. Nothing in this runbook has been applied to GCP. Read [the cloud-readiness design](module3/gke-gcs-readiness.md) first.
+**Status:** non-deployable planning and offline validation only, updated for M10
+on 2026-11-17. Nothing in this runbook has been applied to GCP. The retired
+ingress-nginx path is disabled; no external endpoint may be created until the
+GKE Gateway/IAP/Cloud Armor plan passes M11 runtime validation. Read
+[the M10 assessment](m10-offline-cloud-release-preparation.md) first.
 
 ## 1. Owner approvals and release inputs
 

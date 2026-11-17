@@ -30,6 +30,12 @@ findings under the unchanged mandatory Trivy gate. The dependency blockers
 below are not a waiver or a reduced count; publish and registration remain
 forbidden until an exact rebuilt image reports zero HIGH/CRITICAL findings.
 
+Official release metadata was rechecked on 2026-11-17. Actions Runner 2.338.2
+and Cosign 3.1.4 remain current; Helm 3.22.1 remains the current Helm 3 line;
+kubectl 1.35.10 and Trivy 0.76.2 exist. These observations are not remediation
+evidence: no replacement artifacts were checksum-qualified, embedded dependency
+fixes were not assumed, and no exact rebuilt deployment-runner image was scanned.
+
 | Binary | Finding | Fixed component version | Review when |
 |---|---|---|---|
 | Cosign 3.1.4 | CVE-2026-111943 | Go 1.27.3 | A newer official Cosign release embeds the fix |

@@ -32,11 +32,11 @@ kserve:
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 ingress:
-  enabled: true
-  authSecret: cogniflow-ingress-basic-auth
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  # ingress-nginx is retired. External access stays fail-closed until the
+  # reviewed GKE Gateway/IAP/Cloud Armor plan passes M11 runtime validation.
+  enabled: false
+  authSecret: ""
+  annotations: {}
   hosts:
     - host: SET_REAL_HOST
       paths:
@@ -50,7 +50,7 @@ existingSecret: cogniflow-api
 
 networkPolicy:
   enabled: true
-  ingressNamespace: ingress-nginx
+  ingressNamespace: gke-managed-system
   kserveNamespace: cogniflow
   eventingNamespace: knative-eventing
   observabilityNamespace: monitoring
