@@ -166,6 +166,23 @@ def test_failed_reload_clears_readiness(monkeypatch, tmp_path):
     assert predictor.provenance is None
 
 
+def test_adapter_failed_reload_is_not_ready_and_recovers(monkeypatch, tmp_path):
+    artifact, _, _ = _package(monkeypatch, tmp_path)
+    contents = artifact.read_bytes()
+    monkeypatch.setattr("skops.io.load", lambda *args, **kwargs: _fake_model(["LOW"]))
+    model = CogniFlowModel("classifier")
+    assert model.load() is True
+    artifact.unlink()
+    with pytest.raises(ValueError, match="unavailable"):
+        model.load()
+    assert model.ready is False
+    with pytest.raises(RuntimeError, match="not ready"):
+        model.predict(_payload([1, 0, 0, 24, 1, 0]))
+    artifact.write_bytes(contents)
+    assert model.load() is True
+    assert model.predict(_payload([1, 0, 0, 24, 1, 0]))["predictions"] == ["LOW"]
+
+
 def test_model_adapter_maps_invalid_client_input(monkeypatch):
     predictor = CogniFlowPredictor()
     predictor.ready = True

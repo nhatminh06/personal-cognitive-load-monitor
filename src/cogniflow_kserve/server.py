@@ -23,6 +23,7 @@ class CogniFlowModel(Model):
         self.predictor = predictor or CogniFlowPredictor()
 
     def load(self) -> bool:
+        self.ready = False
         self.ready = self.predictor.load()
         return self.ready
 
