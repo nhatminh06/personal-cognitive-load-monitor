@@ -66,7 +66,7 @@ The demo uses local synthetic inputs and does not require cloud services.
 | Secret scanning | Candidate tree and new commit range scanned with the checked-in narrow policy |
 | Helm and Kubernetes | Offline lint/render and applicable static checks only |
 | Terraform | Offline formatting and provider-backed validation where cached providers are available |
-| Hosted GitHub Actions | NOT RUN for this candidate |
+| Hosted GitHub Actions | PASS — [run 44026292995](https://github.com/nhatminh06/personal-cognitive-load-monitor/actions/runs/44026292995) for `f05511cc96cc9644b2d4bcd4d46d98dab7e44d1c` |
 | Kubernetes or GKE runtime | NOT RUN for this candidate |
 | Container/image scan | NOT RUN for this candidate; no clean-image claim |
 

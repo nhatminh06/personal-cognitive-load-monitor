@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import hashlib
 import json
 import math
@@ -42,6 +43,9 @@ OUTBOX_IDLE_SECONDS = 1.0
 MAX_CONCURRENT_REQUESTS = 8
 
 _database_lock = threading.RLock()
+_store_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=MAX_CONCURRENT_REQUESTS + 1, thread_name_prefix="anomaly-store"
+)
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,13 @@ class OutboxFullError(RuntimeError):
 
 class EventIntegrityError(ValueError):
     """An existing CloudEvent identity was reused with different content."""
+
+
+async def _wait_for(future: concurrent.futures.Future[Any]) -> Any:
+    # SQLite worker completion callbacks can stall this loop, so poll the bounded future.
+    while not future.done():
+        await asyncio.sleep(0.01)
+    return future.result()
 
 
 @asynccontextmanager
@@ -368,9 +379,9 @@ async def _outbox_worker(stop: asyncio.Event, wake: asyncio.Event) -> None:
     while not stop.is_set():
         previous = 0
         try:
-            previous = _outbox_count()
-            drained = flush_outbox()
-            remaining = _outbox_count()
+            previous = await _wait_for(_store_executor.submit(_outbox_count))
+            drained = await _wait_for(_store_executor.submit(flush_outbox))
+            remaining = await _wait_for(_store_executor.submit(_outbox_count))
         except (KeyError, ValueError, sqlite3.Error):
             drained = False
             remaining = previous
@@ -395,7 +406,12 @@ def _outbox_count() -> int:
 
 
 async def _process_event(event: dict[str, Any]) -> None:
-    process_event(event)
+    task = asyncio.create_task(_wait_for(_store_executor.submit(process_event, event)))
+    try:
+        await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await task
+        raise
 
 
 @app.get("/health")

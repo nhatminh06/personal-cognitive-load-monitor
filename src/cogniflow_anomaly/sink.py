@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import hashlib
 import json
 import math
@@ -26,6 +27,16 @@ DELIVERIES = Counter("cogniflow_anomaly_sink_deliveries_total", "Alert sink outc
 MAX_ALERTS = 10_000
 MAX_CONCURRENT_REQUESTS = 8
 _database_lock = threading.RLock()
+_store_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=MAX_CONCURRENT_REQUESTS, thread_name_prefix="alert-store"
+)
+
+
+async def _wait_for(future: concurrent.futures.Future[Any]) -> Any:
+    # SQLite worker completion callbacks can stall this loop, so poll the bounded future.
+    while not future.done():
+        await asyncio.sleep(0.01)
+    return future.result()
 
 
 @asynccontextmanager
@@ -113,7 +124,7 @@ async def health() -> dict[str, str]:
 @app.get("/ready")
 async def ready() -> dict[str, str]:
     try:
-        _check_store()
+        await _wait_for(_store_executor.submit(_check_store))
     except sqlite3.Error as exc:
         raise HTTPException(503, "alert store unavailable") from exc
     return {"status": "ready"}
@@ -166,4 +177,9 @@ def _persist(event: dict[str, Any]) -> int:
 
 
 async def _persist_async(event: dict[str, Any]) -> int:
-    return _persist(event)
+    task = asyncio.create_task(_wait_for(_store_executor.submit(_persist, event)))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await task
+        raise

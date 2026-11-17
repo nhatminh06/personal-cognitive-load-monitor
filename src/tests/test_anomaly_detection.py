@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import sqlite3
+import threading
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -33,6 +34,13 @@ def request(app, payload):
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             return await client.post("/", content=json.dumps(payload), headers={"content-type": "application/cloudevents+json"})
     return asyncio.run(send())
+
+
+async def wait_thread_event(event: threading.Event, timeout: float = 1) -> bool:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while not event.is_set() and asyncio.get_running_loop().time() < deadline:
+        await asyncio.sleep(0.01)
+    return event.is_set()
 
 
 @pytest.fixture(autouse=True)
@@ -169,11 +177,33 @@ def test_sink_persists_alert_once_without_sensitive_fields():
         assert connection.execute("SELECT count(*) FROM alerts").fetchone()[0] == 1
 
 
-def test_sink_async_persistence_completes_without_hanging():
-    async def persist():
-        return await asyncio.wait_for(sink._persist_async({"source": "test", "id": "1"}), 1)
+def test_sink_persistence_is_nonblocking_and_cancellation_safe(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+    persisted = False
 
-    assert asyncio.run(persist()) == 1
+    def blocked(_event):
+        nonlocal persisted
+        started.set()
+        assert release.wait(2)
+        persisted = True
+        return 1
+
+    monkeypatch.setattr(sink, "_persist", blocked)
+
+    async def persist():
+        task = asyncio.create_task(sink._persist_async({"source": "test", "id": "1"}))
+        assert await wait_thread_event(started)
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(persist())
+    assert persisted is True
 
 
 def test_sink_rejects_tampered_alert():
@@ -257,6 +287,31 @@ def test_background_worker_recovers_without_new_event(monkeypatch):
     asyncio.run(exercise())
 
 
+def test_outbox_worker_keeps_event_loop_responsive(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocked():
+        started.set()
+        assert release.wait(2)
+        return True
+
+    monkeypatch.setattr(detector, "_outbox_count", lambda: 0)
+    monkeypatch.setattr(detector, "flush_outbox", blocked)
+
+    async def exercise():
+        stop, wake = asyncio.Event(), asyncio.Event()
+        task = asyncio.create_task(detector._outbox_worker(stop, wake))
+        assert await wait_thread_event(started)
+        await asyncio.sleep(0)
+        stop.set()
+        release.set()
+        wake.set()
+        await task
+
+    asyncio.run(exercise())
+
+
 def test_outbox_larger_than_batch_drains_and_partial_failure_retries(monkeypatch):
     rule = detector.DEFAULT_RULES[0]
     monkeypatch.setattr(detector, "DEFAULT_RULES", (detector.Rule(**{**rule.__dict__, "cooldown_seconds": 0}),))
@@ -306,16 +361,24 @@ def test_restart_drains_pending_outbox_without_delivery(monkeypatch):
 def test_concurrent_deliveries_are_bounded_and_ack_persisted_events(monkeypatch):
     active = 0
     maximum = 0
+    lock = threading.Lock()
+    concurrent = threading.Event()
+    release = threading.Event()
     original = detector.process_event
 
     def tracked(event):
         nonlocal active, maximum
-        active += 1
-        maximum = max(maximum, active)
+        with lock:
+            active += 1
+            maximum = max(maximum, active)
+            if active >= 2:
+                concurrent.set()
         try:
+            assert release.wait(2)
             return original(event)
         finally:
-            active -= 1
+            with lock:
+                active -= 1
 
     monkeypatch.setattr(detector, "process_event", tracked)
 
@@ -323,14 +386,17 @@ def test_concurrent_deliveries_are_bounded_and_ack_persisted_events(monkeypatch)
         async with detector.lifespan(detector.app):
             transport = httpx.ASGITransport(app=detector.app, raise_app_exceptions=False)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-                responses = await asyncio.gather(*(
+                requests = asyncio.gather(*(
                     client.post("/", content=json.dumps(activity(index)), headers={"content-type": "application/cloudevents+json"})
                     for index in range(20)
                 ))
+                assert await wait_thread_event(concurrent)
+                release.set()
+                responses = await requests
         assert {response.status_code for response in responses} == {204}
 
     asyncio.run(exercise())
-    assert maximum <= detector.MAX_CONCURRENT_REQUESTS
+    assert 2 <= maximum <= detector.MAX_CONCURRENT_REQUESTS
     with detector._connect() as connection:
         assert connection.execute("SELECT count(*) FROM deliveries").fetchone()[0] == 20
 
@@ -358,15 +424,31 @@ def test_connections_close_after_success_and_rollback(monkeypatch):
     assert all_raises_closed(connections)
 
 
-def test_event_processing_finishes_before_request_can_be_cancelled(monkeypatch):
+def test_event_processing_is_nonblocking_and_cancellation_safe(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
     processed = False
 
     def tracked(_event):
         nonlocal processed
+        started.set()
+        assert release.wait(2)
         processed = True
 
     monkeypatch.setattr(detector, "process_event", tracked)
-    asyncio.run(detector._process_event(activity(0)))
+
+    async def exercise():
+        task = asyncio.create_task(detector._process_event(activity(0)))
+        assert await wait_thread_event(started)
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(exercise())
     assert processed is True
 
 
