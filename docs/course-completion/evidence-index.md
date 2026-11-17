@@ -73,3 +73,15 @@ dataset/model reproduction remains **NOT_REPRODUCED**. The candidate is unapprov
 production packaging rejects it, and KServe Kubernetes runtime remains NOT_RUN.
 The serving validator now accepts the existing sanitized release-package contract.
 Full regression: 606 passed, 2 skipped, 87.13% coverage; M10.3 remains NO-GO.
+
+## C2.2 independent evaluation — 2026-11-17
+
+[Review record](c22-independent-evaluation.md), [predeclared protocol](c22-evaluation-protocol.md),
+and [candidate packet](c22-candidate.json). Implementation/training commit
+`9bc1e97d49bfbda8289a59fa7614867db33e1d17`; old candidate files unchanged.
+New `cogniflow-c22-independent-20261117/1` uses 125/43/42 rows and 36/12/12 disjoint
+feature groups. Logistic regression wins the exact 1.0 validation tie against the
+forest by simplicity; final test accuracy/macro-F1 1.0/1.0, synthetic-only.
+Full tests: 623 passed, 2 skipped, 87.20% coverage. KFP compilation/negative lineage
+checks pass; real KFP runtime, approval and KServe deployment remain NOT_RUN.
+M10.3 NO-GO and SEC-022 remain unchanged.

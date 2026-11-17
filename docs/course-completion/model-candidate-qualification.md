@@ -288,3 +288,9 @@ Retain sanitized request/status/provenance results, Ready conditions, pod UIDs,
 immutable digest ledger, failure/recovery timing and teardown of only acceptance
 resources. Never include API keys, local storage URLs or private evidence. Any
 failed gate leaves runtime acceptance incomplete.
+
+## C2.2 follow-up
+
+The original candidate above is unchanged. See [C2.2 independent evaluation](c22-independent-evaluation.md)
+for a separate candidate with disjoint feature groups, explicit simplicity tie-breaking,
+and stronger KFP split lineage. It remains unapproved and has no real KFP runtime evidence.
