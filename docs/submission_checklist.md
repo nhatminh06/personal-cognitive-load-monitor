@@ -1,13 +1,13 @@
 # Course submission checklist
 
-**Evidence audit updated 2026-10-27.** Checked items are supported by dated local or CI evidence. A source file or rendered manifest alone does not prove runtime behavior. The authoritative weights are in [`course-rubric-2026.md`](course-rubric-2026.md).
+**Evidence audit updated 2026-11-17.** Checked items are supported by dated local or CI evidence. A source file or rendered manifest alone does not prove runtime behavior. The authoritative weights are in [`course-rubric-2026.md`](course-rubric-2026.md).
 
 ## Weighted technical implementation — 60%
 
 - [x] FastAPI API layer implemented and locally/CI verified — 10% implementation evidence; final KServe path still needs the cloud demo.
 - [ ] Real KServe, ModelMesh or KubeRay runtime — 10%.
-- [ ] Real Kubeflow Pipelines, Hera or equivalent training run — 15%.
-- [ ] Real Knative Broker/Trigger logging flow — 15%.
+- [x] Real Kubeflow Pipelines, Hera or equivalent training run — 15%; verified in the isolated local KFP v2 runtime recorded in [`module3/phase4-kubeflow-training.md`](module3/phase4-kubeflow-training.md). Historical runtime evidence, not a fresh C1 run.
+- [x] Real Knative Broker/Trigger logging flow — 15%; verified in the isolated local Broker/Trigger runtime recorded in [`module3/phase6-knative-eventing.md`](module3/phase6-knative-eventing.md). Historical runtime evidence, not a fresh C1 run.
 - [ ] Real-time anomaly detector subscribed through Knative — 10%.
 
 ## Selected practical deployment — 40%
@@ -22,12 +22,13 @@ The unselected GCE-only 20% alternative is not additive. Private-node GKE, priva
 - [x] GitHub repository with current local installation/testing documentation.
 - [ ] README proven from a clean environment through the final cloud flow.
 - [ ] Real full-system demonstration video.
-- [ ] Evidence index with immutable commit, image, model, dataset, run and artifact identifiers.
+- [x] Evidence index with immutable commit, image, model, dataset, run and artifact identifiers — [`course-completion/evidence-index.md`](course-completion/evidence-index.md).
 - [ ] Safe teardown and final cost evidence.
 
 ## Existing supporting engineering evidence
 
-- [x] 152 Pytest tests and 89.41% combined coverage on 2026-10-26.
+- [x] Fresh C1 full Python suite: 604 passed, 2 skipped, 5 warnings; 88.87% combined API/data coverage against the 81% gate on 2026-11-17.
+- [x] Historical regression evidence: 604 passed, 2 skipped, 5 warnings and 87.08% coverage, recorded in [`m10-3-final-runner-gate.md`](m10-3-final-runner-gate.md); the 87.08% figure was not reproduced in C1.
 - [x] Four notebooks executed in prior Module I/II verification.
 - [x] DVC reproducibility and MLflow candidate registration.
 - [x] Kafka, Bronze, Delta Silver, Trino/dbt Gold, Airflow and Flink/Redis local integration evidence.

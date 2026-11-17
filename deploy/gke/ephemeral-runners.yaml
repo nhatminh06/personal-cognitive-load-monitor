@@ -31,14 +31,29 @@ spec:
     runAsUser: 1001
     runAsGroup: 1001
     fsGroup: 1001
+    fsGroupChangePolicy: OnRootMismatch
     seccompProfile: {type: RuntimeDefault}
+  initContainers:
+    - name: stage-runner
+      image: SET_RELEASE_RUNNER_IMAGE
+      imagePullPolicy: IfNotPresent
+      command: [/bin/bash, -ceu]
+      args: ["cp -a /home/runner/. /runner/"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: runner-home, mountPath: /runner}
   containers:
     - name: runner
       image: SET_RELEASE_RUNNER_IMAGE
       imagePullPolicy: IfNotPresent
+      workingDir: /runner
       command: [/bin/bash, -ceu]
       args:
         - |
+          mkdir -p "$HOME" "$RUNNER_TOOL_CACHE"
           ./config.sh --unattended --ephemeral --url https://github.com/nhatminh06/personal-cognitive-load-monitor --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels cogniflow-release --work /runner/_work
           unset RUNNER_TOKEN
           touch /runner/_temp/registered
@@ -48,6 +63,9 @@ spec:
           valueFrom: {secretKeyRef: {name: github-runner-registration, key: token}}
         - name: RUNNER_NAME
           valueFrom: {fieldRef: {fieldPath: metadata.name}}
+        - {name: HOME, value: /runner/home}
+        - {name: RUNNER_TEMP, value: /runner/_temp}
+        - {name: RUNNER_TOOL_CACHE, value: /runner/_tool}
       resources:
         requests: {cpu: 500m, memory: 1Gi}
         limits: {cpu: "1", memory: 2Gi}
@@ -57,13 +75,18 @@ spec:
         failureThreshold: 120
       securityContext:
         allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
         capabilities: {drop: [ALL]}
       volumeMounts:
+        - {name: runner-home, mountPath: /runner}
         - {name: work, mountPath: /runner/_work}
         - {name: runner-temp, mountPath: /runner/_temp}
+        - {name: tool-cache, mountPath: /runner/_tool}
   volumes:
+    - {name: runner-home, emptyDir: {sizeLimit: 1Gi}}
     - {name: work, emptyDir: {sizeLimit: 8Gi}}
     - {name: runner-temp, emptyDir: {sizeLimit: 2Gi}}
+    - {name: tool-cache, emptyDir: {sizeLimit: 4Gi}}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -116,14 +139,29 @@ spec:
     runAsUser: 1001
     runAsGroup: 1001
     fsGroup: 1001
+    fsGroupChangePolicy: OnRootMismatch
     seccompProfile: {type: RuntimeDefault}
+  initContainers:
+    - name: stage-runner
+      image: SET_DEPLOY_RUNNER_IMAGE
+      imagePullPolicy: IfNotPresent
+      command: [/bin/bash, -ceu]
+      args: ["cp -a /home/runner/. /runner/"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: runner-home, mountPath: /runner}
   containers:
     - name: runner
       image: SET_DEPLOY_RUNNER_IMAGE
       imagePullPolicy: IfNotPresent
+      workingDir: /runner
       command: [/bin/bash, -ceu]
       args:
         - |
+          mkdir -p "$HOME" "$RUNNER_TOOL_CACHE"
           ./config.sh --unattended --ephemeral --url https://github.com/nhatminh06/personal-cognitive-load-monitor --token "$RUNNER_TOKEN" --name "$RUNNER_NAME" --labels cogniflow-gke-deploy --work /runner/_work
           unset RUNNER_TOKEN
           touch /runner/_temp/registered
@@ -133,6 +171,9 @@ spec:
           valueFrom: {secretKeyRef: {name: github-runner-registration, key: token}}
         - name: RUNNER_NAME
           valueFrom: {fieldRef: {fieldPath: metadata.name}}
+        - {name: HOME, value: /runner/home}
+        - {name: RUNNER_TEMP, value: /runner/_temp}
+        - {name: RUNNER_TOOL_CACHE, value: /runner/_tool}
       resources:
         requests: {cpu: 250m, memory: 512Mi}
         limits: {cpu: "1", memory: 1Gi}
@@ -142,13 +183,18 @@ spec:
         failureThreshold: 120
       securityContext:
         allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
         capabilities: {drop: [ALL]}
       volumeMounts:
+        - {name: runner-home, mountPath: /runner}
         - {name: work, mountPath: /runner/_work}
         - {name: runner-temp, mountPath: /runner/_temp}
+        - {name: tool-cache, mountPath: /runner/_tool}
   volumes:
+    - {name: runner-home, emptyDir: {sizeLimit: 1Gi}}
     - {name: work, emptyDir: {sizeLimit: 2Gi}}
     - {name: runner-temp, emptyDir: {sizeLimit: 1Gi}}
+    - {name: tool-cache, emptyDir: {sizeLimit: 2Gi}}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

@@ -18,9 +18,3 @@ config:
   kserveTimeoutSeconds: "30"
   inferenceActivityEnabled: "false"
   inferenceActivityDestination: ""
-
-ingress:
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "35"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "35"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "35"

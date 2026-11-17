@@ -77,7 +77,8 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "Do not set a bucket retention" in backend
 
     runbook = (ROOT / "docs/cloud-deployment.md").read_text()
-    assert "13 HIGH findings" in runbook
+    assert "2 HIGH findings in kubectl 1.35.10" in runbook
+    assert "13-HIGH image remains historical evidence only" in runbook
     assert "13 HIGH\nfindings" in (ROOT / "deploy/gke/runners/README.md").read_text()
     assert "The separate\n`$75` contingency" in runbook
     assert "cogniflow-retain-rwo" in runbook
@@ -239,18 +240,24 @@ def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_networ
     assert {"secretRef": {"name": "cogniflow-api"}} in (
         deployment["spec"]["template"]["spec"]["containers"][0]["envFrom"]
     )
-    ingress = next(document for document in documents if document["kind"] == "Ingress")
-    assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-secret"] == (
-        "cogniflow-ingress-basic-auth"
-    )
-    assert ingress["spec"]["tls"][0]["secretName"] == "cogniflow-api-tls"
-    assert ingress["metadata"]["annotations"]["nginx.ingress.kubernetes.io/auth-type"] == "basic"
+    assert "Ingress" not in {document["kind"] for document in documents}
     service = next(document for document in documents if document["kind"] == "Service")
     assert service["spec"]["type"] == "ClusterIP"
     policy = next(document for document in documents if document["kind"] == "NetworkPolicy")
     policy_text = yaml.safe_dump(policy)
+    ingress_namespaces = {
+        source["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"]
+        for rule in policy["spec"]["ingress"]
+        for source in rule.get("from", [])
+        if "namespaceSelector" in source
+    }
+    assert "gke-managed-system" not in ingress_namespaces
+    assert ingress_namespaces == {"monitoring"}
     assert "169.254.169.254/32" in policy_text
     assert "0.0.0.0/0" not in result.stdout
+    assert {"Ingress", "Gateway", "HTTPRoute"}.isdisjoint(
+        document["kind"] for document in documents
+    )
 
 
 def test_hpa_targets_api_with_bounded_explicit_behavior() -> None:
@@ -287,7 +294,7 @@ def test_gke_helm_fails_closed_on_placeholder_digest_and_missing_tls() -> None:
         capture_output=True,
         text=True,
     )
-    no_tls = _render("--set", "ingress.tls=null")
+    no_tls = _render("--set", "ingress.enabled=true", "--set", "ingress.tls=null")
 
     assert placeholder.returncode != 0
     assert "non-placeholder" in placeholder.stderr
@@ -367,7 +374,9 @@ def test_cloud_guardrails_and_two_node_budget_are_enforceable() -> None:
 
 def test_publication_candidate_ci_has_no_release_or_cloud_execution() -> None:
     workflows = ROOT / ".github/workflows"
-    assert {path.name for path in workflows.glob("*.yaml")} == {"ci-cd.yaml"}
+    assert {path.name for path in workflows.glob("*.yaml")} == {
+        "ci-cd.yaml", "release-qualification.yaml",
+    }
     ci = (workflows / "ci-cd.yaml").read_text()
     assert "pull_request:" in ci
     assert "uv run ruff check src scripts" in ci

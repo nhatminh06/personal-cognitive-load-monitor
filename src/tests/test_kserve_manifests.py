@@ -96,7 +96,7 @@ def test_module1_knative_mode_renders_explicit_scale_to_zero_contract():
     assert 'autoscaling.knative.dev/max-scale: "3"' in rendered
     assert 'autoscaling.knative.dev/target: "1"' in rendered
     assert 'KSERVE_TIMEOUT_SECONDS: "30"' in rendered
-    assert 'nginx.ingress.kubernetes.io/proxy-read-timeout: "35"' in rendered
+    assert "nginx.ingress.kubernetes.io" not in rendered
 
 
 def test_standard_mode_keeps_short_kserve_timeout():
@@ -149,7 +149,7 @@ def test_educational_demo_allows_bounded_cold_start_timeouts_only_in_scope():
     assert educational.returncode == 0, educational.stderr
     assert 'APP_ENV: "educational_demo"' in educational.stdout
     assert 'KSERVE_TIMEOUT_SECONDS: "120"' in educational.stdout
-    assert 'nginx.ingress.kubernetes.io/proxy-read-timeout: "180"' in educational.stdout
+    assert "nginx.ingress.kubernetes.io" not in educational.stdout
 
 
 @pytest.mark.parametrize(

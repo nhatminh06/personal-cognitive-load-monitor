@@ -1,12 +1,20 @@
 variable "project_id" {
   description = "GCP project ID."
   type        = string
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id)) && !startswith(var.project_id, "your-")
+    error_message = "project_id must be an explicit non-placeholder GCP project ID."
+  }
 }
 
 variable "region" {
   description = "GCP region for the regional GKE cluster."
   type        = string
   default     = "us-central1"
+  validation {
+    condition     = var.region == "us-central1"
+    error_message = "M10 is scoped only to the owner-reviewed us-central1 planning region."
+  }
 }
 
 variable "cluster_name" {
@@ -19,6 +27,12 @@ variable "node_locations" {
   description = "Two zones used by the regional node pool; keep this bounded for the demo."
   type        = list(string)
   default     = ["us-central1-a", "us-central1-b"]
+  validation {
+    condition = length(var.node_locations) == 2 && length(distinct(var.node_locations)) == 2 && alltrue([
+      for zone in var.node_locations : can(regex("^us-central1-[a-z]$", zone))
+    ])
+    error_message = "Provide exactly two distinct zones in the selected region."
+  }
 }
 
 variable "nodes_per_zone" {

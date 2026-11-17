@@ -12,9 +12,11 @@ spec:
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
+        {{- if .Values.networkPolicy.externalIngressEnabled }}
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+        {{- end }}
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ .Values.networkPolicy.observabilityNamespace }}

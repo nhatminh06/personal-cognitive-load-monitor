@@ -30,11 +30,12 @@ Resolve every image/chart to a registry digest and archive the resolution before
 | KServe | controller/CRDs and Python runtime `0.20.0`, Standard mode | Matches Phase 5; no serverless autoscaling dependency |
 | Knative Eventing | `1.23.0` | Matches Phase 6/7 evidence and checked-in manifest checksums |
 | Knative Serving | `1.23.0` | Same Kubernetes compatibility line as Eventing; record every resolved controller image digest |
-| cert-manager | `1.18.2` | Matches Phase 5 verification; verify upstream support against the chosen GKE patch |
-| ingress-nginx | chart `4.15.1`, controller `1.15.1` | Upstream lists Kubernetes 1.35 support; the project is archived, so replacement is a post-demo decision |
+| cert-manager | `1.21.2` | Supports and is tested on Kubernetes 1.35; runtime remains unverified |
+| ingress-nginx | retired March 2026 | `FAIL`: disabled in GKE values; it must not be installed |
+| GKE Gateway API | exact managed GatewayClass unresolved | `NEEDS_RUNTIME`: requires TLS, IAP, Cloud Armor rate limits, route isolation and NetworkPolicy validation together |
 | External Secrets Operator | chart `2.13.0` | Namespaced Google Secret Manager delivery through Workload Identity |
 | MLflow | `3.17.2` from the digest-pinned KFP component image | One private replica; persistent SQLite registry metadata and GCS artifacts |
-| Cosign / Trivy | `3.1.4` / `0.76.1` | Deploy gate verifies keyless GitHub identity and scans the exact Artifact Registry digest |
+| Cosign / Trivy | `3.1.4` / `0.76.2` | Deploy gate verifies keyless GitHub identity and scans the exact Artifact Registry digest without suppressing unfixed findings |
 | Terraform Google provider | lock file `5.45.2` | `terraform validate` must pass using the committed lock |
 
 GKE patch availability rolls out per region and was deliberately not queried during offline qualification. Sources: [GKE release notes](https://cloud.google.com/kubernetes-engine/docs/release-notes), [Dataplane V2](https://cloud.google.com/kubernetes-engine/docs/how-to/dataplane-v2), [KFP standalone installation](https://www.kubeflow.org/docs/components/pipelines/legacy-v1/installation/standalone-deployment/), [KServe releases](https://github.com/kserve/kserve/releases), [Knative releases](https://knative.dev/docs/install/), and [ingress-nginx support](https://github.com/kubernetes/ingress-nginx#supported-versions-table).

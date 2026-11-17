@@ -1,6 +1,10 @@
 # GKE/GCS deployment and final-demo runbook
 
-**Status:** planning and offline validation only, 2026-10-26. Nothing in this runbook has been applied to GCP. Read [the cloud-readiness design](module3/gke-gcs-readiness.md) first.
+**Status:** non-deployable planning and offline validation only, updated for M10
+on 2026-11-17. Nothing in this runbook has been applied to GCP. The retired
+ingress-nginx path is disabled; no external endpoint may be created until the
+GKE Gateway/IAP/Cloud Armor plan passes M11 runtime validation. Read
+[the M10 assessment](m10-offline-cloud-release-preparation.md) first.
 
 ## 1. Owner approvals and release inputs
 
@@ -18,8 +22,9 @@ Required immutable inputs:
 
 Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the deployment runner cannot reach the internal endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
-The deployment-runner image remains **NO-GO**: its unchanged mandatory Trivy
-gate reports 13 HIGH findings. Do not publish, register or use that runner until
+The deployment-runner image remains **NO-GO**: the M10.2 exact candidate's
+mandatory Trivy gate reports 2 HIGH findings in kubectl 1.35.10. The earlier
+13-HIGH image remains historical evidence only. Do not publish, register or use that runner until
 the exact rebuilt image passes the existing unsuppressed HIGH/CRITICAL policy.
 
 ### Owner-supplied activation values
@@ -125,6 +130,13 @@ The public endpoint remains enabled for the external operator. All three deploym
 
 Render `deploy/gke/ephemeral-runners.yaml` only after replacing every `SET_*_IMAGE` with a reviewed digest. Create the registration-token Secret separately in the relevant namespace, start one Pod for one authorized job, then delete the Pod and Secret and confirm GitHub removed the ephemeral registration. The private packaging image needs only the pinned runner plus the prerequisites for the SHA-pinned Python and uv setup actions. The deploy image needs the pinned runner, Google Cloud CLI, `kubectl`, Helm, Cosign and Trivy. Neither Pod receives a Kubernetes API service-account token or Docker socket.
 
+Both runner Pods stage the immutable `/home/runner` payload into a bounded
+`emptyDir`, then run with a read-only root filesystem and separate bounded work,
+temporary, and tool-cache volumes. Static configuration scanning passes, but
+bootstrap and cleanup on the exact images remain a disposable-cluster runtime
+gate. The API NetworkPolicy does not admit the GKE Gateway namespace while
+external routing is disabled.
+
 ### Runner image and bootstrap gate
 
 Read-only registry inspection on 2026-11-01 identified this maintained upstream amd64 runner base:
@@ -164,7 +176,7 @@ the release-only Google service account to build the API, KServe, event-consumer
 and anomaly images once, resolves
 their Artifact Registry digests, emits BuildKit SBOM/provenance attestations,
 and uses Cosign 3.1.4 keyless signing with GitHub OIDC. It verifies each
-signature and runs Trivy 0.76.1 against that same digest before retaining the
+signature and runs Trivy 0.76.2 against that same digest before retaining the
 non-secret evidence. The main-push job in `ci-cd.yaml` remains a GHCR CI build;
 it is not a production release.
 

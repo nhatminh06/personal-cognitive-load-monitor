@@ -21,22 +21,68 @@ The pinned Python and uv setup actions install the packaging runtime during the
 job. Do not replace `SET_RELEASE_RUNNER_IMAGE` until a separately authorized
 publication is scanned and its registry linux/amd64 manifest digest is verified.
 `SET_DEPLOY_RUNNER_IMAGE` remains unresolved; this directory intentionally does
-not define a deployment-runner image.
+not define an accepted deployment-runner image.
 
 ## Deployment-runner blockers
 
-The last verified deployment-runner candidate remains **NO-GO** with 13 HIGH
-findings under the unchanged mandatory Trivy gate. The dependency blockers
-below are not a waiver or a reduced count; publish and registration remain
+M10.2 independently verified the current official Linux/amd64 inputs and built
+the exact local candidate
+`sha256:dfd51490064d4834bc00cfbddc35f7f151d0c274ccec10270eb45cf790d1cde2`.
+The unsuppressed Trivy 0.76.2 scan reports **2 HIGH, 0 CRITICAL**: kubectl
+1.35.10 embeds `golang.org/x/net` 0.56.0 (`CVE-2026-78669`, fixed in 0.60.0)
+and `golang.org/x/text` 0.39.0 (`CVE-2026-56851`, fixed in 0.41.0). No newer
+official Kubernetes 1.35 patch is available, so this exact image is `BLOCKED`,
+not `PASS_EXACT_IMAGE`, and must not be published or assigned to the Pod.
+
+The candidate uses Cosign 3.1.4, Helm 4.3.2, kubectl 1.35.10, Trivy 0.76.2,
+and Google Cloud CLI 594.0.0. `deploy-inputs.SHA256SUMS` records the exact
+build-context bytes. Helm 4.3.2 passed this chart's lint and GKE render paths;
+cluster behavior remains unverified. Unused gcloud pip/setuptools tooling,
+gsutil, bq and the vulnerable optional `gcloud-crc32c` helper are removed.
+Docker, containerd, runc, sudo and their privileged groups remain absent.
+
+Build from the five independently verified files only:
+
+```bash
+cp deploy/gke/runners/deploy-inputs.SHA256SUMS /OWNER/VERIFIED/deploy-inputs/SHA256SUMS
+(cd /OWNER/VERIFIED/deploy-inputs && sha256sum -c SHA256SUMS)
+docker build --network=none --pull=false --platform=linux/amd64 \
+  --build-context artifacts=/OWNER/VERIFIED/deploy-inputs \
+  --file deploy/gke/runners/Dockerfile.deploy \
+  --tag cogniflow-deploy-runner:m10-2 .
+trivy image --skip-db-update --skip-check-update \
+  --severity HIGH,CRITICAL --exit-code 1 cogniflow-deploy-runner:m10-2
+```
+
+The final command must continue to fail until an official compatible kubectl
+artifact embeds both fixed dependencies. Do not suppress either finding.
+
+### Historical M10/M10.1 evidence
+
+The 2026-11-14 exact-candidate scan remains **NO-GO** with 13 HIGH
+findings and 0 CRITICAL findings under the mandatory Trivy gate. The historical report was
+not committed to this sanitized branch, so its count and matrix are retained
+as historical evidence, not rerun evidence. Publication and registration stay
 forbidden until an exact rebuilt image reports zero HIGH/CRITICAL findings.
 
-| Binary | Finding | Fixed component version | Review when |
-|---|---|---|---|
-| Cosign 3.1.4 | CVE-2026-111943 | Go 1.27.3 | A newer official Cosign release embeds the fix |
-| Cosign 3.1.4 | CVE-2026-78667 | Go 1.27.2 | A newer official Cosign release embeds the fix |
-| Cosign 3.1.4 | CVE-2026-78669 | Go 1.27.2 | A newer official Cosign release embeds the fix |
-| Cosign 3.1.4 | CVE-2026-97031 | Go 1.27.2 | A newer official Cosign release embeds the fix |
-| Helm 3.22.1 | CVE-2026-111943 | Go 1.26.10 or 1.27.3 | A newer official Helm release embeds the fix |
-| kubectl 1.34.13 | CVE-2026-78669 | `golang.org/x/net` 0.60.0 | A GKE-1.34-compatible official kubectl release embeds the fix |
-| kubectl 1.34.13 | CVE-2026-56851 | `golang.org/x/text` 0.41.0 | A GKE-1.34-compatible official kubectl release embeds the fix |
-| Trivy 0.76.1 | CVE-2026-116587 | `go-jose/v4` 4.1.6 | A newer official Trivy release embeds the fix |
+These 13 rows describe the older image only. They are not the finding count for
+the M10.2 candidate and are retained for audit history.
+
+| Component | CVE | Severity | Vulnerable dependency/version | Official fixed version | Candidate | Evidence | Status / blocker |
+|---|---|---|---|---|---|---|---|
+| Ubuntu `apt` | CVE-2026-109518 | HIGH | `apt` 2.8.3 | 2.8.4ubuntu0.1 | UNVERIFIED | 2026-11-14 exact scan | BLOCKED: package artifact not verified |
+| Ubuntu `libapt-pkg6.0t64` | CVE-2026-109518 | HIGH | 2.8.3 | 2.8.4ubuntu0.1 | UNVERIFIED | 2026-11-14 exact scan | BLOCKED: package artifact not verified |
+| Actions Runner 2.338.2 | CVE-2026-114149 | HIGH | `Microsoft.AspNetCore.WebUtilities` 8.0.25 | 8.0.34, 9.0.23, 10.0.15, or 11.0.0 | none verified | 2026-11-14 exact scan | BLOCKED: no official replacement runner verified |
+| Cosign 3.1.4 | CVE-2026-78661 | HIGH | `golang.org/x/net` 0.61.0 | 0.62.0 | none verified | 2026-11-14 exact scan | BLOCKED: no official replacement artifact verified |
+| Helm 3.22.1 | CVE-2026-78661 | HIGH | `golang.org/x/net` 0.60.0 | 0.62.0 | none verified | 2026-11-14 exact scan | BLOCKED: Helm 4 is not a compatible drop-in |
+| Helm 3.22.1 | CVE-2026-111943 | HIGH | Go 1.26.9 | 1.26.10 or 1.27.3 | none verified | 2026-11-14 exact scan | BLOCKED: replacement Helm 3 artifact not verified |
+| kubectl 1.35.9 | CVE-2026-78661 | HIGH | `golang.org/x/net` 0.56.0 | 0.62.0 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: candidate dependency fix not established |
+| kubectl 1.35.9 | CVE-2026-78669 | HIGH | `golang.org/x/net` 0.56.0 | 0.60.0 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: candidate dependency fix not established |
+| kubectl 1.35.9 | CVE-2026-56851 | HIGH | `golang.org/x/text` 0.39.0 | 0.41.0 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: candidate dependency fix not established |
+| kubectl 1.35.9 | CVE-2026-111943 | HIGH | Go 1.26.8 | 1.26.10 or 1.27.3 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: embedded Go fix not established |
+| kubectl 1.35.9 | CVE-2026-78667 | HIGH | Go 1.26.8 | 1.26.9 or 1.27.2 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: embedded Go fix not established |
+| kubectl 1.35.9 | CVE-2026-78669 | HIGH | Go 1.26.8 | 1.26.9 or 1.27.2 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: embedded Go fix not established |
+| kubectl 1.35.9 | CVE-2026-97031 | HIGH | Go 1.26.8 | 1.26.9 or 1.27.2 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: embedded Go fix not established |
+
+The example checksum file remains a deliberately invalid template. Do not use
+it, or a cached local image with unknown provenance, for qualification.

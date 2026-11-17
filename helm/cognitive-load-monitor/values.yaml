@@ -131,6 +131,7 @@ serviceMonitor:
 
 networkPolicy:
   enabled: true
+  externalIngressEnabled: false
   ingressNamespace: ingress-nginx
   kserveNamespace: cogniflow
   eventingNamespace: knative-eventing

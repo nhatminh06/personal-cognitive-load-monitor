@@ -1,0 +1,9 @@
+# BLOCKED TEMPLATE: replace every UNVERIFIED token with a checksum copied from
+# verified official provenance. Do not rename this file to SHA256SUMS or build
+# the candidate until every tool version is compatible and independently
+# verified. Paths are relative to the artifact build context.
+UNVERIFIED  bin/cosign
+UNVERIFIED  bin/helm
+UNVERIFIED  bin/kubectl
+UNVERIFIED  bin/trivy
+UNVERIFIED  google-cloud-cli.tar.gz
