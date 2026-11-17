@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from cogniflow_data.training import sha256_tree
+from preprocessing_api.model_client import validated_package_manifest
 from scripts.package_approved_model import package_approved_model
 from scripts.verify_release_package import verify_package
 
@@ -76,6 +77,20 @@ def test_packages_exact_approved_artifact_without_loading(monkeypatch, tmp_path)
     assert manifest["packaged_model_sha256"] != digest
     assert manifest["model_version"] == "7"
     assert "registered_source" not in manifest
+
+    for variable, field in {
+        "MODEL_NAME": "model_name",
+        "MODEL_VERSION": "model_version",
+        "MODEL_ARTIFACT_SHA256": "registered_artifact_sha256",
+        "MODEL_DATASET_SHA256": "dataset_sha256",
+        "MODEL_FEATURE_SCHEMA_VERSION": "feature_schema_version",
+        "MODEL_SHA256": "packaged_model_sha256",
+    }.items():
+        monkeypatch.setenv(variable, str(manifest[field]))
+    monkeypatch.setenv("MODEL_PACKAGE_PATH", str(output / "model-package.json"))
+    assert validated_package_manifest(
+        output / "cognitive_load_model.skops", str(manifest["packaged_model_sha256"])
+    ) == manifest
 
     package_digest = verify_package(
         output,

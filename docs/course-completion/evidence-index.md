@@ -58,3 +58,18 @@ Module II’s 72 selected compatibility tests passed; infrastructure was not rer
 Historical 0.90 model accuracy remains documented, not reproduced, because exact
 inputs/artifacts and the configured DVC remote are missing. No approval, cluster,
 cloud execution, benchmark or push occurred; M10.3 remains NO-GO.
+
+## Synthetic candidate qualification — 2026-11-17
+
+[Owner-review record](model-candidate-qualification.md) and
+[exact candidate packet](synthetic-candidate-20261117.json): new local
+`cogniflow-fresh-synthetic-20261117/1`, 210 synthetic rows, 126/42/42 split,
+registered tree `4119d9aa3cbe3ba63d69b434c11b0209eba8b1ff331603b5cb5459d23b423f60`.
+Independent input regeneration, refitting and registered-skops inference checks pass.
+Forest/logistic validation accuracy and macro-F1 are 1.0; majority 1/3 and 1/6.
+All validation/test feature vectors also occur in training, so this is engineering
+evidence only. The historical locked metrics report was recovered from Git; historical
+dataset/model reproduction remains **NOT_REPRODUCED**. The candidate is unapproved,
+production packaging rejects it, and KServe Kubernetes runtime remains NOT_RUN.
+The serving validator now accepts the existing sanitized release-package contract.
+Full regression: 606 passed, 2 skipped, 87.13% coverage; M10.3 remains NO-GO.
