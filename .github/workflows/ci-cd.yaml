@@ -1,36 +1,79 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [main, feature, "feature/**"]
+    branches: [main, "release/**", "feature/**"]
   pull_request:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      namespace:
-        description: "Kubernetes namespace"
-        required: false
-        default: cogniflow
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: "3.11"
-  IMAGE_NAME: ghcr.io/${{ github.repository }}/cognitive-load-api-ci-demo
-  HELM_RELEASE: cognitive-load-monitor
 
 jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out complete commit graph
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install checksum-pinned Gitleaks 8.30.0
+        run: |
+          set -euo pipefail
+          asset=gitleaks_8.30.0_linux_x64.tar.gz
+          curl -fsSL --retry 3 "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/$asset" -o "$RUNNER_TEMP/$asset"
+          echo "79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e  $RUNNER_TEMP/$asset" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP/gitleaks-bin" gitleaks
+          "$RUNNER_TEMP/gitleaks-bin/gitleaks" version | grep -Fx '8.30.0'
+          echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
+          echo "GITLEAKS_BIN=$RUNNER_TEMP/gitleaks-bin/gitleaks" >> "$GITHUB_ENV"
+
+      - name: Test synthetic scanner controls
+        run: python -m unittest discover -s src/tests -p test_release_secret_scan.py -v
+
+      - name: Scan proposed tree and complete event commit range
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ && "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$BASE_SHA" != 0000000000000000000000000000000000000000 ]]
+          git cat-file -e "${BASE_SHA}^{commit}"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+          gitleaks git . --config .gitleaks.toml --redact --no-banner \
+            --log-opts="${BASE_SHA}..${HEAD_SHA}" --report-format json \
+            --report-path "$RUNNER_TEMP/gitleaks-range.json"
+          gitleaks dir . --config .gitleaks.toml --redact --no-banner \
+            --report-format json --report-path "$RUNNER_TEMP/gitleaks-tree.json"
+          python scripts/check_secret_scan.py \
+            "$RUNNER_TEMP/gitleaks-range.json" "$RUNNER_TEMP/gitleaks-tree.json"
+
   test:
     name: Test with coverage gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - name: Checkout code
+      - name: Check out code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -46,186 +89,30 @@ jobs:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
 
-      - name: Install dependencies with uv
+      - name: Install locked dependencies
         run: uv sync --frozen --all-extras
 
-      - name: Run Pytest and enforce coverage > 80%
+      - name: Run static checks and tests
         run: |
           uv run ruff check src scripts
-          uv run pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov=src/cogniflow_eventing --cov=src/cogniflow_anomaly --cov=src/cogniflow_kserve --cov=src/cogniflow_contracts --cov=src/cogniflow_sessions --cov=src/cogniflow_edge --cov=src/cogniflow_focus --cov-report=term-missing --cov-report=xml --cov-fail-under=81
+          uv run pytest src/tests \
+            --cov=src/preprocessing_api \
+            --cov=src/cogniflow_data \
+            --cov=src/cogniflow_eventing \
+            --cov=src/cogniflow_anomaly \
+            --cov=src/cogniflow_kserve \
+            --cov=src/cogniflow_contracts \
+            --cov=src/cogniflow_sessions \
+            --cov=src/cogniflow_edge \
+            --cov=src/cogniflow_focus \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=81
 
-      - name: Upload coverage artifact
+      - name: Upload coverage report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-xml
           path: coverage.xml
-
-  build:
-    name: Build and push Docker image
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      contents: read
-      packages: write # Publishes the verified image to this repository's GHCR namespace.
-    outputs:
-      image_digest: ${{ steps.build.outputs.digest }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Set up Python for model packaging
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          enable-cache: false
-
-      - name: Install dependencies
-        run: uv sync --frozen --all-extras
-
-      - name: Start ephemeral MLflow tracking server
-        # Self-contained tracking for engineering candidate comparison only.
-        # This job logs candidates but never registers, approves, or promotes them.
-        run: |
-          nohup uv run mlflow server --host 127.0.0.1 --port 5000 \
-            --backend-store-uri "sqlite:///${RUNNER_TEMP}/mlflow.db" \
-            --default-artifact-root "${RUNNER_TEMP}/mlartifacts" \
-            > "${RUNNER_TEMP}/mlflow-server.log" 2>&1 &
-          disown
-          echo "MLFLOW_TRACKING_URI=http://127.0.0.1:5000" >> "$GITHUB_ENV"
-          for _ in {1..30}; do
-            curl -sf http://127.0.0.1:5000/health && exit 0
-            sleep 1
-          done
-          echo "MLflow server did not become healthy in time" >&2
-          cat "${RUNNER_TEMP}/mlflow-server.log" >&2
-          exit 1
-
-      - name: Train and track an isolated engineering candidate
-        env:
-          REQUIRE_MLFLOW: "true"
-        run: |
-          uv run python scripts/train_model.py \
-            --input data/raw/sample_data.csv \
-            --output models/cognitive_load_model.joblib \
-            --tracking-uri "$MLFLOW_TRACKING_URI" \
-            --experiment-name cogniflow-module1-engineering-candidates \
-            --generate-if-missing
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-
-      - name: Set immutable image tag
-        run: |
-          echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
-
-      - name: Build and push image
-        id: build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          push: true
-          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  deploy:
-    name: Manual deploy to Kubernetes with Helm
-    needs: test
-    runs-on: [self-hosted, linux, x64, cogniflow-gke-deploy]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      id-token: write # Exchanges GitHub's short-lived OIDC token for deployment credentials.
-    environment:
-      name: production
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2
-        with:
-          cluster_name: ${{ secrets.GKE_CLUSTER }}
-          location: ${{ secrets.GKE_LOCATION }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          use_internal_ip: true
-
-      - name: Set up Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
-
-      - name: Deploy chart
-        env:
-          DEPLOY_NAMESPACE: ${{ inputs.namespace }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          API_IMAGE_REPOSITORY: ${{ secrets.API_IMAGE_REPOSITORY }}
-          API_IMAGE_DIGEST: ${{ secrets.API_IMAGE_DIGEST }}
-          KSERVE_IMAGE_REPOSITORY: ${{ secrets.KSERVE_IMAGE_REPOSITORY }}
-          KSERVE_IMAGE_DIGEST: ${{ secrets.KSERVE_IMAGE_DIGEST }}
-          API_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.API_GOOGLE_SERVICE_ACCOUNT }}
-          KSERVE_GOOGLE_SERVICE_ACCOUNT: ${{ secrets.KSERVE_GOOGLE_SERVICE_ACCOUNT }}
-          MODEL_NAME: ${{ secrets.APPROVED_MODEL_NAME }}
-          MODEL_VERSION: ${{ secrets.APPROVED_MODEL_VERSION }}
-          MODEL_SHA256: ${{ secrets.APPROVED_MODEL_SHA256 }}
-          MODEL_ARTIFACT_SHA256: ${{ secrets.APPROVED_MODEL_ARTIFACT_SHA256 }}
-          MODEL_DATASET_SHA256: ${{ secrets.APPROVED_MODEL_DATASET_SHA256 }}
-          COSIGN_CERTIFICATE_IDENTITY_REGEXP: ${{ secrets.COSIGN_CERTIFICATE_IDENTITY_REGEXP }}
-          APP_HOST: ${{ secrets.APP_HOST }}
-        run: |
-          NAMESPACE="$DEPLOY_NAMESPACE"
-          [[ "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || { echo "Invalid namespace" >&2; exit 1; }
-          [[ "$NAMESPACE" == "cogniflow" ]] || { echo "Workload Identity is bound to the cogniflow namespace" >&2; exit 1; }
-          [[ "$GCP_PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { echo "Invalid GCP project ID" >&2; exit 1; }
-          [[ "$API_IMAGE_REPOSITORY" == *-docker.pkg.dev/*/cogniflow-images/* ]] || { echo "Invalid API Artifact Registry repository" >&2; exit 1; }
-          [[ "$KSERVE_IMAGE_REPOSITORY" == *-docker.pkg.dev/*/cogniflow-images/* ]] || { echo "Invalid KServe Artifact Registry repository" >&2; exit 1; }
-          [[ "$API_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid API image digest" >&2; exit 1; }
-          [[ "$KSERVE_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid KServe image digest" >&2; exit 1; }
-          [[ "$API_GOOGLE_SERVICE_ACCOUNT" == cogniflow-api@*.iam.gserviceaccount.com ]] || { echo "Invalid API service account" >&2; exit 1; }
-          [[ "$KSERVE_GOOGLE_SERVICE_ACCOUNT" == cogniflow-kserve@*.iam.gserviceaccount.com ]] || { echo "Invalid KServe service account" >&2; exit 1; }
-          [[ "$MODEL_VERSION" =~ ^[1-9][0-9]*$ ]] || { echo "Invalid approved model version" >&2; exit 1; }
-          for digest in "$MODEL_SHA256" "$MODEL_ARTIFACT_SHA256" "$MODEL_DATASET_SHA256"; do
-            [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid model lineage digest" >&2; exit 1; }
-          done
-          bash scripts/verify_cloud_release.sh \
-            "${API_IMAGE_REPOSITORY}@${API_IMAGE_DIGEST}" \
-            "${KSERVE_IMAGE_REPOSITORY}@${KSERVE_IMAGE_DIGEST}"
-          sed "s/SET_PROJECT/${GCP_PROJECT_ID}/g" deploy/gke/external-secret.yaml | kubectl apply -f -
-          helm upgrade --install "$HELM_RELEASE" ./helm/cognitive-load-monitor \
-            --namespace "$NAMESPACE" --create-namespace \
-            --values ./helm/cognitive-load-monitor/values.gke.yaml \
-            --set-string "image.repository=${API_IMAGE_REPOSITORY}" \
-            --set-string "image.digest=${API_IMAGE_DIGEST}" \
-            --set-string "kserve.image.repository=${KSERVE_IMAGE_REPOSITORY}" \
-            --set-string "kserve.image.digest=${KSERVE_IMAGE_DIGEST}" \
-            --set-string "kserve.name=${MODEL_NAME}" \
-            --set-string "serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${API_GOOGLE_SERVICE_ACCOUNT}" \
-            --set-string "kserve.serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account=${KSERVE_GOOGLE_SERVICE_ACCOUNT}" \
-            --set-string "config.modelName=${MODEL_NAME}" \
-            --set-string "config.modelVersion=${MODEL_VERSION}" \
-            --set-string "config.modelSha256=${MODEL_SHA256}" \
-            --set-string "config.modelArtifactSha256=${MODEL_ARTIFACT_SHA256}" \
-            --set-string "config.modelDatasetSha256=${MODEL_DATASET_SHA256}" \
-            --set-string "ingress.hosts[0].host=${APP_HOST}" \
-            --set-string "ingress.tls[0].hosts[0]=${APP_HOST}"
-          kubectl rollout status "deployment/$HELM_RELEASE" -n "$NAMESPACE" --timeout=180s
+          if-no-files-found: error
+          retention-days: 7

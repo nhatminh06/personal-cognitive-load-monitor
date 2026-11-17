@@ -37,10 +37,10 @@ The serialized event is limited to 4096 bytes. The consumer reads request chunks
 
 - Kubernetes `v1.34.0` in kind cluster `cogniflow-eventing`.
 - Knative Eventing `v1.23.0` (supported with minimum Kubernetes 1.34 on the verification date).
-- `eventing-crds.yaml`, `eventing-core.yaml`, `in-memory-channel.yaml`, and `mt-channel-broker.yaml` checksums are pinned in `deploy/knative/KNATIVE_EVENTING_V1.23.0_SHA256SUMS`.
+- The sanitized publication candidate does not redistribute the upstream Eventing release files or checksum list. A future rehearsal must obtain them from an authoritative source and independently verify exact release identities before use.
 - Knative Serving, KServe, KFP, GCP, and Argo CD are not installed.
 
-Download release files to a disposable directory, run `sha256sum --check` against the repository manifest, then:
+The commands below document the historical isolated run. They are not a currently qualified installation procedure for this publication candidate:
 
 ```bash
 kind create cluster --config infra/knative-eventing/kind-config.yaml \

@@ -350,10 +350,9 @@ def test_pinned_inventory_matches_required_workloads_and_crd_count() -> None:
 
 
 def test_workflow_and_matrix_remain_parseable_blocked_and_standard_safe() -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/deploy-module1.yaml").read_text())
     matrix = json.loads((ROOT / "docs/module1/compatibility-matrix.json").read_text())
     standard = yaml.safe_load((ROOT / "helm/cognitive-load-monitor/values.yaml").read_text())
-    assert workflow["jobs"]["deploy"]
+    assert not (ROOT / ".github/workflows/deploy-module1.yaml").exists()
     assert matrix["qualification_status"] == "BLOCKED"
     assert matrix["selected_candidate"] is None
     assert standard["kserve"]["deploymentMode"] == "Standard"

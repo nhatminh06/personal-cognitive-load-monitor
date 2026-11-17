@@ -1,0 +1,20 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "Exact public Python release signer identifier in captured image metadata"
+condition = "AND"
+paths = ['''docs/track-b/(phase-0a1/captures/[^/]+|phase-0a2/captures/track-b-0a2-(api|consumer|anomaly)-scan|phase-0a3/captures/(api|anomaly-final|anomaly-qualified|image-inspect)|phase-0a4/captures/anomaly-scan)\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"(?:created_by": "ENV )?GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D",?$''']
+
+[[rules]]
+id = "sourcegraph-access-token"
+[[rules.allowlists]]
+description = "Public upstream commit URLs in the rejected Calico security report"
+condition = "AND"
+paths = ['''docs/track-b/(phase-0a1/captures/(calico-node-scan|calico-patch-node-scan)|phase-0a2/captures/track-b-0a2-calico-node-scan|phase-0a3/captures/calico-node)\.json$''']
+regexTarget = "line"
+regexes = ['''^\+?\s*"https://github\.com/(util-linux/util-linux|the-tcpdump-group/libpcap|openssl/openssl|PCRE2Project/pcre2)/commit/[a-f0-9]{40}(%20%28pcre2-10\.48-RC1%29)?",?$''']

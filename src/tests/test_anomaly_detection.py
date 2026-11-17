@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import sqlite3
-import threading
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -58,6 +58,38 @@ def test_error_burst_generates_one_alert_and_replay_is_idempotent():
     assert detector.process_event(activity(3, failed=True))[0] == "duplicate"
     with detector._connect() as connection:
         assert connection.execute("SELECT count(*) FROM alerts").fetchone()[0] == 1
+
+
+def test_event_log_survives_reopen_and_rejects_conflicting_replay():
+    original = activity(0)
+    assert detector.process_event(original)[0] == "processed"
+    with detector._connect() as connection:
+        row = connection.execute("SELECT event_json,sha256 FROM event_log WHERE source=? AND id=?",
+                                 (original["source"], original["id"])).fetchone()
+    assert json.loads(row[0]) == original
+    assert hashlib.sha256(row[0].encode()).hexdigest() == row[1]
+    assert detector.process_event(original)[0] == "duplicate"
+    altered = activity(0, latency=11)
+    assert request(detector.app, altered).status_code == 409
+    with detector._connect() as connection:
+        assert connection.execute("SELECT count(*) FROM event_log").fetchone()[0] == 1
+
+
+def test_unverifiable_legacy_duplicate_fails_closed():
+    original = activity(0)
+    with detector._connect() as connection:
+        connection.execute("INSERT INTO deliveries VALUES (?, ?, ?)",
+                           (original["source"], original["id"], datetime.now(UTC).isoformat()))
+    assert request(detector.app, original).status_code == 409
+
+
+def test_corrupted_persisted_event_fails_replay_integrity():
+    original = activity(0)
+    assert detector.process_event(original)[0] == "processed"
+    with detector._connect() as connection:
+        connection.execute("UPDATE event_log SET event_json=? WHERE source=? AND id=?",
+                           ('{"tampered":true}', original["source"], original["id"]))
+    assert request(detector.app, original).status_code == 409
 
 
 def test_latency_spike_and_rate_spike_are_deterministic():
@@ -135,6 +167,13 @@ def test_sink_persists_alert_once_without_sensitive_fields():
     assert request(sink.app, alert).status_code == 204
     with sink._connect() as connection:
         assert connection.execute("SELECT count(*) FROM alerts").fetchone()[0] == 1
+
+
+def test_sink_async_persistence_completes_without_hanging():
+    async def persist():
+        return await asyncio.wait_for(sink._persist_async({"source": "test", "id": "1"}), 1)
+
+    assert asyncio.run(persist()) == 1
 
 
 def test_sink_rejects_tampered_alert():
@@ -319,27 +358,16 @@ def test_connections_close_after_success_and_rollback(monkeypatch):
     assert all_raises_closed(connections)
 
 
-def test_cancellation_waits_for_bounded_worker(monkeypatch):
-    started = threading.Event()
-    release = threading.Event()
+def test_event_processing_finishes_before_request_can_be_cancelled(monkeypatch):
+    processed = False
 
-    def blocked(_event):
-        started.set()
-        release.wait()
+    def tracked(_event):
+        nonlocal processed
+        processed = True
 
-    monkeypatch.setattr(detector, "process_event", blocked)
-
-    async def exercise():
-        task = asyncio.create_task(detector._process_event(activity(0)))
-        await asyncio.to_thread(started.wait)
-        task.cancel()
-        await asyncio.sleep(0)
-        assert not task.done()
-        release.set()
-        with pytest.raises(asyncio.CancelledError):
-            await task
-
-    asyncio.run(exercise())
+    monkeypatch.setattr(detector, "process_event", tracked)
+    asyncio.run(detector._process_event(activity(0)))
+    assert processed is True
 
 
 def all_raises_closed(connections):

@@ -75,6 +75,10 @@ class OutboxFullError(RuntimeError):
     """The durable publication backlog has reached its explicit limit."""
 
 
+class EventIntegrityError(ValueError):
+    """An existing CloudEvent identity was reused with different content."""
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     stop = asyncio.Event()
@@ -136,6 +140,9 @@ def _connect() -> Iterator[sqlite3.Connection]:
             CREATE TABLE IF NOT EXISTS deliveries (
               source TEXT NOT NULL, id TEXT NOT NULL, seen_at TEXT NOT NULL,
               PRIMARY KEY (source, id));
+            CREATE TABLE IF NOT EXISTS event_log (
+              source TEXT NOT NULL, id TEXT NOT NULL, event_json TEXT NOT NULL,
+              sha256 TEXT NOT NULL, PRIMARY KEY (source, id));
             CREATE INDEX IF NOT EXISTS deliveries_retention ON deliveries(seen_at);
             INSERT OR IGNORE INTO deliveries
               SELECT source, id, datetime('now') FROM events
@@ -208,12 +215,19 @@ def _alert(rule: Rule, event: dict[str, Any], start: datetime, end: datetime, me
 def process_event(event: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     event_time = _utc(event["time"])
     backend = event["data"]["inference_backend"]
+    serialized_event = json.dumps(event, separators=(",", ":"), sort_keys=True)
+    event_hash = hashlib.sha256(serialized_event.encode()).hexdigest()
     generated: list[dict[str, Any]] = []
     with _database_lock, _connect() as connection:
         duplicate = connection.execute(
             "SELECT 1 FROM deliveries WHERE source=? AND id=?", (event["source"], event["id"])
         ).fetchone()
         if duplicate:
+            logged = connection.execute(
+                "SELECT sha256, event_json FROM event_log WHERE source=? AND id=?", (event["source"], event["id"])
+            ).fetchone()
+            if logged is None or logged[0] != event_hash or hashlib.sha256(logged[1].encode()).hexdigest() != logged[0]:
+                raise EventIntegrityError("CloudEvent identity lacks matching integrity record")
             EVENTS.labels("duplicate").inc()
             return "duplicate", []
         backlog = connection.execute(
@@ -222,18 +236,27 @@ def process_event(event: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
         if backlog >= MAX_OUTBOX_BACKLOG:
             raise OutboxFullError("outbox backlog limit reached")
         now = datetime.now(UTC)
-        connection.execute(
+        expired = connection.execute(
             "DELETE FROM deliveries WHERE seen_at < ?",
             ((now - timedelta(seconds=DEDUP_RETENTION_SECONDS)).isoformat(),),
-        )
+        ).rowcount
         excess = connection.execute("SELECT count(*) - ? FROM deliveries", (MAX_DEDUP_EVENTS - 1,)).fetchone()[0]
         if excess > 0:
             connection.execute(
                 "DELETE FROM deliveries WHERE rowid IN (SELECT rowid FROM deliveries ORDER BY seen_at LIMIT ?)",
                 (excess,),
             )
+        if expired or excess > 0:
+            connection.execute(
+                "DELETE FROM event_log WHERE NOT EXISTS (SELECT 1 FROM deliveries "
+                "WHERE deliveries.source=event_log.source AND deliveries.id=event_log.id)"
+            )
         connection.execute(
             "INSERT INTO deliveries VALUES (?, ?, ?)", (event["source"], event["id"], now.isoformat())
+        )
+        connection.execute(
+            "INSERT INTO event_log VALUES (?, ?, ?, ?)",
+            (event["source"], event["id"], serialized_event, event_hash),
         )
         previous = connection.execute("SELECT value FROM metadata WHERE key='max_event_time'").fetchone()
         maximum = _utc(previous[0]) if previous else event_time
@@ -345,9 +368,9 @@ async def _outbox_worker(stop: asyncio.Event, wake: asyncio.Event) -> None:
     while not stop.is_set():
         previous = 0
         try:
-            previous = await asyncio.to_thread(_outbox_count)
-            drained = await asyncio.to_thread(flush_outbox)
-            remaining = await asyncio.to_thread(_outbox_count)
+            previous = _outbox_count()
+            drained = flush_outbox()
+            remaining = _outbox_count()
         except (KeyError, ValueError, sqlite3.Error):
             drained = False
             remaining = previous
@@ -372,12 +395,7 @@ def _outbox_count() -> int:
 
 
 async def _process_event(event: dict[str, Any]) -> None:
-    task = asyncio.create_task(asyncio.to_thread(process_event, event))
-    try:
-        await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await task
-        raise
+    process_event(event)
 
 
 @app.get("/health")
@@ -424,6 +442,9 @@ async def consume(request: Request) -> Response:
     except OutboxFullError:
         EVENTS.labels("overloaded").inc()
         raise HTTPException(503, "durable alert backlog full") from None
+    except EventIntegrityError:
+        EVENTS.labels("invalid").inc()
+        raise HTTPException(409, "conflicting activity event identity") from None
     except (ValueError, sqlite3.Error):
         EVENTS.labels("failed").inc()
         raise HTTPException(503, "anomaly detector unavailable") from None

@@ -113,7 +113,7 @@ async def health() -> dict[str, str]:
 @app.get("/ready")
 async def ready() -> dict[str, str]:
     try:
-        await asyncio.to_thread(_check_store)
+        _check_store()
     except sqlite3.Error as exc:
         raise HTTPException(503, "alert store unavailable") from exc
     return {"status": "ready"}
@@ -166,9 +166,4 @@ def _persist(event: dict[str, Any]) -> int:
 
 
 async def _persist_async(event: dict[str, Any]) -> int:
-    task = asyncio.create_task(asyncio.to_thread(_persist, event))
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await task
-        raise
+    return _persist(event)
