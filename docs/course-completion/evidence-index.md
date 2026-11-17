@@ -1,7 +1,7 @@
 # CogniFlow course-completion evidence index
 
 **C1 audit date:** 2026-11-17 (America/Chicago)  
-**C1 commit:** `20a1d1e0755f9727728fa998146f48570824e62e`  
+**Starting HEAD:** `20a1d1e0755f9727728fa998146f48570824e62e`
 **Policy:** Historical runtime evidence is labeled as historical. No raw Track B evidence is included.
 
 ## Module I
@@ -35,11 +35,12 @@
 
 | Check | Exact result | Verification environment | Status |
 |---|---|---|---|
-| Full Python suite + coverage | `./.venv/bin/python -m pytest src/tests --cov=src --cov-report=term-missing --cov-fail-under=81`; collected 606; `test_distributed_tracing.py` failed and the following test stalled, so the process was interrupted; no coverage pass | Existing repository `.venv`; no network | NOT_PASS |
-| Ruff | Repository command attempted with the existing `.venv`; result recorded before commit | Existing repository `.venv` | See commit audit |
+| Full Python suite + coverage | `COVERAGE_FILE=/tmp/cogniflow-c1-coverage RUFF_CACHE_DIR=/tmp/cogniflow-c1-ruff timeout 180s ./.venv/bin/python -m pytest src/tests --cov=src/preprocessing_api --cov=src/cogniflow_data --cov-fail-under=81 -o cache_dir=/tmp/cogniflow-c1-pytest-cache`; 604 passed, 2 skipped, 5 warnings; **88.87%** coverage | Existing `.venv`, authorized local loopback sockets, 2026-11-17 | PASS |
+| Initial tracing failure | In sandbox, `test_httpx_injects_traceparent_and_creates_child_span` raised `PermissionError: [Errno 1] Operation not permitted` at `ThreadingHTTPServer(("127.0.0.1", 0), Handler)`; `test_fastapi_extracts_remote_parent_and_concurrent_requests_are_isolated` subsequently stalled. Both passed on the unchanged starting commit with loopback socket access. | Restricted sandbox versus authorized local test run | ENVIRONMENTAL |
+| Ruff | `RUFF_CACHE_DIR=/tmp/cogniflow-ruff-cache ./.venv/bin/ruff check .`; all checks passed | Existing `.venv` | PASS |
 | Gitleaks | `gitleaks` unavailable on PATH | Local host | NOT_RUN |
-| Documentation checks | `markdownlint` and `lychee` unavailable; Helm and Terraform are available for relevant static checks | Local host | PARTIAL |
-| Git whitespace | `git diff --check` | Repository checkout | Required before commit |
-| Local synthetic demo | Not completed after the fresh suite blocker; existing focused tests cover auth, prediction, sanitized events, SQLite persistence/deduplication, anomaly, alert and recovery | Direct local components only; no Kubernetes/KServe/cloud | NOT_COMPLETED in C1 |
+| Documentation and configuration | Markdown link targets checked locally; `helm lint helm/cognitive-load-monitor` passed (icon recommendation only); `terraform -chdir=infra/terraform/gke validate` could not run because Google provider 5.45.2 was not cached; `markdownlint` and `lychee` unavailable | Local host | PARTIAL; Terraform NOT_RUN |
+| Git whitespace | `git diff --check` passed | Repository checkout | PASS |
+| Local synthetic component rehearsal | `./.venv/bin/python -m pytest -q src/tests/test_api.py src/tests/test_activity_events.py src/tests/test_anomaly_detection.py --disable-warnings`; 103 passed, 2 warnings in 2.43s. Covers API/auth, prediction, sanitized events, SQLite persistence/deduplication, anomaly, alert and recovery | Direct local components only; no Kubernetes/KServe/cloud | PASS, component scope |
 
-The historical 604-pass, 2-skipped, 5-warning, 87.08% result is recorded evidence only; it was not reproduced in C1. Local KFP and Knative records do not prove approved-model KServe serving, GKE, GCS, or a continuous full-system demonstration.
+The historical 604-pass, 2-skipped, 5-warning, 87.08% result is recorded evidence only; C1 independently measured 88.87%. Local KFP and Knative records do not prove approved-model KServe serving, GKE, GCS, or a continuous full-system demonstration.

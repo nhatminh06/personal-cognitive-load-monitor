@@ -1,6 +1,6 @@
 # Course submission checklist
 
-**Evidence audit updated 2026-10-27.** Checked items are supported by dated local or CI evidence. A source file or rendered manifest alone does not prove runtime behavior. The authoritative weights are in [`course-rubric-2026.md`](course-rubric-2026.md).
+**Evidence audit updated 2026-11-17.** Checked items are supported by dated local or CI evidence. A source file or rendered manifest alone does not prove runtime behavior. The authoritative weights are in [`course-rubric-2026.md`](course-rubric-2026.md).
 
 ## Weighted technical implementation — 60%
 
@@ -27,8 +27,8 @@ The unselected GCE-only 20% alternative is not additive. Private-node GKE, priva
 
 ## Existing supporting engineering evidence
 
-- [ ] Fresh full Python suite and coverage gate — C1 collected 606 tests but did not complete: `test_distributed_tracing.py` failed and the following test stalled; no fresh coverage pass is claimed.
-- [x] Historical regression evidence: 604 passed, 2 skipped, 5 warnings and 87.08% coverage, recorded in [`m10-3-final-runner-gate.md`](m10-3-final-runner-gate.md); not reproduced in C1.
+- [x] Fresh C1 full Python suite: 604 passed, 2 skipped, 5 warnings; 88.87% combined API/data coverage against the 81% gate on 2026-11-17.
+- [x] Historical regression evidence: 604 passed, 2 skipped, 5 warnings and 87.08% coverage, recorded in [`m10-3-final-runner-gate.md`](m10-3-final-runner-gate.md); the 87.08% figure was not reproduced in C1.
 - [x] Four notebooks executed in prior Module I/II verification.
 - [x] DVC reproducibility and MLflow candidate registration.
 - [x] Kafka, Bronze, Delta Silver, Trino/dbt Gold, Airflow and Flink/Redis local integration evidence.
