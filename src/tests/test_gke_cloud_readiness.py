@@ -77,7 +77,8 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "Do not set a bucket retention" in backend
 
     runbook = (ROOT / "docs/cloud-deployment.md").read_text()
-    assert "13 HIGH findings" in runbook
+    assert "2 HIGH findings in kubectl 1.35.10" in runbook
+    assert "13-HIGH image remains historical evidence only" in runbook
     assert "13 HIGH\nfindings" in (ROOT / "deploy/gke/runners/README.md").read_text()
     assert "The separate\n`$75` contingency" in runbook
     assert "cogniflow-retain-rwo" in runbook

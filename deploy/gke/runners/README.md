@@ -21,9 +21,43 @@ The pinned Python and uv setup actions install the packaging runtime during the
 job. Do not replace `SET_RELEASE_RUNNER_IMAGE` until a separately authorized
 publication is scanned and its registry linux/amd64 manifest digest is verified.
 `SET_DEPLOY_RUNNER_IMAGE` remains unresolved; this directory intentionally does
-not define a deployment-runner image.
+not define an accepted deployment-runner image.
 
 ## Deployment-runner blockers
+
+M10.2 independently verified the current official Linux/amd64 inputs and built
+the exact local candidate
+`sha256:dfd51490064d4834bc00cfbddc35f7f151d0c274ccec10270eb45cf790d1cde2`.
+The unsuppressed Trivy 0.76.2 scan reports **2 HIGH, 0 CRITICAL**: kubectl
+1.35.10 embeds `golang.org/x/net` 0.56.0 (`CVE-2026-78669`, fixed in 0.60.0)
+and `golang.org/x/text` 0.39.0 (`CVE-2026-56851`, fixed in 0.41.0). No newer
+official Kubernetes 1.35 patch is available, so this exact image is `BLOCKED`,
+not `PASS_EXACT_IMAGE`, and must not be published or assigned to the Pod.
+
+The candidate uses Cosign 3.1.4, Helm 4.3.2, kubectl 1.35.10, Trivy 0.76.2,
+and Google Cloud CLI 594.0.0. `deploy-inputs.SHA256SUMS` records the exact
+build-context bytes. Helm 4.3.2 passed this chart's lint and GKE render paths;
+cluster behavior remains unverified. Unused gcloud pip/setuptools tooling,
+gsutil, bq and the vulnerable optional `gcloud-crc32c` helper are removed.
+Docker, containerd, runc, sudo and their privileged groups remain absent.
+
+Build from the five independently verified files only:
+
+```bash
+cp deploy/gke/runners/deploy-inputs.SHA256SUMS /OWNER/VERIFIED/deploy-inputs/SHA256SUMS
+(cd /OWNER/VERIFIED/deploy-inputs && sha256sum -c SHA256SUMS)
+docker build --network=none --pull=false --platform=linux/amd64 \
+  --build-context artifacts=/OWNER/VERIFIED/deploy-inputs \
+  --file deploy/gke/runners/Dockerfile.deploy \
+  --tag cogniflow-deploy-runner:m10-2 .
+trivy image --skip-db-update --skip-check-update \
+  --severity HIGH,CRITICAL --exit-code 1 cogniflow-deploy-runner:m10-2
+```
+
+The final command must continue to fail until an official compatible kubectl
+artifact embeds both fixed dependencies. Do not suppress either finding.
+
+### Historical M10/M10.1 evidence
 
 The 2026-11-14 exact-candidate scan remains **NO-GO** with 13 HIGH
 findings and 0 CRITICAL findings under the mandatory Trivy gate. The historical report was
@@ -31,11 +65,8 @@ not committed to this sanitized branch, so its count and matrix are retained
 as historical evidence, not rerun evidence. Publication and registration stay
 forbidden until an exact rebuilt image reports zero HIGH/CRITICAL findings.
 
-Official release metadata was rechecked on 2026-11-17. Actions Runner 2.338.2
-and Cosign 3.1.4 remain current; Helm 3.22.1 remains the current Helm 3 line;
-kubectl 1.35.10 and Trivy 0.76.2 exist. These observations are not remediation
-evidence: no replacement artifacts were checksum-qualified, embedded dependency
-fixes were not assumed, and no exact rebuilt deployment-runner image was scanned.
+These 13 rows describe the older image only. They are not the finding count for
+the M10.2 candidate and are retained for audit history.
 
 | Component | CVE | Severity | Vulnerable dependency/version | Official fixed version | Candidate | Evidence | Status / blocker |
 |---|---|---|---|---|---|---|---|
@@ -53,21 +84,5 @@ fixes were not assumed, and no exact rebuilt deployment-runner image was scanned
 | kubectl 1.35.9 | CVE-2026-78669 | HIGH | Go 1.26.8 | 1.26.9 or 1.27.2 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: embedded Go fix not established |
 | kubectl 1.35.9 | CVE-2026-97031 | HIGH | Go 1.26.8 | 1.26.9 or 1.27.2 | 1.35.10 UNVERIFIED | 2026-11-14 exact scan | BLOCKED: embedded Go fix not established |
 
-`Dockerfile.deploy` is a fail-closed build scaffold, not an accepted image. It
-pins the amd64 runner base, consumes only a preverified local artifact context,
-rechecks `SHA256SUMS`, removes the container daemon and privileged memberships,
-and runs as UID/GID 1001. The example checksum file deliberately contains
-invalid `UNVERIFIED` values. An owner must replace them from official signed or
-checksum-qualified provenance and separately record exact versions before this
-command is allowed:
-
-```bash
-docker build --network=none --pull=false --platform=linux/amd64 \
-  --build-context artifacts=/OWNER/VERIFIED/deploy-inputs \
-  --file deploy/gke/runners/Dockerfile.deploy \
-  --tag cogniflow-deploy-runner:m10-1 .
-```
-
-Do not use a cached local image with unknown provenance as the artifact
-context. Scan the resulting exact image without suppressions before resolving
-`SET_DEPLOY_RUNNER_IMAGE`.
+The example checksum file remains a deliberately invalid template. Do not use
+it, or a cached local image with unknown provenance, for qualification.

@@ -187,6 +187,9 @@ def test_runner_pods_use_read_only_roots_and_bounded_writable_paths() -> None:
 
 def test_deployment_runner_scaffold_fails_closed_on_unverified_inputs() -> None:
     dockerfile = (ROOT / "deploy/gke/runners/Dockerfile.deploy").read_text()
+    verified = (
+        ROOT / "deploy/gke/runners/deploy-inputs.SHA256SUMS"
+    ).read_text().splitlines()
     checksums = (
         ROOT / "deploy/gke/runners/deploy-inputs.SHA256SUMS.example"
     ).read_text()
@@ -196,8 +199,21 @@ def test_deployment_runner_scaffold_fails_closed_on_unverified_inputs() -> None:
     assert "USER 1001:1001" in dockerfile
     assert "/usr/bin/docker" in dockerfile
     assert "UNVERIFIED" in checksums
+    assert len(verified) == 5
+    assert all(len(line.split()[0]) == 64 for line in verified)
+    assert 'google-cloud-sdk/VERSION)\" = 594.0.0' in dockerfile
+    assert "/opt/google-cloud-sdk/platform/gsutil" in dockerfile
+    assert "/opt/google-cloud-sdk/bin/gcloud-crc32c" in dockerfile
+    assert "/usr/bin/apt* /usr/bin/dpkg*" in dockerfile
     assert "http://" not in dockerfile
     assert "https://" not in dockerfile
+
+
+def test_cloud_image_gate_rejects_unfixed_high_findings() -> None:
+    verifier = (ROOT / "scripts/verify_cloud_release.sh").read_text()
+    assert "Version: 0.76.2" in verifier
+    assert "--severity HIGH,CRITICAL --exit-code 1" in verifier
+    assert "--ignore-unfixed" not in verifier
 
 
 def test_gke_render_has_no_external_route_or_unneeded_gateway_ingress() -> None:

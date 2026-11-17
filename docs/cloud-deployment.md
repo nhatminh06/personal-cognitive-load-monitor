@@ -22,8 +22,9 @@ Required immutable inputs:
 
 Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the deployment runner cannot reach the internal endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
-The deployment-runner image remains **NO-GO**: its unchanged mandatory Trivy
-gate reports 13 HIGH findings. Do not publish, register or use that runner until
+The deployment-runner image remains **NO-GO**: the M10.2 exact candidate's
+mandatory Trivy gate reports 2 HIGH findings in kubectl 1.35.10. The earlier
+13-HIGH image remains historical evidence only. Do not publish, register or use that runner until
 the exact rebuilt image passes the existing unsuppressed HIGH/CRITICAL policy.
 
 ### Owner-supplied activation values
@@ -175,7 +176,7 @@ the release-only Google service account to build the API, KServe, event-consumer
 and anomaly images once, resolves
 their Artifact Registry digests, emits BuildKit SBOM/provenance attestations,
 and uses Cosign 3.1.4 keyless signing with GitHub OIDC. It verifies each
-signature and runs Trivy 0.76.1 against that same digest before retaining the
+signature and runs Trivy 0.76.2 against that same digest before retaining the
 non-secret evidence. The main-push job in `ci-cd.yaml` remains a GHCR CI build;
 it is not a production release.
 

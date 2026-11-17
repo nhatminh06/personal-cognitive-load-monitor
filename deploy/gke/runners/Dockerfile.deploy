@@ -15,6 +15,22 @@ RUN cd /tmp/inputs \
     && install -o root -g root -m 0755 bin/kubectl /usr/local/bin/kubectl \
     && install -o root -g root -m 0755 bin/trivy /usr/local/bin/trivy \
     && ln -s /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud \
+    && cosign version | grep -F 'GitVersion:    v3.1.4' \
+    && helm version --short | grep -E '^v4\.3\.2\+' \
+    && kubectl version --client=true -o yaml | grep -F 'gitVersion: v1.35.10' \
+    && trivy --version | grep -F 'Version: 0.76.2' \
+    && test "$(cat /opt/google-cloud-sdk/VERSION)" = 594.0.0 \
+    && rm -rf /opt/google-cloud-sdk/platform/bq \
+        /opt/google-cloud-sdk/platform/gsutil \
+        /opt/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/pip \
+        /opt/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/pip-*.dist-info \
+        /opt/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/setuptools \
+        /opt/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/setuptools-*.dist-info \
+        /opt/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/wheel \
+        /opt/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/wheel-*.dist-info \
+    && rm -f /opt/google-cloud-sdk/bin/bq /opt/google-cloud-sdk/bin/gcloud-crc32c \
+        /opt/google-cloud-sdk/bin/gsutil \
+    && rm -f /usr/bin/apt* /usr/bin/dpkg* \
     && rm -rf /tmp/inputs \
     && rm -f /usr/bin/containerd /usr/bin/containerd-shim-runc-v2 /usr/bin/ctr \
         /usr/bin/docker /usr/bin/docker-init /usr/bin/docker-proxy /usr/bin/dockerd \
