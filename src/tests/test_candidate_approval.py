@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.approve_model_candidate import approve_candidate
+from cogniflow_data.training import split_identity
 
 
 RUN_ID = "a" * 32
@@ -12,6 +13,9 @@ GIT_REVISION = "b" * 40
 IMAGE = "registry.example/cogniflow-kfp@sha256:" + "c" * 64
 REPOSITORY = "nhatminh06/personal-cognitive-load-monitor"
 WORKFLOW = f"{REPOSITORY}/.github/workflows/release.yaml@refs/heads/main"
+SPLIT = {"dataset_sha256": "d" * 64, "split_protocol": "feature_groups_v1",
+         "splits": {"train": [0, 3, 6], "validation": [1, 4, 7], "test": [2, 5, 8]}}
+SPLIT_DIGEST = split_identity(SPLIT)
 
 
 class Client:
@@ -24,6 +28,7 @@ class Client:
         )
         self.run = SimpleNamespace(data=SimpleNamespace(params={
             "dataset_sha256": "d" * 64,
+            "split_sha256": SPLIT_DIGEST,
             "git_revision": GIT_REVISION,
             "feature_schema_version": "1.0",
             "label_provenance": "synthetic_proxy",
@@ -54,7 +59,9 @@ def artifact(tmp_path):
     digest.update(payload)
     manifest = tmp_path / "dataset-manifest.json"
     manifest.write_text(json.dumps({
+        **SPLIT,
         "dataset_sha256": "d" * 64,
+        "split_sha256": SPLIT_DIGEST,
         "git_revision": GIT_REVISION,
         "feature_schema_version": "1.0",
         "feature_names": [
@@ -83,6 +90,7 @@ def valid_tags(digest):
         "approval_status": "candidate",
         "registered_artifact_sha256": digest,
         "dataset_sha256": "d" * 64,
+        "split_sha256": SPLIT_DIGEST,
         "git_revision": GIT_REVISION,
         "feature_schema_version": "1.0",
         "label_provenance": "synthetic_proxy",
@@ -172,3 +180,16 @@ def test_candidate_approval_rejects_wrong_owner_before_mlflow(monkeypatch):
             environment="production-release",
             owner="someone-else",
         )
+
+
+def test_approval_rejects_rehashed_split_substitution(monkeypatch, tmp_path):
+    root, manifest, digest = artifact(tmp_path)
+    client = Client(valid_tags(digest))
+    configure(monkeypatch, client, root, manifest)
+    metadata = json.loads(manifest.read_text())
+    metadata["splits"]["test"] = [0, 3, 6]
+    metadata["split_sha256"] = split_identity(metadata)
+    manifest.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="dataset manifest provenance"):
+        approve(digest)
+    assert client.updated == []

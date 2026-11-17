@@ -88,7 +88,7 @@ def validated_package_manifest(model_path: Path, actual_digest: str) -> dict[str
     required = {
         "contract_version", "approval_status", "model_name", "model_version", "registered_artifact_sha256",
         "packaged_model_sha256", "dataset_sha256", "feature_schema_version", "feature_names",
-        "label_provenance", "run_id", "registered_source", "git_revision", "approved_by",
+        "label_provenance", "run_id", "git_revision", "approved_by",
         "approved_at",
     }
     if not required <= manifest.keys():

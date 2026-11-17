@@ -20,6 +20,10 @@ from preprocessing_api.features import FEATURE_NAMES
 
 from .historical import HistoricalFeatureRow, SyntheticLabel
 from .training import (
+    GROUP_SPLIT,
+    SELECTION_POLICY,
+    select_candidate,
+    split_identity,
     candidate_models,
     evaluate_predictions,
     load_jsonl,
@@ -108,6 +112,7 @@ def prepare_dataset(
         output_manifest,
         training_cutoff=training_cutoff,
         git_revision=git_revision,
+        split_protocol=GROUP_SPLIT,
     )
 
 
@@ -121,12 +126,8 @@ def train_candidates(
     validate_training_manifest(manifest, dataset)
     frame = pd.read_json(dataset, lines=True)
     train_frame, validation_frame, _ = split_training_frame(frame, manifest)
-    if len(frame) == 180 and manifest["splits"] != {
-        "train": [0, 108],
-        "validation": [108, 144],
-        "test": [144, 180],
-    }:
-        raise ValueError("the 180-row fixture requires chronological 108/36/36 splits")
+    if manifest.get("split_protocol") != GROUP_SPLIT:
+        raise ValueError("KFP training requires feature-group-independent splits")
     models = candidate_models()
     validation_metrics: dict[str, Any] = {}
     for name, model in models.items():
@@ -142,7 +143,8 @@ def train_candidates(
         "models_sha256": sha256(output_models),
         "validation": validation_metrics,
         "split_counts": {"train": len(train_frame), "validation": len(validation_frame)},
-        "selection_uses": "validation_macro_f1_only",
+        "selection_policy": SELECTION_POLICY,
+        "split_sha256": split_identity(manifest),
     }
     _write_json(output_validation, result)
     return result
@@ -163,11 +165,15 @@ def evaluate_and_select(
     validation = json.loads(validation_path.read_text())
     if validation.get("models_sha256") != sha256(models_path):
         raise ValueError("candidate model artifact checksum mismatch")
+    if (validation.get("dataset_sha256") != manifest["dataset_sha256"]
+        or validation.get("split_sha256") != split_identity(manifest)
+        or validation.get("selection_policy") != SELECTION_POLICY):
+        raise ValueError("candidate validation lineage mismatch")
     metrics = validation.get("validation", {})
     expected_names = set(candidate_models())
     if set(metrics) != expected_names:
         raise ValueError("candidate validation metrics are incomplete")
-    selected_name = max(metrics, key=lambda name: (metrics[name]["macro_f1"], name))
+    selected_name = select_candidate(metrics)
     models = joblib.load(models_path)
     if set(models) != expected_names or selected_name not in models:
         raise ValueError("candidate model artifact is invalid")
@@ -182,6 +188,9 @@ def evaluate_and_select(
         "contract_version": "1.0",
         "selected_model": selected_name,
         "selection_metric": "validation_macro_f1",
+        "selection_policy": SELECTION_POLICY,
+        "validation": metrics,
+        "split_sha256": split_identity(manifest),
         "selected_validation": metrics[selected_name],
         "test": test_metrics,
         "dataset_sha256": manifest["dataset_sha256"],
@@ -216,6 +225,14 @@ def register_candidate(
     if evaluation.get("dataset_sha256") != manifest.get("dataset_sha256"):
         raise ValueError("evaluation dataset lineage mismatch")
 
+    if (manifest.get("split_protocol") != GROUP_SPLIT
+        or manifest.get("split_sha256") != split_identity(manifest)
+        or evaluation.get("split_sha256") != split_identity(manifest)
+        or evaluation.get("selection_policy") != SELECTION_POLICY
+        or evaluation.get("selected_model") != select_candidate(evaluation.get("validation", {}))):
+        raise ValueError("evaluation split or selection lineage mismatch")
+    if manifest.get("feature_names") != list(FEATURE_NAMES) or manifest.get("feature_schema_version") != "1.0":
+        raise ValueError("registration feature contract mismatch")
     selected = joblib.load(model_path)
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment)
@@ -224,6 +241,7 @@ def register_candidate(
             {
                 "model_type": evaluation["selected_model"],
                 "dataset_sha256": manifest["dataset_sha256"],
+                "split_sha256": split_identity(manifest),
                 "git_revision": manifest["git_revision"],
                 "feature_schema_version": manifest["feature_schema_version"],
                 "label_provenance": manifest["label_provenance"],
@@ -251,11 +269,14 @@ def register_candidate(
         version = mlflow.register_model(model_info.model_uri, model_name)
         registered_path = Path(mlflow.artifacts.download_artifacts(artifact_uri=version.source))
         artifact_digest = sha256_tree(registered_path)
+        skops_digest = sha256(registered_path / "model.skops")
         client = mlflow.MlflowClient()
         tags = {
             "approval_status": "candidate",
             "registered_artifact_sha256": artifact_digest,
+            "model_skops_sha256": skops_digest,
             "dataset_sha256": manifest["dataset_sha256"],
+            "split_sha256": split_identity(manifest),
             "git_revision": manifest["git_revision"],
             "feature_schema_version": manifest["feature_schema_version"],
             "label_provenance": manifest["label_provenance"],
@@ -272,10 +293,12 @@ def register_candidate(
             raise RuntimeError("registered model artifact retrieval verification failed")
         result = {
             "approval_status": "candidate",
+            "evaluation_sha256": sha256(evaluation_path),
             "mlflow_run_id": run.info.run_id,
             "model_name": model_name,
             "model_version": str(version.version),
             "registered_artifact_sha256": artifact_digest,
+            "model_skops_sha256": skops_digest,
             **tags,
         }
     _write_json(output, result)
@@ -298,6 +321,7 @@ def record_provenance(
     expected = {
         "approval_status": "candidate",
         "dataset_sha256": manifest["dataset_sha256"],
+        "split_sha256": split_identity(manifest),
         "git_revision": manifest["git_revision"],
         "feature_schema_version": "1.0",
         "label_provenance": "synthetic_proxy",
@@ -309,9 +333,24 @@ def record_provenance(
         raise ValueError("registered candidate provenance is incomplete or inconsistent")
     if evaluation.get("dataset_sha256") != manifest["dataset_sha256"]:
         raise ValueError("evaluation provenance is inconsistent")
+    if (evaluation.get("split_sha256") != split_identity(manifest)
+        or registration.get("evaluation_sha256") != sha256(evaluation_path)):
+        raise ValueError("evaluation split or digest provenance is inconsistent")
+    for key, pattern in (("mlflow_run_id", r"[0-9a-f]{32}"),
+                         ("model_version", r"[1-9][0-9]*"),
+                         ("registered_artifact_sha256", r"[0-9a-f]{64}"),
+                         ("model_skops_sha256", r"[0-9a-f]{64}")):
+        if not re.fullmatch(pattern, str(registration.get(key, ""))):
+            raise ValueError("registered candidate identity is invalid")
     result = {
         "contract_version": "1.0",
         "verification": "passed",
+        "git_revision": manifest["git_revision"],
+        "feature_names": manifest["feature_names"],
+        "feature_schema_version": manifest["feature_schema_version"],
+        "split_protocol": manifest["split_protocol"],
+        "split_sha256": split_identity(manifest),
+        "evaluation_sha256": sha256(evaluation_path),
         "pipeline_name": pipeline_name,
         "pipeline_run_id": pipeline_run_id,
         "component_image": component_image,
@@ -323,6 +362,7 @@ def record_provenance(
         "model_version": registration["model_version"],
         "approval_status": "candidate",
         "registered_artifact_sha256": registration["registered_artifact_sha256"],
+        "model_skops_sha256": registration["model_skops_sha256"],
     }
     _write_json(output, result)
     return result

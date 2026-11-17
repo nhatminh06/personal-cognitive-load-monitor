@@ -1,0 +1,242 @@
+{
+  "approval_status": "candidate",
+  "checks": [
+    "local registry identity",
+    "artifact tree",
+    "skops allowlist",
+    "input digests",
+    "deterministic dataset regeneration",
+    "fresh-fit validation metrics",
+    "registered skops validation/test parity",
+    "six-feature three-class inference",
+    "missing/corrupt artifact rejection",
+    "reload recovery",
+    "unapproved packaging rejection"
+  ],
+  "dataset_manifest": {
+    "contract_version": "1.0",
+    "dataset_id": "cogniflow-module3-training-synthetic-v1",
+    "dataset_sha256": "9ff25b2b325579c7142202436e870886eb0c76a110e0e36e3bb50fc197621a48",
+    "feature_input_sha256": "0615c7a6c3106d414d4a0618b73599d11ee75275903f3af7188f49a54e136d04",
+    "feature_names": [
+      "focus_minutes",
+      "distraction_minutes",
+      "tasks_due",
+      "hours_to_deadline",
+      "focus_ratio",
+      "distraction_ratio"
+    ],
+    "feature_schema_version": "1.0",
+    "git_revision": "be95946a8ca0049f7ddaafc8f084ce1fe26f4f62",
+    "label_availability_cutoff": "2026-01-15T00:00:00+00:00",
+    "label_input_sha256": "8cdcc8cd32c23e141ed3d4953ea147f0481b44e12d5d6917daf12449587402d3",
+    "label_provenance": "synthetic_proxy",
+    "sample_count": 210,
+    "source_dataset": "synthetic://cogniflow/module3-training-v1",
+    "source_delta_versions": [],
+    "splits": {
+      "test": [
+        168,
+        210
+      ],
+      "train": [
+        0,
+        126
+      ],
+      "validation": [
+        126,
+        168
+      ]
+    },
+    "training_cutoff": "2026-01-15T00:00:00+00:00",
+    "validation": "passed"
+  },
+  "dependencies": {
+    "kserve": "0.20.0",
+    "mlflow": "3.17.2",
+    "numpy": "2.4.6",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.9.1",
+    "skops": "0.16.0"
+  },
+  "evaluation_sha256": "379f4ce3c520fbc208ae66e35c55234fefa80ede92372b153b0d96e1956b7f74",
+  "feature_rows_also_in_train": {
+    "test": 42,
+    "validation": 42
+  },
+  "kserve_runtime": "NOT_RUN",
+  "model_name": "cogniflow-fresh-synthetic-20261117",
+  "model_skops_sha256": "138aba7d5a636ed69f296889eb037b8a5b2257b65964cd0ff665b4ff47933d61",
+  "model_version": "1",
+  "partition_identity": {
+    "test": {
+      "bounds": [
+        168,
+        210
+      ],
+      "sha256": "0384016b2c89cff78416fb88033f4f1392332d1f8be161b47e31170d18cf46a1"
+    },
+    "train": {
+      "bounds": [
+        0,
+        126
+      ],
+      "sha256": "f63ce5f47a189c03713b46801993ac606a714e9c7550feeb1980769deb0555b9"
+    },
+    "validation": {
+      "bounds": [
+        126,
+        168
+      ],
+      "sha256": "111c76e2128f55f40eba27eaab700ce96b05e2e953ecbaf5ac12092139506928"
+    }
+  },
+  "production_packaging": "REJECTED_UNAPPROVED",
+  "registered_artifact_sha256": "4119d9aa3cbe3ba63d69b434c11b0209eba8b1ff331603b5cb5459d23b423f60",
+  "registered_source": "models:/m-8e5b9c796bc14301aeccb26a0dcb97c8",
+  "run_id": "84c010c6beea458d92727fb320399050",
+  "sample_counts": {
+    "test": 42,
+    "train": 126,
+    "validation": 42
+  },
+  "selected_model": "random_forest",
+  "skops_untrusted_types": [
+    "sklearn.tree._tree.Tree"
+  ],
+  "source_hashes": {
+    "dvc.lock": "770b46bd9fbbb511706ad88dfaf4b32bfa9e44da557941d4e6706d242fb947cb",
+    "scripts/generate_training_fixture.py": "0bc82dd9d8a14cf5d35aaad241094f5294a5c9d5785b134d07e9234918593c49",
+    "scripts/train_historical_model.py": "87a54a9bbe065215eb9baeac8363bb58497335e11f25764a3f9572dd5d2775f2",
+    "src/cogniflow_data/training.py": "77c0faae13e938fa8cb591536a94c642cf550a9ec0855f957e143647b7244ca2",
+    "src/preprocessing_api/features.py": "fe3c4b7e3ebb8547dd01f67ae74ce2e04943763f29eb366538bbfad06aaddd1f",
+    "uv.lock": "2819f5142d370987a35c88f835cd419b1d3ee5835906f3fcf9d3df898f5292ca"
+  },
+  "status": "PASS_LOCAL_CANDIDATE_ONLY",
+  "test": {
+    "accuracy": 1.0,
+    "confusion_matrix": [
+      [
+        14,
+        0,
+        0
+      ],
+      [
+        0,
+        14,
+        0
+      ],
+      [
+        0,
+        0,
+        14
+      ]
+    ],
+    "macro_f1": 1.0,
+    "per_class_precision": {
+      "HIGH": 1.0,
+      "LOW": 1.0,
+      "MEDIUM": 1.0
+    },
+    "per_class_recall": {
+      "HIGH": 1.0,
+      "LOW": 1.0,
+      "MEDIUM": 1.0
+    }
+  },
+  "validation": {
+    "dummy_majority": {
+      "accuracy": 0.3333333333333333,
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          14
+        ],
+        [
+          0,
+          0,
+          14
+        ],
+        [
+          0,
+          0,
+          14
+        ]
+      ],
+      "macro_f1": 0.16666666666666666,
+      "per_class_precision": {
+        "HIGH": 0.3333333333333333,
+        "LOW": 0.0,
+        "MEDIUM": 0.0
+      },
+      "per_class_recall": {
+        "HIGH": 1.0,
+        "LOW": 0.0,
+        "MEDIUM": 0.0
+      }
+    },
+    "logistic_regression": {
+      "accuracy": 1.0,
+      "confusion_matrix": [
+        [
+          14,
+          0,
+          0
+        ],
+        [
+          0,
+          14,
+          0
+        ],
+        [
+          0,
+          0,
+          14
+        ]
+      ],
+      "macro_f1": 1.0,
+      "per_class_precision": {
+        "HIGH": 1.0,
+        "LOW": 1.0,
+        "MEDIUM": 1.0
+      },
+      "per_class_recall": {
+        "HIGH": 1.0,
+        "LOW": 1.0,
+        "MEDIUM": 1.0
+      }
+    },
+    "random_forest": {
+      "accuracy": 1.0,
+      "confusion_matrix": [
+        [
+          14,
+          0,
+          0
+        ],
+        [
+          0,
+          14,
+          0
+        ],
+        [
+          0,
+          0,
+          14
+        ]
+      ],
+      "macro_f1": 1.0,
+      "per_class_precision": {
+        "HIGH": 1.0,
+        "LOW": 1.0,
+        "MEDIUM": 1.0
+      },
+      "per_class_recall": {
+        "HIGH": 1.0,
+        "LOW": 1.0,
+        "MEDIUM": 1.0
+      }
+    }
+  }
+}

@@ -12,6 +12,9 @@ import mlflow
 import mlflow.sklearn
 import pandas as pd
 from cogniflow_data.training import (
+    SELECTION_POLICY,
+    select_candidate,
+    split_identity,
     candidate_models,
     evaluate_predictions,
     sha256_tree,
@@ -30,13 +33,15 @@ def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *
     for name, candidate in models.items():
         candidate.fit(train_frame[list(FEATURE_NAMES)], train_frame["label"])
         validation[name] = evaluate_predictions(validation_frame["label"], candidate.predict(validation_frame[list(FEATURE_NAMES)]))
-    selected_name = max(models, key=lambda name: (validation[name]["macro_f1"], name))
+    selected_name = select_candidate(validation)
     selected = models[selected_name]
     test_metrics = evaluate_predictions(test_frame["label"], selected.predict(test_frame[list(FEATURE_NAMES)]))
     output.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(selected, output)
     export_digest = hashlib.sha256(output.read_bytes()).hexdigest()
     report = {"warning":"Metrics measure synthetic-proxy prediction, not real cognitive-load accuracy.","selected_model":selected_name,"validation":validation,"test":test_metrics,"class_distribution":frame["label"].value_counts().sort_index().to_dict(),"sample_counts":{"train":len(train_frame),"validation":len(validation_frame),"test":len(test_frame)},"exported_joblib_sha256":export_digest,"dataset_manifest":manifest}
+    report["selection_policy"] = SELECTION_POLICY
+    report["split_sha256"] = split_identity(manifest)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
 
@@ -55,6 +60,7 @@ def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *
                 {
                     "model_type": name,
                     "dataset_sha256": manifest["dataset_sha256"],
+                    "split_sha256": split_identity(manifest),
                     "git_revision": manifest["git_revision"],
                     "feature_schema_version": "1.0",
                     "label_provenance": "synthetic_proxy",
@@ -72,6 +78,7 @@ def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *
                 continue
             mlflow.log_metrics({"test_accuracy":test_metrics["accuracy"],"test_macro_f1":test_metrics["macro_f1"]})
             mlflow.log_dict(report, "evaluation.json")
+            mlflow.log_dict(manifest, "dataset-manifest.json")
             model_info = mlflow.sklearn.log_model(
                 selected,
                 artifact_path="model",
@@ -85,6 +92,9 @@ def train(dataset: Path, manifest_path: Path, output: Path, report_path: Path, *
             artifact_digest = sha256_tree(registered_path)
             client = mlflow.MlflowClient()
             client.set_model_version_tag(model_name, version.version, "approval_status", "candidate")
+            for key in ("dataset_sha256", "git_revision", "feature_schema_version", "label_provenance"):
+                client.set_model_version_tag(model_name, version.version, key, manifest[key])
+            client.set_model_version_tag(model_name, version.version, "split_sha256", split_identity(manifest))
             client.set_model_version_tag(
                 model_name, version.version, "registered_artifact_sha256", artifact_digest
             )

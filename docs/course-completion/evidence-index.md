@@ -44,3 +44,44 @@
 | Local synthetic component rehearsal | `./.venv/bin/python -m pytest -q src/tests/test_api.py src/tests/test_activity_events.py src/tests/test_anomaly_detection.py --disable-warnings`; 103 passed, 2 warnings in 2.43s. Covers API/auth, prediction, sanitized events, SQLite persistence/deduplication, anomaly, alert and recovery | Direct local components only; no Kubernetes/KServe/cloud | PASS, component scope |
 
 The historical 604-pass, 2-skipped, 5-warning, 87.08% result is recorded evidence only; C1 independently measured 88.87%. Local KFP and Knative records do not prove approved-model KServe serving, GKE, GCS, or a continuous full-system demonstration.
+
+## Fresh-main qualification — 2026-11-17
+
+See [fresh-main-qualification.md](fresh-main-qualification.md) for the locked-install
+baseline at `809d3a860e305533de77c7296fa510bca8c71da6` and the tested local changes:
+606 passed, 2 skipped, 5 warnings, **87.13% across all nine coverage packages**
+(81% gate); Ruff, scoped MyPy, KFP compilation and Helm lint/render passed.
+This coverage scope differs from C1’s API/data-only 88.87%. The adapter now clears
+readiness on failed reload. A new component rehearsal verifies actual API events
+through durable consumer/anomaly/alert stores with replay and outage recovery.
+Module II’s 72 selected compatibility tests passed; infrastructure was not rerun.
+Historical 0.90 model accuracy remains documented, not reproduced, because exact
+inputs/artifacts and the configured DVC remote are missing. No approval, cluster,
+cloud execution, benchmark or push occurred; M10.3 remains NO-GO.
+
+## Synthetic candidate qualification — 2026-11-17
+
+[Owner-review record](model-candidate-qualification.md) and
+[exact candidate packet](synthetic-candidate-20261117.json): new local
+`cogniflow-fresh-synthetic-20261117/1`, 210 synthetic rows, 126/42/42 split,
+registered tree `4119d9aa3cbe3ba63d69b434c11b0209eba8b1ff331603b5cb5459d23b423f60`.
+Independent input regeneration, refitting and registered-skops inference checks pass.
+Forest/logistic validation accuracy and macro-F1 are 1.0; majority 1/3 and 1/6.
+All validation/test feature vectors also occur in training, so this is engineering
+evidence only. The historical locked metrics report was recovered from Git; historical
+dataset/model reproduction remains **NOT_REPRODUCED**. The candidate is unapproved,
+production packaging rejects it, and KServe Kubernetes runtime remains NOT_RUN.
+The serving validator now accepts the existing sanitized release-package contract.
+Full regression: 606 passed, 2 skipped, 87.13% coverage; M10.3 remains NO-GO.
+
+## C2.2 independent evaluation — 2026-11-17
+
+[Review record](c22-independent-evaluation.md), [predeclared protocol](c22-evaluation-protocol.md),
+and [candidate packet](c22-candidate.json). Implementation/training commit
+`9bc1e97d49bfbda8289a59fa7614867db33e1d17`; old candidate files unchanged.
+New `cogniflow-c22-independent-20261117/1` uses 125/43/42 rows and 36/12/12 disjoint
+feature groups. Logistic regression wins the exact 1.0 validation tie against the
+forest by simplicity; final test accuracy/macro-F1 1.0/1.0, synthetic-only.
+Full tests: 623 passed, 2 skipped, 87.20% coverage. KFP compilation/negative lineage
+checks pass; real KFP runtime, approval and KServe deployment remain NOT_RUN.
+M10.3 NO-GO and SEC-022 remain unchanged.

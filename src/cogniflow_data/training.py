@@ -17,11 +17,70 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precisio
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from preprocessing_api.features import FEATURE_NAMES
+from preprocessing_api.features import FEATURE_NAMES, feature_vector
 
 from .historical import HistoricalFeatureRow, SILVER_DATASET, SYNTHETIC_DATASET, SyntheticLabel
 
 LABELS = ("LOW", "MEDIUM", "HIGH")
+CANDIDATE_ORDER = ("dummy_majority", "logistic_regression", "random_forest")
+GROUP_SPLIT = "feature_groups_v1"
+SELECTION_POLICY = {
+    "primary": "validation_macro_f1_desc",
+    "secondary": "validation_accuracy_desc",
+    "tie_break": list(CANDIDATE_ORDER),
+    "selection_partition": "validation",
+    "final_test": "winner_only_after_selection",
+}
+
+
+def select_candidate(validation: dict[str, dict[str, Any]]) -> str:
+    if set(validation) != set(CANDIDATE_ORDER):
+        raise ValueError("candidate results are incomplete")
+    for metrics in validation.values():
+        for metric in ("macro_f1", "accuracy"):
+            value = metrics.get(metric)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError("candidate metrics must be finite values between zero and one")
+    return min(CANDIDATE_ORDER, key=lambda name: (
+        -validation[name]["macro_f1"], -validation[name]["accuracy"], CANDIDATE_ORDER.index(name)
+    ))
+
+
+def feature_group(row: dict[str, Any]) -> str:
+    vector = [0.0 if value == 0 else value for value in feature_vector(row)]
+    if not all(math.isfinite(value) for value in vector):
+        raise ValueError("group features must be finite")
+    return hashlib.sha256(json.dumps(vector, separators=(",", ":")).encode()).hexdigest()
+
+
+def grouped_splits(rows: list[dict[str, Any]]) -> dict[str, list[int]]:
+    groups: dict[str, list[int]] = {}
+    labels: dict[str, str] = {}
+    for index, row in enumerate(rows):
+        group = feature_group(row)
+        if group in labels and labels[group] != row["label"]:
+            raise ValueError("feature group has conflicting labels")
+        labels[group] = row["label"]
+        groups.setdefault(group, []).append(index)
+    if set(labels.values()) != set(LABELS):
+        raise ValueError("group split requires all three classes")
+    splits: dict[str, list[int]] = {name: [] for name in ("train", "validation", "test")}
+    for label in LABELS:
+        keys = sorted((key for key in groups if labels[key] == label),
+                      key=lambda key: hashlib.sha256(("42:" + key).encode()).hexdigest())
+        if len(keys) < 3:
+            raise ValueError("group split requires at least three groups per class")
+        train_end, validation_end = int(len(keys) * .6), int(len(keys) * .8)
+        for name, keys_part in zip(splits, (keys[:train_end], keys[train_end:validation_end], keys[validation_end:])):
+            splits[name].extend(index for key in keys_part for index in groups[key])
+    return {name: sorted(indices) for name, indices in splits.items()}
+
+
+def split_identity(manifest: dict[str, Any]) -> str:
+    payload = {"protocol": manifest.get("split_protocol", "chronological_v1"),
+               "dataset_sha256": manifest["dataset_sha256"], "splits": manifest["splits"]}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
 
 
 def sha256(path: Path) -> str:
@@ -62,6 +121,7 @@ def prepare_training_dataset(
     *,
     training_cutoff: datetime,
     git_revision: str,
+    split_protocol: str = "chronological_v1",
 ) -> dict[str, Any]:
     if training_cutoff.tzinfo is None or training_cutoff.utcoffset() is None:
         raise ValueError("training cutoff must include a timezone")
@@ -146,6 +206,12 @@ def prepare_training_dataset(
             "test": [validation_end, count],
         },
     }
+    if split_protocol == GROUP_SPLIT:
+        result["split_protocol"] = GROUP_SPLIT
+        result["splits"] = grouped_splits(joined)
+        result["split_sha256"] = split_identity(result)
+    elif split_protocol != "chronological_v1":
+        raise ValueError("unsupported split protocol")
     output_manifest_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return result
 
@@ -173,6 +239,11 @@ def validate_training_manifest(manifest: dict[str, Any], dataset: Path) -> None:
         or not re.fullmatch(r"[0-9a-f]{40}", str(manifest["git_revision"]))
     ):
         raise ValueError("training manifest contract is invalid")
+    protocol = manifest.get("split_protocol", "chronological_v1")
+    if protocol not in ("chronological_v1", GROUP_SPLIT):
+        raise ValueError("unsupported split protocol")
+    if protocol == GROUP_SPLIT and manifest.get("split_sha256") != split_identity(manifest):
+        raise ValueError("split identity mismatch")
     source = manifest["source_dataset"]
     versions = manifest["source_delta_versions"]
     if source not in {SYNTHETIC_DATASET, SILVER_DATASET} or (
@@ -237,6 +308,12 @@ def validate_training_frame(frame: Any, manifest: dict[str, Any]) -> None:
         ):
             raise ValueError("training dataset ratios are inconsistent")
     splits = manifest["splits"]
+    if manifest.get("split_protocol") == GROUP_SPLIT:
+        if splits != grouped_splits(frame.to_dict("records")) or manifest.get("split_sha256") != split_identity(manifest):
+            raise ValueError("group split membership or identity mismatch")
+        return
+    if manifest.get("split_protocol", "chronological_v1") != "chronological_v1":
+        raise ValueError("unsupported split protocol")
     try:
         train, validation, test = splits["train"], splits["validation"], splits["test"]
         if any(not isinstance(part, list) or len(part) != 2 for part in (train, validation, test)):
@@ -257,7 +334,9 @@ def split_training_frame(frame: Any, manifest: dict[str, Any]) -> tuple[Any, Any
         raise ValueError("at least 90 chronological samples are required")
     validate_training_frame(frame, manifest)
     splits = manifest["splits"]
-    parts = tuple(frame.iloc[slice(*splits[name])].copy() for name in ("train", "validation", "test"))
+    parts = tuple(frame.iloc[splits[name] if manifest.get("split_protocol") == GROUP_SPLIT
+                             else slice(*splits[name])].copy()
+                  for name in ("train", "validation", "test"))
     for name, part in zip(("train", "validation", "test"), parts):
         if set(part["label"]) != set(LABELS):
             raise ValueError(f"{name} split lacks class coverage")

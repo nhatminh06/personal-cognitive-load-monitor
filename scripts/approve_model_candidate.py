@@ -10,7 +10,7 @@ from pathlib import Path
 
 import mlflow
 
-from cogniflow_data.training import sha256_tree
+from cogniflow_data.training import GROUP_SPLIT, sha256_tree, split_identity
 from preprocessing_api.features import FEATURE_NAMES
 
 
@@ -64,6 +64,7 @@ def approve_candidate(
     params = run.data.params
     required = {
         "dataset_sha256": r"[0-9a-f]{64}",
+        "split_sha256": r"[0-9a-f]{64}",
         "git_revision": r"[0-9a-f]{40}",
         "feature_schema_version": r"1\.0",
         "label_provenance": r"synthetic_proxy",
@@ -89,6 +90,10 @@ def approve_candidate(
         or manifest.get("feature_schema_version") != "1.0"
         or manifest.get("feature_names") != list(FEATURE_NAMES)
         or manifest.get("label_provenance") != "synthetic_proxy"
+        or manifest.get("split_protocol") != GROUP_SPLIT
+        or not isinstance(manifest.get("splits"), dict)
+        or manifest.get("split_sha256") != params["split_sha256"]
+        or split_identity(manifest) != params["split_sha256"]
     ):
         raise ValueError("candidate dataset manifest provenance is inconsistent")
 
