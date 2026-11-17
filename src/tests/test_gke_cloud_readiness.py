@@ -181,14 +181,12 @@ def test_gke_storage_classes_make_placement_and_reclaim_policy_explicit() -> Non
 def test_cloud_mlflow_clients_preserve_candidate_and_release_boundaries() -> None:
     registration = (ROOT / "src/cogniflow_data/kfp_tasks.py").read_text()
     packaging = (ROOT / "scripts/package_approved_model.py").read_text()
-    release = (ROOT / ".github/workflows/release.yaml").read_text()
 
     assert '"approval_status": "candidate"' in registration
     assert registration.count("mlflow.artifacts.download_artifacts") >= 2
     assert 'tags.get("approval_status") != "approved"' in packaging
     assert "registered MLflow artifact integrity verification failed" in packaging
-    assert "MLFLOW_TRACKING_URI" in release
-    assert "mlflow.register_model" not in release
+    assert not (ROOT / ".github/workflows/release.yaml").exists()
 
 
 def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
@@ -367,267 +365,20 @@ def test_cloud_guardrails_and_two_node_budget_are_enforceable() -> None:
     assert sum(item["memory_mib"] for item in budget["required_requests"].values()) <= usable_memory
 
 
-def test_deploy_uses_predictable_runner_and_verifies_exact_release() -> None:
-    workflow = (ROOT / ".github/workflows/ci-cd.yaml").read_text()
-    deployment_workflows = [
-        workflow,
-        (ROOT / ".github/workflows/deploy-knative.yaml").read_text(),
-        (ROOT / ".github/workflows/deploy-module1.yaml").read_text(),
-    ]
-    verifier = (ROOT / "scripts/verify_cloud_release.sh").read_text()
-
-    assert "runs-on: [self-hosted, linux, x64, cogniflow-gke-deploy]" in workflow
-    assert '--set-string "kserve.name=${MODEL_NAME}"' in workflow
-    assert "scripts/verify_cloud_release.sh" in workflow
-    assert "cosign v3.1.4 is required" in verifier
-    assert "Trivy 0.76.1 is required" in verifier
-    assert all("use_internal_ip: true" in item for item in deployment_workflows)
-
-
-def test_ephemeral_runners_are_bounded_separate_and_socketless() -> None:
-    path = ROOT / "deploy/gke/ephemeral-runners.yaml"
-    text = path.read_text()
-    documents = [item for item in yaml.safe_load_all(text) if item]
-    pods = {item["metadata"]["name"]: item for item in documents if item["kind"] == "Pod"}
-
-    assert set(pods) == {"cogniflow-release", "cogniflow-gke-deploy"}
-    assert {pod["metadata"]["namespace"] for pod in pods.values()} == {
-        "cogniflow-release", "cogniflow-deploy",
-    }
-    assert all(pod["spec"]["restartPolicy"] == "Never" for pod in pods.values())
-    assert all(pod["spec"]["activeDeadlineSeconds"] == 14400 for pod in pods.values())
-    assert all(not pod["spec"]["automountServiceAccountToken"] for pod in pods.values())
-    assert text.count("--ephemeral") == 2
-    assert text.count("unset RUNNER_TOKEN") == 2
-    assert text.count("/runner/_temp/registered") == 4
-    assert "docker.sock" not in text
-    assert "privileged" not in text
-    assert "Unconfined" not in text
-    assert "--oci-worker-no-process-sandbox" not in text
-    assert "buildkit" not in text.lower()
-    assert "SET_RELEASE_RUNNER_IMAGE" in text
-    assert "SET_DEPLOY_RUNNER_IMAGE" in text
-    assert "mlflow" in text and "172.16.0.0/28" in text
-    for pod in pods.values():
-        for container in pod["spec"]["containers"]:
-            assert container["resources"]["requests"]
-            assert container["resources"]["limits"]
-            assert not container["securityContext"]["allowPrivilegeEscalation"]
-            assert container["securityContext"]["capabilities"]["drop"] == ["ALL"]
-
-    release = (ROOT / ".github/workflows/release.yaml").read_text()
-    assert "driver: remote" not in release
-    assert "endpoint: tcp://127.0.0.1:1234" not in release
-    assert "package:\n    name: Authorize and package private model" in release
-    assert "runs-on: ubuntu-latest" in release
-
-
-def test_private_packaging_runner_is_pinned_minimal_and_job_scoped() -> None:
-    dockerfile = (ROOT / "deploy/gke/runners/Dockerfile.release").read_text()
-    workflow = (ROOT / ".github/workflows/release.yaml").read_text()
-    manifest = (ROOT / "deploy/gke/ephemeral-runners.yaml").read_text()
-
-    assert dockerfile.count("FROM ") == 2
-    assert dockerfile.count("@sha256:") == 1
-    assert "AS release" in dockerfile
-    assert "USER 1001:1001" in dockerfile
-    assert "libbrotli1_1.1.0-2ubuntu0.1_amd64.deb" in dockerfile
-    assert "70b188a86d81f30d7510aab30e25d638ed5037dded6691af1533952b71ac61de" in dockerfile
-    for removed in ("dockerd", "containerd", "runc", "docker-buildx", "/usr/bin/sudo"):
-        assert removed in dockerfile
-    for deployment_tool in ("kubectl", "helm", "cosign", "trivy"):
-        assert deployment_tool not in dockerfile.lower()
-
-    package_job = workflow[workflow.index("package:\n"):workflow.index("release:\n")]
-    assert "runs-on: [self-hosted, linux, x64, cogniflow-release]" in package_job
-    assert "actions/setup-python@" in package_job
-    assert "astral-sh/setup-uv@" in package_job
-    assert "scripts/package_approved_model.py" in package_job
-    assert "docker/build-push-action" not in package_job
-    assert "SET_RELEASE_RUNNER_IMAGE" in manifest
-    assert "SET_DEPLOY_RUNNER_IMAGE" in manifest
-
-
-def test_ci_test_build_and_manual_deploy_boundaries_are_explicit() -> None:
-    workflow = (ROOT / ".github/workflows/ci-cd.yaml").read_text()
-
-    assert "pull_request:" in workflow
-    assert "uv run ruff check src scripts" in workflow
-    assert "--cov-fail-under=81" in workflow
-    assert "build:\n    name: Build and push Docker image\n    needs: test" in workflow
-    assert "github.ref == 'refs/heads/main' && github.event_name == 'push'" in workflow
-    assert "REQUIRE_MLFLOW" in workflow
-    assert "cogniflow-module1-engineering-candidates" in workflow
-    assert "mlflow.register_model" not in workflow
-    assert "download_model_from_mlflow.py" not in workflow
-    assert "deploy:\n    name: Manual deploy to Kubernetes with Helm\n    needs: test" in workflow
-    assert "github.event_name == 'workflow_dispatch'" in workflow
-    assert "name: production" in workflow
-    assert "id-token: write" in workflow
-
-
-def test_release_is_manual_approval_gated_and_never_deploys() -> None:
-    workflow = (ROOT / ".github/workflows/release.yaml").read_text()
-
-    assert "workflow_dispatch:" in workflow
-    assert "test:\n    name: Test exact release commit" in workflow
-    assert "--cov-fail-under=81" in workflow
-    assert "release:\n    name: Build, scan, sign, and record release" in workflow
-    assert "needs: [test, package]" in workflow
-    assert "name: production-release" in workflow
-    assert "id-token: write" in workflow
-    assert "model_run_id:" in workflow
-    approval = workflow.index("- name: Record exact solo-owner educational authorization")
-    packaging = workflow.index("- name: Package owner-authorized educational model")
-    assert approval < packaging
-    assert "scripts/approve_model_candidate.py" in workflow
-    assert "--expected-run-id \"$MODEL_RUN_ID\"" in workflow
-    assert "--environment production-release" in workflow
-    assert '--owner "$GITHUB_TRIGGERING_ACTOR"' in workflow
-    assert "--actor" not in workflow
-    assert 'I authorize this solo-owner educational release' in workflow
-    assert '"$GITHUB_ACTOR" == "nhatminh06"' in workflow
-    assert '"$GITHUB_TRIGGERING_ACTOR" == "nhatminh06"' in workflow
-    assert 'GITHUB_WORKFLOW_REF' in workflow
-    assert "scripts/package_approved_model.py" in workflow
-    assert workflow.index("scripts/package_approved_model.py") < workflow.index(
-        "actions/upload-artifact"
-    )
-    assert "scripts/verify_release_package.py" in workflow
-    assert "EXPECTED_PACKAGE_SHA256: ${{ needs.package.outputs.package_sha256 }}" in workflow
-    assert "retention-days: 1" in workflow
-    assert "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in workflow
-    assert "aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567" in workflow
-    assert "--provenance=mode=max --sbom=true" in workflow
-    assert 'cosign sign "$reference"' in workflow
-    assert 'trivy image --severity HIGH,CRITICAL' in workflow
-    assert workflow.index("trivy image") < workflow.index('cosign sign "$reference"')
-    assert "kubectl" not in workflow
-    assert "helm upgrade" not in workflow
-    assert "GCP_RELEASE_WORKLOAD_IDENTITY_PROVIDER" in workflow
-    assert "GCP_RELEASE_SERVICE_ACCOUNT" in workflow
-    assert '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' in workflow
-    assert "module1-build.json" in workflow
-    for identity in (
-        "git_commit", "release_run_id", "model_name", "model_version", "model_run_id",
-        "registered_artifact_sha256", "package_sha256", "model_sha256", "dataset_sha256",
-        "model_git_revision", "feature_schema_version", "label_provenance", "approval_scope",
-        "api_image", "kserve_image",
+def test_publication_candidate_ci_has_no_release_or_cloud_execution() -> None:
+    workflows = ROOT / ".github/workflows"
+    assert {path.name for path in workflows.glob("*.yaml")} == {"ci-cd.yaml"}
+    ci = (workflows / "ci-cd.yaml").read_text()
+    assert "pull_request:" in ci
+    assert "uv run ruff check src scripts" in ci
+    assert "--cov-fail-under=81" in ci
+    assert "fetch-depth: 0" in ci
+    assert "gitleaks git" in ci and "gitleaks dir" in ci
+    for forbidden in (
+        "workflow_dispatch", "id-token: write", "packages: write", "docker push",
+        "helm upgrade", "kubectl", "google-github-actions", "docker/login-action",
     ):
-        assert identity in workflow
-
-
-def test_ci_demo_image_is_distinct_and_release_bases_are_pinned() -> None:
-    ci = (ROOT / ".github/workflows/ci-cd.yaml").read_text()
-    assert "cognitive-load-api-ci-demo" in ci
-    assert "build:\n    name: Build and push Docker image\n    needs: test" in ci
-    assert "deploy:\n    name: Manual deploy to Kubernetes with Helm\n    needs: test" in ci
-
-    for name in (
-        "Dockerfile.model-serving",
-        "Dockerfile.kserve",
-        "Dockerfile.event-consumer",
-        "Dockerfile.anomaly-detector",
-    ):
-        dockerfile = (ROOT / name).read_text()
-        assert all("@sha256:" in line for line in dockerfile.splitlines() if line.startswith("FROM "))
-
-
-def test_knative_deploy_is_separately_gated_and_verifies_all_release_images() -> None:
-    workflow = (ROOT / ".github/workflows/deploy-knative.yaml").read_text()
-
-    assert "workflow_dispatch:" in workflow
-    assert "name: production-knative" in workflow
-    assert "id-token: write" in workflow
-    assert "github.ref == 'refs/heads/main'" in workflow
-    assert "scripts/render_production_knative.py" in workflow
-    assert "scripts/verify_cloud_release.sh" in workflow
-    for image in ("API_IMAGE", "KSERVE_IMAGE", "EVENT_CONSUMER_IMAGE", "ANOMALY_DETECTOR_IMAGE"):
-        assert f'"${image}"' in workflow
-    assert "docker build" not in workflow
-    assert "cosign sign" not in workflow
-
-
-def test_module1_deploy_is_manual_protected_oidc_and_knative_only() -> None:
-    workflow = (ROOT / ".github/workflows/deploy-module1.yaml").read_text()
-
-    assert "workflow_dispatch:" in workflow
-    assert "educational_demo:" in workflow
-    assert "not production qualification" in workflow
-    assert "github.ref == 'refs/heads/main'" in workflow
-    assert "name: module1-production" in workflow
-    assert "id-token: write" in workflow
-    assert "actions: read" in workflow
-    assert "google-github-actions/auth@" in workflow
-    assert "GCP_WORKLOAD_IDENTITY_PROVIDER" in workflow
-    assert "values.module1-knative.yaml" in workflow
-    assert "scripts/verify_cloud_release.sh" in workflow
-    assert "--atomic --timeout 10m" in workflow
-    assert "replace_existing_release:" in workflow
-    assert "scripts/module1_helm_guard.py" in workflow
-    assert "scripts/module1_compatibility.py" in workflow
-    assert "--require-qualified" in workflow
-    assert workflow.count("if: ${{ ! inputs.educational_demo }}") == 2
-    assert 'EDUCATIONAL_DEMO: ${{ inputs.educational_demo }}' in workflow
-    assert "EXPECTED_GKE_CONTEXT" in workflow
-    assert "helm get manifest cognitive-load-monitor" in workflow
-    assert "enable-scale-to-zero" in workflow
-    assert "inferenceservices.serving.kserve.io services.serving.knative.dev" in workflow
-    assert '"0.21.0"' in workflow
-    assert '"1.23.0"' in workflow
-    assert '"1.31.3"' in workflow
-    assert '"1.21.2"' in workflow
-    assert '^1\\.35\\.[0-9]+' in workflow
-    assert 'if [[ "$EDUCATIONAL_DEMO" != "true" ]]' in workflow
-    assert 'if [[ "${{ inputs.educational_demo }}" == "true" ]]' in workflow
-    assert '--set-string "config.appEnv=educational_demo"' in workflow
-    assert '--set-string "config.kserveTimeoutSeconds=120"' in workflow
-    assert "proxy-read-timeout=180" in workflow
-    assert "revision-response-start-timeout-seconds" in workflow
-    assert "revision-idle-timeout-seconds" in workflow
-    assert "kpa.autoscaling.knative.dev" in workflow
-    assert "kubectl get revision" in workflow
-    assert "docker build" not in workflow
-    assert "package_approved_model.py" not in workflow
-    assert "approve_model_candidate.py" not in workflow
-    assert "release_run_id:" in workflow
-    assert '.path == ".github/workflows/release.yaml"' in workflow
-    assert '.conclusion == "success"' in workflow
-    assert "run-id: ${{ inputs.release_run_id }}" in workflow
-    assert "ref: ${{ steps.manifest.outputs.git_commit }}" in workflow
-    assert "steps.manifest.outputs.api_image" in workflow
-    assert "steps.manifest.outputs.kserve_image" in workflow
-    for unrelated_input in (
-        "inputs.api_image", "inputs.kserve_image", "inputs.model_name",
-        "inputs.model_version", "inputs.model_sha256",
-        "inputs.artifact_sha256", "inputs.dataset_sha256",
-    ):
-        assert unrelated_input not in workflow
-
-
-def test_module1_deploy_bootstraps_only_owned_native_cloud_secrets() -> None:
-    workflow = (ROOT / ".github/workflows/deploy-module1.yaml").read_text()
-
-    bootstrap = workflow.index("- name: Prepare owned native application Secrets")
-    deployment = workflow.index("- name: Deploy explicit Module I Knative mode")
-    assert bootstrap < deployment
-    for protected_input in (
-        "secrets.COGNIFLOW_API_KEY",
-        "secrets.COGNIFLOW_INGRESS_AUTH",
-        "secrets.COGNIFLOW_TLS_CERT",
-        "secrets.COGNIFLOW_TLS_KEY",
-    ):
-        assert protected_input in workflow
-    assert '--from-file=COGNIFLOW_API_KEY="$secret_dir/api-key"' in workflow
-    assert '--from-file=auth="$secret_dir/ingress-auth"' in workflow
-    assert "kubectl create secret tls cogniflow-api-tls" in workflow
-    assert 'trap \'rm -rf -- "$secret_dir"\' EXIT' in workflow
-    assert "Required protected credential is missing" in workflow
-    assert "Refusing to replace foreign-owned Secret" in workflow
-    assert "cogniflow.io/deployment-owner=module1-knative" in workflow
-    assert "--from-literal" not in workflow
-    assert "deploy/gke/external-secret.yaml" not in workflow
-    assert "ExternalSecret" not in workflow
+        assert forbidden not in ci
 
 
 def test_production_knative_render_replaces_all_development_images() -> None:

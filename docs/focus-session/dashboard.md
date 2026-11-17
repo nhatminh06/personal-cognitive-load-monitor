@@ -63,10 +63,10 @@ separate.
 ## Local startup
 
 ```fish
-cd /home/pnmynh/code/cogniflow-pr7
+cd /path/to/personal-cognitive-load-monitor
 uv sync --frozen --all-extras
 set -x COGNIFLOW_API_KEY (read -s -P 'Local API key: ')
-set -x FOCUS_SESSION_STORE_PATH /home/pnmynh/code/cogniflow-pr7-sessions.sqlite3
+set -x FOCUS_SESSION_STORE_PATH /tmp/cogniflow-focus-sessions.sqlite3
 uv run uvicorn --app-dir src preprocessing_api.main:app --host 127.0.0.1 --port 8000
 ```
 

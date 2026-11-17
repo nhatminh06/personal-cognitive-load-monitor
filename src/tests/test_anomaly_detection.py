@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import sqlite3
 import threading
@@ -35,6 +36,13 @@ def request(app, payload):
     return asyncio.run(send())
 
 
+async def wait_thread_event(event: threading.Event, timeout: float = 1) -> bool:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while not event.is_set() and asyncio.get_running_loop().time() < deadline:
+        await asyncio.sleep(0.01)
+    return event.is_set()
+
+
 @pytest.fixture(autouse=True)
 def stores(tmp_path, monkeypatch):
     monkeypatch.setenv("ANOMALY_STORE_PATH", str(tmp_path / "detector.sqlite3"))
@@ -58,6 +66,38 @@ def test_error_burst_generates_one_alert_and_replay_is_idempotent():
     assert detector.process_event(activity(3, failed=True))[0] == "duplicate"
     with detector._connect() as connection:
         assert connection.execute("SELECT count(*) FROM alerts").fetchone()[0] == 1
+
+
+def test_event_log_survives_reopen_and_rejects_conflicting_replay():
+    original = activity(0)
+    assert detector.process_event(original)[0] == "processed"
+    with detector._connect() as connection:
+        row = connection.execute("SELECT event_json,sha256 FROM event_log WHERE source=? AND id=?",
+                                 (original["source"], original["id"])).fetchone()
+    assert json.loads(row[0]) == original
+    assert hashlib.sha256(row[0].encode()).hexdigest() == row[1]
+    assert detector.process_event(original)[0] == "duplicate"
+    altered = activity(0, latency=11)
+    assert request(detector.app, altered).status_code == 409
+    with detector._connect() as connection:
+        assert connection.execute("SELECT count(*) FROM event_log").fetchone()[0] == 1
+
+
+def test_unverifiable_legacy_duplicate_fails_closed():
+    original = activity(0)
+    with detector._connect() as connection:
+        connection.execute("INSERT INTO deliveries VALUES (?, ?, ?)",
+                           (original["source"], original["id"], datetime.now(UTC).isoformat()))
+    assert request(detector.app, original).status_code == 409
+
+
+def test_corrupted_persisted_event_fails_replay_integrity():
+    original = activity(0)
+    assert detector.process_event(original)[0] == "processed"
+    with detector._connect() as connection:
+        connection.execute("UPDATE event_log SET event_json=? WHERE source=? AND id=?",
+                           ('{"tampered":true}', original["source"], original["id"]))
+    assert request(detector.app, original).status_code == 409
 
 
 def test_latency_spike_and_rate_spike_are_deterministic():
@@ -135,6 +175,35 @@ def test_sink_persists_alert_once_without_sensitive_fields():
     assert request(sink.app, alert).status_code == 204
     with sink._connect() as connection:
         assert connection.execute("SELECT count(*) FROM alerts").fetchone()[0] == 1
+
+
+def test_sink_persistence_is_nonblocking_and_cancellation_safe(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+    persisted = False
+
+    def blocked(_event):
+        nonlocal persisted
+        started.set()
+        assert release.wait(2)
+        persisted = True
+        return 1
+
+    monkeypatch.setattr(sink, "_persist", blocked)
+
+    async def persist():
+        task = asyncio.create_task(sink._persist_async({"source": "test", "id": "1"}))
+        assert await wait_thread_event(started)
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(persist())
+    assert persisted is True
 
 
 def test_sink_rejects_tampered_alert():
@@ -218,6 +287,31 @@ def test_background_worker_recovers_without_new_event(monkeypatch):
     asyncio.run(exercise())
 
 
+def test_outbox_worker_keeps_event_loop_responsive(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocked():
+        started.set()
+        assert release.wait(2)
+        return True
+
+    monkeypatch.setattr(detector, "_outbox_count", lambda: 0)
+    monkeypatch.setattr(detector, "flush_outbox", blocked)
+
+    async def exercise():
+        stop, wake = asyncio.Event(), asyncio.Event()
+        task = asyncio.create_task(detector._outbox_worker(stop, wake))
+        assert await wait_thread_event(started)
+        await asyncio.sleep(0)
+        stop.set()
+        release.set()
+        wake.set()
+        await task
+
+    asyncio.run(exercise())
+
+
 def test_outbox_larger_than_batch_drains_and_partial_failure_retries(monkeypatch):
     rule = detector.DEFAULT_RULES[0]
     monkeypatch.setattr(detector, "DEFAULT_RULES", (detector.Rule(**{**rule.__dict__, "cooldown_seconds": 0}),))
@@ -267,16 +361,24 @@ def test_restart_drains_pending_outbox_without_delivery(monkeypatch):
 def test_concurrent_deliveries_are_bounded_and_ack_persisted_events(monkeypatch):
     active = 0
     maximum = 0
+    lock = threading.Lock()
+    concurrent = threading.Event()
+    release = threading.Event()
     original = detector.process_event
 
     def tracked(event):
         nonlocal active, maximum
-        active += 1
-        maximum = max(maximum, active)
+        with lock:
+            active += 1
+            maximum = max(maximum, active)
+            if active >= 2:
+                concurrent.set()
         try:
+            assert release.wait(2)
             return original(event)
         finally:
-            active -= 1
+            with lock:
+                active -= 1
 
     monkeypatch.setattr(detector, "process_event", tracked)
 
@@ -284,14 +386,17 @@ def test_concurrent_deliveries_are_bounded_and_ack_persisted_events(monkeypatch)
         async with detector.lifespan(detector.app):
             transport = httpx.ASGITransport(app=detector.app, raise_app_exceptions=False)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-                responses = await asyncio.gather(*(
+                requests = asyncio.gather(*(
                     client.post("/", content=json.dumps(activity(index)), headers={"content-type": "application/cloudevents+json"})
                     for index in range(20)
                 ))
+                assert await wait_thread_event(concurrent)
+                release.set()
+                responses = await requests
         assert {response.status_code for response in responses} == {204}
 
     asyncio.run(exercise())
-    assert maximum <= detector.MAX_CONCURRENT_REQUESTS
+    assert 2 <= maximum <= detector.MAX_CONCURRENT_REQUESTS
     with detector._connect() as connection:
         assert connection.execute("SELECT count(*) FROM deliveries").fetchone()[0] == 20
 
@@ -319,19 +424,23 @@ def test_connections_close_after_success_and_rollback(monkeypatch):
     assert all_raises_closed(connections)
 
 
-def test_cancellation_waits_for_bounded_worker(monkeypatch):
+def test_event_processing_is_nonblocking_and_cancellation_safe(monkeypatch):
     started = threading.Event()
     release = threading.Event()
+    processed = False
 
-    def blocked(_event):
+    def tracked(_event):
+        nonlocal processed
         started.set()
-        release.wait()
+        assert release.wait(2)
+        processed = True
 
-    monkeypatch.setattr(detector, "process_event", blocked)
+    monkeypatch.setattr(detector, "process_event", tracked)
 
     async def exercise():
         task = asyncio.create_task(detector._process_event(activity(0)))
-        await asyncio.to_thread(started.wait)
+        assert await wait_thread_event(started)
+        await asyncio.sleep(0)
         task.cancel()
         await asyncio.sleep(0)
         assert not task.done()
@@ -340,6 +449,7 @@ def test_cancellation_waits_for_bounded_worker(monkeypatch):
             await task
 
     asyncio.run(exercise())
+    assert processed is True
 
 
 def all_raises_closed(connections):
