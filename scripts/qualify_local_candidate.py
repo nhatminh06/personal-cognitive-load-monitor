@@ -18,6 +18,7 @@ import skops.io
 import yaml
 
 from cogniflow_data.training import (
+    GROUP_SPLIT, feature_group, select_candidate, split_identity,
     candidate_models, evaluate_predictions, prepare_training_dataset, sha256,
     sha256_tree, split_training_frame, validate_training_manifest,
 )
@@ -71,10 +72,12 @@ def qualify(root: Path, model_name: str, model_version: str, run_id: str, digest
     frame = pd.read_json(root / "dataset.jsonl", lines=True)
     train, validation, test = split_training_frame(frame, manifest)
     rows = (root / "dataset.jsonl").read_bytes().splitlines(keepends=True)
-    splits = {
-        name: {"bounds": bounds, "sha256": hashlib.sha256(b"".join(rows[slice(*bounds)])).hexdigest()}
-        for name, bounds in manifest["splits"].items()
-    }
+    splits = {}
+    for name, membership in manifest["splits"].items():
+        grouped = manifest.get("split_protocol") == GROUP_SPLIT
+        payload = b"".join(rows[index] for index in membership) if grouped else b"".join(rows[slice(*membership)])
+        splits[name] = {"row_indices" if grouped else "bounds": membership,
+                        "sha256": hashlib.sha256(payload).hexdigest()}
     train_vectors = set(map(tuple, train[list(FEATURE_NAMES)].values.tolist()))
     overlap = {
         name: sum(tuple(row) in train_vectors for row in part[list(FEATURE_NAMES)].values.tolist())
@@ -90,6 +93,7 @@ def qualify(root: Path, model_name: str, model_version: str, run_id: str, digest
             scratch / "dataset", scratch / "manifest",
             training_cutoff=datetime.fromisoformat(manifest["training_cutoff"]),
             git_revision=manifest["git_revision"],
+            split_protocol=manifest.get("split_protocol", "chronological_v1"),
         )
         assert sha256(scratch / "dataset") == manifest["dataset_sha256"], "regeneration mismatch"
         assert sha256(scratch / "features") == manifest["feature_input_sha256"]
@@ -140,7 +144,20 @@ def qualify(root: Path, model_name: str, model_version: str, run_id: str, digest
             validation["label"], model.predict(validation[list(FEATURE_NAMES)])
         )
     assert reproduced == report["validation"], "fresh-fit validation mismatch"
+    if manifest.get("split_protocol") == GROUP_SPLIT:
+        assert params["split_sha256"] == split_identity(manifest)
+        assert report["selected_model"] == select_candidate(reproduced)
+        groups = [set(part.apply(lambda row: feature_group(row.to_dict()), axis=1))
+                  for part in (train, validation, test)]
+        assert not (groups[0] & groups[1] or groups[0] & groups[2] or groups[1] & groups[2])
     return {
+        "partition_statistics": {
+            name: {"rows": len(part), "classes": part["label"].value_counts().sort_index().to_dict(),
+                   "groups": len({feature_group(row) for row in part.to_dict("records")})}
+            for name, part in (("train", train), ("validation", validation), ("test", test))
+        },
+        "split_sha256": split_identity(manifest),
+        "selection_policy": report.get("selection_policy", "legacy_macro_f1_then_name"),
         "status": "PASS_LOCAL_CANDIDATE_ONLY", "approval_status": "candidate",
         "kserve_runtime": "NOT_RUN", "production_packaging": "REJECTED_UNAPPROVED",
         "model_name": model_name, "model_version": model_version, "run_id": run_id,

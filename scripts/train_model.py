@@ -21,13 +21,12 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from cogniflow_data.training import candidate_models, evaluate_predictions  # noqa: E402
+from cogniflow_data.training import CANDIDATE_ORDER, candidate_models, evaluate_predictions, select_candidate  # noqa: E402
 from data_generator import generate_sample_data  # noqa: E402
 from preprocessing_api.features import FEATURE_NAMES, feature_vector  # noqa: E402
 
 FEATURE_COLUMNS = list(FEATURE_NAMES)
 LABELS = ("LOW", "MEDIUM", "HIGH")
-CANDIDATE_ORDER = ("dummy_majority", "logistic_regression", "random_forest")
 
 
 def parse_args() -> argparse.Namespace:
@@ -163,20 +162,6 @@ def split_chronologically(
         },
     }
     return (*parts, split_report)
-
-
-def select_candidate(validation: dict[str, dict[str, Any]]) -> str:
-    if set(validation) != set(CANDIDATE_ORDER):
-        raise ValueError("candidate results are incomplete")
-    order = {name: index for index, name in enumerate(CANDIDATE_ORDER)}
-    return min(
-        CANDIDATE_ORDER,
-        key=lambda name: (
-            -float(validation[name]["macro_f1"]),
-            -float(validation[name]["accuracy"]),
-            order[name],
-        ),
-    )
 
 
 def _git_revision() -> str:

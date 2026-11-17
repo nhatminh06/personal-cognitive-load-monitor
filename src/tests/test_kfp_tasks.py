@@ -59,7 +59,7 @@ def evaluated(tmp_path: Path):
     dataset, manifest = prepared(tmp_path)
     models, validation = tmp_path / "models.joblib", tmp_path / "validation-metrics.json"
     train_report = train_candidates(dataset, manifest, models, validation)
-    assert train_report["split_counts"] == {"train": 108, "validation": 36}
+    assert sum(train_report["split_counts"].values()) == 144
     selected, evaluation = tmp_path / "selected.joblib", tmp_path / "evaluation.json"
     evaluate_report = evaluate_and_select(
         dataset, manifest, models, validation, selected, evaluation
@@ -105,9 +105,11 @@ def test_kfp_tasks_preserve_180_row_contract_and_candidate_registration(tmp_path
         component_image=IMAGE,
     )
     assert provenance["verification"] == "passed"
-    assert provenance["splits"] == {
-        "train": [0, 108], "validation": [108, 144], "test": [144, 180]
+    assert {name: len(rows) for name, rows in provenance["splits"].items()} == {
+        "train": 108, "validation": 36, "test": 36
     }
+    assert provenance["split_sha256"] == json.loads(manifest.read_text())["split_sha256"]
+    assert provenance["git_revision"] == GIT_REVISION
 
 
 def test_validation_checksum_schema_and_image_revision_fail_closed(
@@ -213,3 +215,50 @@ def test_mlflow_failure_propagates_without_provenance(
             component_image=IMAGE,
         )
     assert not output.exists()
+
+
+@pytest.mark.parametrize("field", ["dataset_sha256", "split_sha256", "selection_policy"])
+def test_evaluation_rejects_substituted_validation_lineage(tmp_path, field):
+    dataset, manifest = prepared(tmp_path)
+    models, validation = tmp_path / "models", tmp_path / "validation"
+    report = train_candidates(dataset, manifest, models, validation)
+    assert "test" not in report
+    report[field] = "tampered"
+    validation.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="validation lineage"):
+        evaluate_and_select(dataset, manifest, models, validation, tmp_path / "selected", tmp_path / "out")
+
+
+@pytest.mark.parametrize("field", ["split_sha256", "selection_policy", "selected_model"])
+def test_registration_rejects_substituted_evaluation_before_loading(tmp_path, monkeypatch, field):
+    manifest, selected, evaluation = evaluated(tmp_path)
+    report = json.loads(evaluation.read_text())
+    report[field] = "tampered"
+    evaluation.write_text(json.dumps(report))
+    monkeypatch.setattr("joblib.load", lambda *_: pytest.fail("must reject before loading"))
+    with pytest.raises(ValueError, match="split or selection lineage"):
+        register_candidate(manifest, selected, evaluation, tmp_path / "out",
+                           tracking_uri="sqlite:///:memory:", experiment="test", model_name="test",
+                           pipeline_name="test-fixture", pipeline_run_id="not-a-real-kfp-run",
+                           component_image=IMAGE)
+
+
+@pytest.mark.parametrize("field", ["split_sha256", "evaluation_sha256", "kfp_run_id", "component_image"])
+def test_final_provenance_rejects_substitution(tmp_path, field):
+    manifest_path, _, evaluation_path = evaluated(tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    from cogniflow_data.training import sha256
+    registration = {
+        "approval_status": "candidate", "dataset_sha256": manifest["dataset_sha256"],
+        "split_sha256": manifest["split_sha256"], "git_revision": GIT_REVISION,
+        "feature_schema_version": "1.0", "label_provenance": "synthetic_proxy",
+        "kfp_pipeline_name": "test-fixture", "kfp_run_id": "test-only-run",
+        "component_image": IMAGE, "evaluation_sha256": sha256(evaluation_path),
+    }
+    registration[field] = "tampered"
+    path = tmp_path / "registration.json"
+    path.write_text(json.dumps(registration))
+    with pytest.raises(ValueError, match="provenance"):
+        record_provenance(manifest_path, evaluation_path, path, tmp_path / "out",
+                          pipeline_name="test-fixture", pipeline_run_id="test-only-run",
+                          component_image=IMAGE)
