@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1.7
+FROM artifacts AS artifacts
+FROM ghcr.io/actions/actions-runner@sha256:0ce3288e48b012a83685998f683a2ae0cbd284fa722c090dda0af5443215cf30 AS deploy
+
+USER root
+COPY --from=artifacts /SHA256SUMS /tmp/inputs/SHA256SUMS
+COPY --from=artifacts /bin/ /tmp/inputs/bin/
+COPY --from=artifacts /google-cloud-cli.tar.gz /tmp/inputs/google-cloud-cli.tar.gz
+RUN cd /tmp/inputs \
+    && sha256sum -c SHA256SUMS \
+    && test "$(dpkg --print-architecture)" = amd64 \
+    && tar -xzf google-cloud-cli.tar.gz -C /opt \
+    && install -o root -g root -m 0755 bin/cosign /usr/local/bin/cosign \
+    && install -o root -g root -m 0755 bin/helm /usr/local/bin/helm \
+    && install -o root -g root -m 0755 bin/kubectl /usr/local/bin/kubectl \
+    && install -o root -g root -m 0755 bin/trivy /usr/local/bin/trivy \
+    && ln -s /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud \
+    && rm -rf /tmp/inputs \
+    && rm -f /usr/bin/containerd /usr/bin/containerd-shim-runc-v2 /usr/bin/ctr \
+        /usr/bin/docker /usr/bin/docker-init /usr/bin/docker-proxy /usr/bin/dockerd \
+        /usr/bin/runc /usr/bin/sudo /usr/local/lib/docker/cli-plugins/docker-buildx \
+    && rm -rf /home/runner/externals/node20/lib/node_modules \
+        /home/runner/externals/node24/lib/node_modules \
+    && deluser runner sudo \
+    && deluser runner docker
+USER 1001:1001

@@ -129,6 +129,84 @@ def test_gke_values_keep_external_access_fail_closed() -> None:
     assert values["ingress"]["authSecret"] == ""
     assert "ingress-nginx" not in json.dumps(values)
     assert values["serviceAccount"]["name"] == "cogniflow-api"
+    assert values["networkPolicy"]["externalIngressEnabled"] is False
+
+
+def test_runner_pods_use_read_only_roots_and_bounded_writable_paths() -> None:
+    documents = [
+        item for item in yaml.safe_load_all(
+            (ROOT / "deploy/gke/ephemeral-runners.yaml").read_text()
+        ) if item
+    ]
+    pods = [item for item in documents if item["kind"] == "Pod"]
+    assert {pod["metadata"]["name"] for pod in pods} == {
+        "cogniflow-release", "cogniflow-gke-deploy",
+    }
+    for pod in pods:
+        spec = pod["spec"]
+        assert spec["automountServiceAccountToken"] is False
+        assert spec["securityContext"] == {
+            "runAsNonRoot": True,
+            "runAsUser": 1001,
+            "runAsGroup": 1001,
+            "fsGroup": 1001,
+            "fsGroupChangePolicy": "OnRootMismatch",
+            "seccompProfile": {"type": "RuntimeDefault"},
+        }
+        assert not any("hostPath" in volume for volume in spec["volumes"])
+        volumes = {volume["name"]: volume["emptyDir"] for volume in spec["volumes"]}
+        assert set(volumes) == {"runner-home", "work", "runner-temp", "tool-cache"}
+        assert all(volume.get("sizeLimit") for volume in volumes.values())
+
+        init = spec["initContainers"]
+        assert len(init) == 1
+        assert init[0]["args"] == ["cp -a /home/runner/. /runner/"]
+        assert "env" not in init[0]
+        for container in [*init, *spec["containers"]]:
+            security = container["securityContext"]
+            assert security["allowPrivilegeEscalation"] is False
+            assert security["readOnlyRootFilesystem"] is True
+            assert security["capabilities"] == {"drop": ["ALL"]}
+            assert security.get("privileged", False) is False
+
+        runner = spec["containers"][0]
+        assert runner["workingDir"] == "/runner"
+        mounts = {mount["mountPath"]: mount["name"] for mount in runner["volumeMounts"]}
+        assert mounts == {
+            "/runner": "runner-home",
+            "/runner/_work": "work",
+            "/runner/_temp": "runner-temp",
+            "/runner/_tool": "tool-cache",
+        }
+        environment = {item["name"]: item for item in runner["env"]}
+        assert environment["HOME"]["value"] == "/runner/home"
+        assert environment["RUNNER_TEMP"]["value"] == "/runner/_temp"
+        assert environment["RUNNER_TOOL_CACHE"]["value"] == "/runner/_tool"
+        assert "secretKeyRef" in environment["RUNNER_TOKEN"]["valueFrom"]
+
+
+def test_deployment_runner_scaffold_fails_closed_on_unverified_inputs() -> None:
+    dockerfile = (ROOT / "deploy/gke/runners/Dockerfile.deploy").read_text()
+    checksums = (
+        ROOT / "deploy/gke/runners/deploy-inputs.SHA256SUMS.example"
+    ).read_text()
+    assert "@sha256:" in dockerfile
+    assert "sha256sum -c SHA256SUMS" in dockerfile
+    assert 'dpkg --print-architecture)\" = amd64' in dockerfile
+    assert "USER 1001:1001" in dockerfile
+    assert "/usr/bin/docker" in dockerfile
+    assert "UNVERIFIED" in checksums
+    assert "http://" not in dockerfile
+    assert "https://" not in dockerfile
+
+
+def test_gke_render_has_no_external_route_or_unneeded_gateway_ingress() -> None:
+    values = yaml.safe_load(
+        (ROOT / "helm/cognitive-load-monitor/values.gke.yaml").read_text()
+    )
+    assert values["serviceAccount"]["name"] == "cogniflow-api"
+    assert values["networkPolicy"]["externalIngressEnabled"] is False
+    assert values["ingress"]["enabled"] is False
 
 
 def test_sec022_stays_out_of_every_cloud_release_path() -> None:

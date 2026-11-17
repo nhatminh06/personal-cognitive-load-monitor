@@ -244,8 +244,19 @@ def test_gke_helm_renders_exact_images_tls_separate_identities_and_narrow_networ
     assert service["spec"]["type"] == "ClusterIP"
     policy = next(document for document in documents if document["kind"] == "NetworkPolicy")
     policy_text = yaml.safe_dump(policy)
+    ingress_namespaces = {
+        source["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"]
+        for rule in policy["spec"]["ingress"]
+        for source in rule.get("from", [])
+        if "namespaceSelector" in source
+    }
+    assert "gke-managed-system" not in ingress_namespaces
+    assert ingress_namespaces == {"monitoring"}
     assert "169.254.169.254/32" in policy_text
     assert "0.0.0.0/0" not in result.stdout
+    assert {"Ingress", "Gateway", "HTTPRoute"}.isdisjoint(
+        document["kind"] for document in documents
+    )
 
 
 def test_hpa_targets_api_with_bounded_explicit_behavior() -> None:

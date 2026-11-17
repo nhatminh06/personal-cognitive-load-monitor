@@ -50,6 +50,7 @@ existingSecret: cogniflow-api
 
 networkPolicy:
   enabled: true
+  externalIngressEnabled: false
   ingressNamespace: gke-managed-system
   kserveNamespace: cogniflow
   eventingNamespace: knative-eventing

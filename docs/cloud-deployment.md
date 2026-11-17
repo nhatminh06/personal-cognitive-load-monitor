@@ -129,6 +129,13 @@ The public endpoint remains enabled for the external operator. All three deploym
 
 Render `deploy/gke/ephemeral-runners.yaml` only after replacing every `SET_*_IMAGE` with a reviewed digest. Create the registration-token Secret separately in the relevant namespace, start one Pod for one authorized job, then delete the Pod and Secret and confirm GitHub removed the ephemeral registration. The private packaging image needs only the pinned runner plus the prerequisites for the SHA-pinned Python and uv setup actions. The deploy image needs the pinned runner, Google Cloud CLI, `kubectl`, Helm, Cosign and Trivy. Neither Pod receives a Kubernetes API service-account token or Docker socket.
 
+Both runner Pods stage the immutable `/home/runner` payload into a bounded
+`emptyDir`, then run with a read-only root filesystem and separate bounded work,
+temporary, and tool-cache volumes. Static configuration scanning passes, but
+bootstrap and cleanup on the exact images remain a disposable-cluster runtime
+gate. The API NetworkPolicy does not admit the GKE Gateway namespace while
+external routing is disabled.
+
 ### Runner image and bootstrap gate
 
 Read-only registry inspection on 2026-11-01 identified this maintained upstream amd64 runner base:
