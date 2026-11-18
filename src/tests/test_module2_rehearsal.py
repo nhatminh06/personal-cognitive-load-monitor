@@ -35,6 +35,14 @@ def test_kafka_candidate_and_persistent_log_path_are_pinned() -> None:
     assert "image: apache/kafka:3.9.2" not in compose
 
 
+def test_trino_candidate_and_cli_healthcheck_are_pinned() -> None:
+    compose = Path("infra/module2/docker-compose.yml").read_text()
+    assert "image: cogniflow-trino:c44-patched" in compose
+    assert "context: ./trino" in compose
+    assert "test: [CMD, /usr/bin/trino" in compose
+    assert "image: trinodb/trino:478" not in compose
+
+
 def resolved_config(project: str = "cogniflow-rehearsal-test") -> dict:
     services = {}
     for service, port in zip(("kafka", "minio", "trino", "redis", "flink-jobmanager"), PORTS.__dict__.values()):

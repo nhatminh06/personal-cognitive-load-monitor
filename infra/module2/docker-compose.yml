@@ -155,7 +155,9 @@ services:
         condition: service_healthy
 
   trino:
-    image: trinodb/trino:478
+    image: cogniflow-trino:c44-patched
+    build:
+      context: ./trino
     profiles: [analytics]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
@@ -170,7 +172,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: [CMD-SHELL, "curl -fsS http://127.0.0.1:8080/v1/info >/dev/null"]
+      test: [CMD, /usr/bin/trino, --server, http://127.0.0.1:8080, --execute, "SELECT 1"]
       interval: 5s
       timeout: 5s
       retries: 30
