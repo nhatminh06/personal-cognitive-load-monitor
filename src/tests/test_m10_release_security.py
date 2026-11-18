@@ -160,7 +160,7 @@ def test_runner_pods_use_read_only_roots_and_bounded_writable_paths() -> None:
 
         init = spec["initContainers"]
         assert len(init) == 1
-        assert init[0]["args"] == ["cp -a /home/runner/. /runner/"]
+        assert init[0]["args"] == ["cp -r /home/runner/. /runner/"]
         assert "env" not in init[0]
         for container in [*init, *spec["containers"]]:
             security = container["securityContext"]
@@ -199,13 +199,21 @@ def test_deployment_runner_scaffold_fails_closed_on_unverified_inputs() -> None:
     assert "USER 1001:1001" in dockerfile
     assert "/usr/bin/docker" in dockerfile
     assert "UNVERIFIED" in checksums
-    assert len(verified) == 5
+    assert len(verified) == 9
     assert all(len(line.split()[0]) == 64 for line in verified)
     assert 'google-cloud-sdk/VERSION)\" = 594.0.0' in dockerfile
     assert "gitVersion: v1.35.10-cogniflow.1" in dockerfile
     assert any(line.startswith(
         "130b354df841e743ee6a5580d1cdb09844ba0a0d4538a6b39c508c1526b516ef  bin/kubectl"
     ) for line in verified)
+    assert any(line.startswith(
+        "67a3ba89c77e654c3b3fe9507817ef9c3a3b802c7363781158f2ecf62bf5d901  bin/cosign"
+    ) for line in verified)
+    assert any(line.endswith(
+        "  actions-runner-linux-x64-a9dcf1b-cogniflow.tar.gz"
+    ) for line in verified)
+    assert "./bin/Runner.Listener --version | grep -Fx '2.338.0'" in dockerfile
+    assert "dpkg -i packages/libbrotli1_1.1.0-2ubuntu0.1_amd64.deb" in dockerfile
     assert "/opt/google-cloud-sdk/platform/gsutil" in dockerfile
     assert "/opt/google-cloud-sdk/bin/gcloud-crc32c" in dockerfile
     assert "/usr/bin/apt* /usr/bin/dpkg*" in dockerfile

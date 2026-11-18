@@ -1,5 +1,13 @@
 # M10.3 final deployment-runner security gate
 
+> **C5.8 follow-up (2026-11-17):** the four independently qualified replacement
+> sets were integrated into the exact local runner. The final image
+> `sha256:fea8be5e98ba4defff5f8d23059c9d31103f7014b4e33b42c1aa1dcb0498d44a`
+> reports zero HIGH and zero CRITICAL findings and passed the required offline
+> runtime checks. Local M10.3 qualification is **PASS**. Publication, registry
+> signing/attestation, immutable digest review and owner-authorized deployment
+> remain NO-GO. See [the C5.8 record](security-audit/c58-final-runner-qualification.md).
+
 > **C5.4 follow-up (2026-11-17):** the later, explicitly authorized source-build
 > evaluation produced a standalone Kubernetes 1.35-compatible kubectl with zero
 > HIGH/CRITICAL findings. See
@@ -14,7 +22,7 @@
 > scan reports 5 HIGH and 0 CRITICAL findings outside kubectl, so M10.3 remains
 > NO-GO. See [the C5.5 record](security-audit/c55-runner-integration.md).
 
-## Decision
+## Historical pre-C5.8 decision
 
 **Overall decision: `BLOCKED`; deployment remains NO-GO.** No official,
 supported kubectl candidate available on 2026-11-17 contains both required Go

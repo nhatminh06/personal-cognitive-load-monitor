@@ -159,3 +159,17 @@ upstream `/proc` startup race; no production source was changed. Trivy 0.76.2
 reported 0 HIGH / 0 CRITICAL and an independent 383-package SPDX SBOM was
 generated. Decision: **PASS for the independent Actions Runner package**. The
 complete M10.3 image has not been rebuilt or qualified, so M10.3 remains NO-GO.
+
+## C5.8 final M10.3 runner qualification — 2026-11-17
+
+[Whole-image and runtime record](../security-audit/c58-final-runner-qualification.md).
+The nine-input offline build integrated the qualified Actions Runner, kubectl,
+Cosign and authenticated Ubuntu fixes. Exact local image
+`sha256:fea8be5e98ba4defff5f8d23059c9d31103f7014b4e33b42c1aa1dcb0498d44a`
+passed complete Trivy OS/.NET/Go/Python analysis at 0 HIGH / 0 CRITICAL and
+produced BuildKit provenance/SBOM plus an independent 1,463-package SPDX SBOM.
+The unregistered network-disabled runtime checks passed, including tool hashes,
+controlled Cosign verification, Helm render and Node/hashFiles. Full regression:
+631 passed, 5 skipped, 87.20% coverage. **Local M10.3: PASS.** Registry
+publication, signing/attestation, owner approval and Kubernetes execution remain
+separate NO-GO gates.

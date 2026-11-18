@@ -5,21 +5,36 @@ FROM ghcr.io/actions/actions-runner@sha256:0ce3288e48b012a83685998f683a2ae0cbd28
 USER root
 COPY --from=artifacts /SHA256SUMS /tmp/inputs/SHA256SUMS
 COPY --from=artifacts /bin/ /tmp/inputs/bin/
+COPY --from=artifacts /packages/ /tmp/inputs/packages/
+COPY --from=artifacts /actions-runner-linux-x64-a9dcf1b-cogniflow.tar.gz /tmp/inputs/actions-runner-linux-x64-a9dcf1b-cogniflow.tar.gz
 COPY --from=artifacts /google-cloud-cli.tar.gz /tmp/inputs/google-cloud-cli.tar.gz
 RUN cd /tmp/inputs \
     && sha256sum -c SHA256SUMS \
     && test "$(dpkg --print-architecture)" = amd64 \
+    && dpkg -i packages/libbrotli1_1.1.0-2ubuntu0.1_amd64.deb \
+        packages/libapt-pkg6.0t64_2.8.4ubuntu0.1_amd64.deb \
+        packages/apt_2.8.4ubuntu0.1_amd64.deb \
+    && test "$(dpkg-query -W -f='${Version}' apt)" = 2.8.4ubuntu0.1 \
+    && test "$(dpkg-query -W -f='${Version}' libapt-pkg6.0t64)" = 2.8.4ubuntu0.1 \
+    && test "$(dpkg-query -W -f='${Version}' libbrotli1)" = 1.1.0-2ubuntu0.1 \
+    && rm -rf /home/runner \
+    && install -d -o 1001 -g 1001 /home/runner \
+    && tar -xzf actions-runner-linux-x64-a9dcf1b-cogniflow.tar.gz --no-same-owner -C /home/runner \
+    && chown -R 1001:1001 /home/runner \
     && tar -xzf google-cloud-cli.tar.gz -C /opt \
     && install -o root -g root -m 0755 bin/cosign /usr/local/bin/cosign \
     && install -o root -g root -m 0755 bin/helm /usr/local/bin/helm \
     && install -o root -g root -m 0755 bin/kubectl /usr/local/bin/kubectl \
     && install -o root -g root -m 0755 bin/trivy /usr/local/bin/trivy \
     && ln -s /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud \
-    && cosign version | grep -F 'GitVersion:    v3.1.4' \
+    && cosign version | grep -F 'GitVersion:    v3.1.4-cogniflow.1' \
     && helm version --short | grep -E '^v4\.3\.2\+' \
     && kubectl version --client=true -o yaml | grep -F 'gitVersion: v1.35.10-cogniflow.1' \
     && trivy --version | grep -F 'Version: 0.76.2' \
     && test "$(cat /opt/google-cloud-sdk/VERSION)" = 594.0.0 \
+    && (cd /home/runner && ./bin/Runner.Listener --version | grep -Fx '2.338.0') \
+    && test "$(/home/runner/externals/node24/bin/node --version)" = v24.22.3 \
+    && rm -rf /home/runner/_diag \
     && rm -rf /opt/google-cloud-sdk/platform/bq \
         /opt/google-cloud-sdk/platform/gsutil \
         /opt/google-cloud-sdk/platform/bundledpythonunix/lib/python3.14/site-packages/pip \

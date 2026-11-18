@@ -38,7 +38,7 @@ spec:
       image: SET_RELEASE_RUNNER_IMAGE
       imagePullPolicy: IfNotPresent
       command: [/bin/bash, -ceu]
-      args: ["cp -a /home/runner/. /runner/"]
+      args: ["cp -r /home/runner/. /runner/"]
       securityContext:
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
@@ -146,7 +146,7 @@ spec:
       image: SET_DEPLOY_RUNNER_IMAGE
       imagePullPolicy: IfNotPresent
       command: [/bin/bash, -ceu]
-      args: ["cp -a /home/runner/. /runner/"]
+      args: ["cp -r /home/runner/. /runner/"]
       securityContext:
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
