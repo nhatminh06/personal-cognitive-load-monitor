@@ -12,6 +12,25 @@ mkdir -p "$EVIDENCE_DIR"
 
 Never record tokens, kubeconfig contents, environment dumps or raw sensitive payloads. Commands below are templates that become executable only after PRs #13–#17 define pinned names and scripts.
 
+## C10 acceptance report
+
+Run the safe local contract suite into a new evidence directory, then verify it
+through the independent entry point:
+
+```bash
+EVIDENCE_DIR="$(mktemp -d /tmp/cogniflow-final-acceptance.XXXXXX)"
+.venv/bin/python scripts/final_acceptance.py offline --output-dir "$EVIDENCE_DIR"
+.venv/bin/python scripts/validate_final_acceptance.py \
+  "$EVIDENCE_DIR/acceptance-report.json"
+```
+
+The offline report must show `local_validation.status=PASS` while every live
+criterion remains `BLOCKED`. A future authorized GKE report uses the same
+schema, but a runtime `PASS` is accepted only with all security prerequisites,
+remote registry digests, an approved model identity, stage-specific runtime
+identities, and digest-verified evidence files. The validator rejects simulated
+or local results represented as runtime acceptance.
+
 ## Demonstration sequence
 
 | # | Action and future command shape | Expected success | Expected failure proof | Evidence filename | Current status |
