@@ -108,3 +108,16 @@ API-to-KServe inference, authentication, outage/restart recovery and wrong-model
 rejection passed with the disposable qualification fixture. Full regression: 630
 passed, 2 skipped, 87.20% coverage. Images are not published or signed; kubectl and
 gateway runtime blockers remain. M10.3 NO-GO and SEC-022 are unchanged.
+
+## C5.4 security-qualified kubectl — 2026-11-17
+
+[Qualification record](../security-audit/c54-kubectl-qualification.md). The
+official 1.35.10 client still has three HIGH Go-module findings, so an authentic
+v1.35.10 source archive was rebuilt with Go 1.27.4, `x/net` 0.62.0 and the
+required fixed dependency closure. Two builds were byte-identical at SHA-256
+`130b354df841e743ee6a5580d1cdb09844ba0a0d4538a6b39c508c1526b516ef`.
+Trivy 0.76.2 reported 0 HIGH / 0 CRITICAL and generated an 84-package SPDX SBOM.
+Help, invalid arguments, kubeconfig isolation and read-only v1.34.11 cluster
+queries passed. No cluster object changed. The standalone client passes, but
+M10.3 remains NO-GO until the exact runner is rebuilt and independently passes
+its whole-image gate; gateway and registry prerequisites also remain open.

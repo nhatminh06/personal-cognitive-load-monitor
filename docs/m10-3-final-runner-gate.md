@@ -1,5 +1,14 @@
 # M10.3 final deployment-runner security gate
 
+> **C5.4 follow-up (2026-11-17):** the later, explicitly authorized source-build
+> evaluation produced a standalone Kubernetes 1.35-compatible kubectl with zero
+> HIGH/CRITICAL findings. See
+> [the C5.4 qualification record](security-audit/c54-kubectl-qualification.md).
+> The historical investigation below remains accurate for official binaries and
+> for the preserved deployment-runner image. M10.3 remains NO-GO until that
+> exact runner is rebuilt with the qualified client and passes its whole-image
+> security gate.
+
 ## Decision
 
 **Overall decision: `BLOCKED`; deployment remains NO-GO.** No official,
