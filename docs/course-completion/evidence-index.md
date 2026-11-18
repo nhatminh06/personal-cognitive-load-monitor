@@ -145,3 +145,17 @@ contained fixed WebUtilities 8.0.34, but its upstream suite finished 1,161
 passed / 3 failed and therefore did not qualify. The complete runner was not
 rebuilt or started; no final C5.6 image, SBOM, provenance, runtime or cluster
 claim exists. Decision: **BLOCKED**; M10.3 remains NO-GO.
+
+## C5.7 Actions Runner qualification — 2026-11-17
+
+[Independent package record](../security-audit/c57-actions-runner-qualification.md).
+No fixed official release exists, so signed upstream commit
+`a9dcf1bf7a78751648ff630fd4d0152471293487` was built with WebUtilities
+8.0.34, .NET 8.0.428/8.0.34 and Node 24.22.3. The deterministic npm-stripped
+archive SHA-256 is
+`6d552c6b6acf854247f0b4c439586dd53196f54b94ba8320c76696d6a18d2e46`.
+The complete suite passed 1,165/1,165 after a documented test-only fix for an
+upstream `/proc` startup race; no production source was changed. Trivy 0.76.2
+reported 0 HIGH / 0 CRITICAL and an independent 383-package SPDX SBOM was
+generated. Decision: **PASS for the independent Actions Runner package**. The
+complete M10.3 image has not been rebuilt or qualified, so M10.3 remains NO-GO.
