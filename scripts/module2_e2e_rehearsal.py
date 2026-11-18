@@ -24,13 +24,14 @@ IVY_MANIFEST = ROOT / "infra/module2/spark/ivy-manifest.sha256"
 SPARK_IMAGE = "cogniflow-spark:3.5.5-delta-3.3.2"
 SPARK_IMAGE_ID = "sha256:d55eac37429cb0d94208d79fcae0f1002662b1d9700eb1b4a522bbe6cf2bb0e8"
 QUALIFIED_IMAGE_IDS = {
+    "cogniflow-kafka:c43-patched": "sha256:a90beec03332d23649e3728e53ee13049fcf76564cabdc11ac940baaa0fc0d53",
     "cogniflow-minio-init:c42-alpine-upgrade": "sha256:9d98869261933b5e730e91ec83817c0f1a4c3d2243ce161ee2bd56ed2d01bfee",
     "cogniflow-seaweedfs:c42-go-patched": "sha256:7499507f4f3bcc532fffadc3aaca5f2f5146d998409b9ad5af25d5393813591a",
     "cogniflow-flink:c42-patched": "sha256:a6dc8622eefc195995f9a03d594200fc7317f374412c842f6d74bae7d5774baa",
     "cogniflow-dbt-trino:c42-alpine": "sha256:9633d2fadfb95ff558461a40d92bbce8b73ffca8745a5c8b7a81e5bef522ed95",
     "redis:7.4.12-alpine3.22": "sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe",
 }
-UNQUALIFIED_IMAGES = ("apache/kafka:3.9.2", "trinodb/trino:478", "cogniflow-airflow:3.3.2", SPARK_IMAGE)
+UNQUALIFIED_IMAGES = ("trinodb/trino:478", "cogniflow-airflow:3.3.2", SPARK_IMAGE)
 MIN_AVAILABLE_BYTES = 6 * 1024**3
 MIN_DISK_BYTES = 10 * 1024**3
 PROJECT_PATTERN = re.compile(r"^cogniflow-rehearsal-[a-z0-9-]+$")

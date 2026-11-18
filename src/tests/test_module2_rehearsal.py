@@ -28,6 +28,13 @@ from scripts.module2_e2e_rehearsal import (
 PORTS = Ports(31001, 31002, 31003, 31004, 31005)
 
 
+def test_kafka_candidate_and_persistent_log_path_are_pinned() -> None:
+    compose = Path("infra/module2/docker-compose.yml").read_text()
+    assert compose.count("image: cogniflow-kafka:c43-patched") == 2
+    assert "KAFKA_LOG_DIRS: /var/lib/kafka/data" in compose
+    assert "image: apache/kafka:3.9.2" not in compose
+
+
 def resolved_config(project: str = "cogniflow-rehearsal-test") -> dict:
     services = {}
     for service, port in zip(("kafka", "minio", "trino", "redis", "flink-jobmanager"), PORTS.__dict__.values()):
