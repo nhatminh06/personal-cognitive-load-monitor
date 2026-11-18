@@ -18,5 +18,12 @@ for image in "$@"; do
     --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY_REGEXP" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
     "$image" >/dev/null
+  for predicate in spdxjson slsaprovenance; do
+    cosign verify-attestation \
+      --type "$predicate" \
+      --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY_REGEXP" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      "$image" >/dev/null
+  done
   trivy image --severity HIGH,CRITICAL --exit-code 1 "$image"
 done

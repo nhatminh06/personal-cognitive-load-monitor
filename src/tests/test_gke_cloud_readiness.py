@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
+import pytest
 import yaml
 
 from scripts.render_production_knative import render
@@ -190,6 +191,15 @@ def test_cloud_mlflow_clients_preserve_candidate_and_release_boundaries() -> Non
     assert not (ROOT / ".github/workflows/release.yaml").exists()
 
 
+def test_gke_kfp_runtime_identity_is_explicit_and_namespace_scoped() -> None:
+    runtime = yaml.safe_load((ROOT / "deploy/gke/kfp-runtime.yaml").read_text())
+    assert runtime["kind"] == "ServiceAccount"
+    assert runtime["metadata"] == {
+        "name": "cogniflow-kfp-runner", "namespace": "kubeflow",
+    }
+    assert runtime["automountServiceAccountToken"] is True
+
+
 def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
     variables = (ROOT / "infra/terraform/gke/variables.tf").read_text()
     terraform = (ROOT / "infra/terraform/gke/main.tf").read_text()
@@ -346,6 +356,20 @@ def test_production_broker_destination_matches_versioned_manifests() -> None:
     assert all(trigger["metadata"]["namespace"] == broker["metadata"]["namespace"] for trigger in triggers)
 
 
+def test_production_eventing_render_requires_durable_transport() -> None:
+    images = {
+        "event_consumer": "us-central1-docker.pkg.dev/example-project/cogniflow-images/consumer@sha256:" + "a" * 64,
+        "anomaly_detector": "us-central1-docker.pkg.dev/example-project/cogniflow-images/anomaly@sha256:" + "b" * 64,
+    }
+    with pytest.raises(ValueError, match="in-memory"):
+        render(ROOT / "deploy/knative", images, "config-br-default-channel")
+    output = render(ROOT / "deploy/knative", images, "cogniflow-kafka-channel")
+    documents = [item for item in yaml.safe_load_all(output) if item]
+    broker = next(item for item in documents if item["kind"] == "Broker")
+    assert broker["spec"]["config"]["name"] == "cogniflow-kafka-channel"
+    assert all(":dev" not in item for item in output.splitlines())
+
+
 def test_cloud_guardrails_and_two_node_budget_are_enforceable() -> None:
     guardrails = list(
         yaml.safe_load_all((ROOT / "deploy/gke/cogniflow-guardrails.yaml").read_text())
@@ -398,6 +422,7 @@ def test_production_knative_render_replaces_all_development_images() -> None:
             "event_consumer": f"{registry}/event-consumer@sha256:" + "a" * 64,
             "anomaly_detector": f"{registry}/anomaly-detector@sha256:" + "b" * 64,
         },
+        "cogniflow-kafka-channel",
     )
 
     assert ":dev" not in rendered
@@ -413,6 +438,7 @@ def test_production_knative_render_rejects_mutable_images() -> None:
                 "event_consumer": "us-central1-docker.pkg.dev/example-project/cogniflow-images/event-consumer:latest",
                 "anomaly_detector": "us-central1-docker.pkg.dev/example-project/cogniflow-images/anomaly-detector@sha256:" + "b" * 64,
             },
+            "cogniflow-kafka-channel",
         )
     except ValueError as error:
         assert "Artifact Registry digest" in str(error)
