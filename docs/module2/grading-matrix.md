@@ -6,7 +6,7 @@ Statuses mean exactly: **implemented** (source exists), **statically validated**
 
 | Rubric criterion | Weight | Implementation | Exact evidence and tests | Missing requirement / acceptance condition |
 |---|---:|---|---|---|
-| MinIO object storage | 10% | Historical MinIO code; active SeaweedFS S3 in `infra/module2` | SeaweedFS bucket/write/checksum/read/restart/Spark evidence in `testing.md` | **Not completed as MinIO**: instructor equivalence or licensed maintained MinIO runtime required |
+| MinIO object storage | 10% | Historical MinIO code; active SeaweedFS S3 in `infra/module2` | SeaweedFS evidence plus [C8.1 exact-image scans](c81-minio-large-data-readiness.md) | **NO-GO as MinIO**: current AIStor has 22 HIGH findings, defaults to root and needs an unprovided license; retained community image has 68 HIGH / 6 CRITICAL and an EOL base |
 | Trino serving/transformation | 10% | Trino 478 + dbt Gold | PR #19 fresh Silver query and two 15/15 dbt builds | Cloud/scale acceptance remains deferred |
 | Delta Lake | 10% | Delta 3.3.2 Silver table | PR #19 fresh history/reopen/idempotent MERGE evidence | Cloud/scale acceptance remains deferred |
 | Spark batch | 10% | Spark 3.5.5 Bronze→Silver | PR #19 fresh three-event fixture and reconciliation | SEC-022 keeps this image isolated/local only |
@@ -41,6 +41,15 @@ points are claimed.
 | 100GB processing | Deferred | Generator is bounded; no large run performed |
 | Cloud/HA controls | Cloud deferred | No paid resources or remote deployment |
 | UI/UX Module II panel | Not implemented | UI/UX Pro Max unavailable; Module I UI preserved |
+
+## C8.1 exact-image and bounded benchmark evidence — 2026-11-18
+
+The [C8.1 record](c81-minio-large-data-readiness.md) resolves the current
+official AIStor amd64 manifest and retained community image, scans both exact
+identities and records why neither passes. No MinIO service ran. A generator-only
+256,000,000-byte probe passed exact-byte, checksum and resume reconciliation,
+but does not count as pipeline processing. The laptop remains unsuitable for a
+greater-than-100-GB end-to-end run, and no rubric status advances.
 
 ## C3 fresh local qualification — 2026-11-17
 

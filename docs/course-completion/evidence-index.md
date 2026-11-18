@@ -216,3 +216,16 @@ run did not execute Knative controllers, Broker/Trigger delivery or a DLQ;
 historical October runtime evidence remains distinct. Publication/signing,
 durable authenticated transport and an owner-authorized isolated Knative run
 remain blockers. C6 stays BLOCKED.
+
+## C8.1 MinIO and large-data readiness — 2026-11-18
+
+[Exact-image and bounded generator record](../module2/c81-minio-large-data-readiness.md).
+The official AIStor Free amd64 manifest was resolved without execution and
+failed the normal gate with 22 HIGH findings, root-default configuration and an
+unprovided mandatory license. The retained community image failed with 68 HIGH,
+6 CRITICAL and an end-of-life base. MinIO decision: **NO-GO**; SeaweedFS remains
+separate evidence. A 256,000,000-byte generator probe and full resume scan
+reconciled exact bytes and identities, but no pipeline processing occurred.
+Measured laptop memory, `/tmp` and disk capacity are insufficient for the full
+workload. The >100 GB and four cloud criteria remain incomplete; SEC-022, C6,
+C7 and M10.3 statuses are unchanged.
