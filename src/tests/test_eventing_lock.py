@@ -121,6 +121,9 @@ def test_real_eventing_lock_is_complete_and_enforced(
     assert "--require-hashes" in content
     assert "--only-binary=:all:" in content
     assert source.name not in content
+    assert "ARG COGNIFLOW_CODE_REVISION" in content
+    assert "org.opencontainers.image.revision=$COGNIFLOW_CODE_REVISION" in content
+    assert "USER 65532" in content
 
 
 def test_lock_verifier_rejects_missing_hash_and_unpinned_requirement(tmp_path: Path) -> None:

@@ -41,11 +41,12 @@ def test_kserve_image_keeps_production_defaults_and_supports_engineering_package
     dockerfile = (ROOT / "Dockerfile.kserve").read_text()
 
     assert "ARG MODEL_PACKAGE_DIR=build/model-package" in dockerfile
-    assert "COPY ${MODEL_PACKAGE_DIR}/cognitive_load_model.skops" in dockerfile
-    assert "COPY ${MODEL_PACKAGE_DIR}/model-package.json" in dockerfile
-    assert "COPY scripts/serve_engineering_model.py" in dockerfile
-    assert "USER appuser" in dockerfile
-    assert 'ENTRYPOINT ["python", "-m", "cogniflow_kserve.server"]' in dockerfile
+    assert "${MODEL_PACKAGE_DIR}/cognitive_load_model.skops" in dockerfile
+    assert "${MODEL_PACKAGE_DIR}/model-package.json" in dockerfile
+    assert "scripts/serve_engineering_model.py" in dockerfile
+    assert "python-3.13=3.13.18_git20261115-r1" in dockerfile
+    assert "USER 65532" in dockerfile
+    assert 'ENTRYPOINT ["/app/.venv/bin/python", "-m", "cogniflow_kserve.server"]' in dockerfile
 
 
 def test_helm_kserve_render_is_custom_digest_pinned_and_internal():
@@ -88,7 +89,10 @@ def test_module1_knative_mode_renders_explicit_scale_to_zero_contract():
 
     assert 'serving.kserve.io/deploymentMode: "Knative"' in rendered
     assert "networking.knative.dev/visibility: cluster-local" in rendered
-    assert "networking.kserve.io/visibility" not in rendered
+    assert "networking.kserve.io/visibility: cluster-local" in rendered
+    assert "minReplicas: 0" in rendered
+    assert "maxReplicas: 3" in rendered
+    assert "scaleTarget: 1" in rendered
     assert 'image: "us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cognitive-load-api@sha256:' in rendered
     assert 'image: "us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cogniflow-kserve@sha256:' in rendered
     assert "autoscaling.knative.dev/class: kpa.autoscaling.knative.dev" in rendered

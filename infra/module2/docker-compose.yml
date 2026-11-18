@@ -12,7 +12,9 @@ networks:
 
 services:
   kafka:
-    image: apache/kafka:3.9.2
+    image: cogniflow-kafka:c43-patched
+    build:
+      context: ./kafka
     profiles: [ingestion]
     environment:
       KAFKA_NODE_ID: 1
@@ -23,6 +25,7 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:9092,PLAINTEXT_HOST://:29092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:29092
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -46,7 +49,7 @@ services:
         max-file: "3"
 
   kafka-init:
-    image: apache/kafka:3.9.2
+    image: cogniflow-kafka:c43-patched
     profiles: [ingestion]
     depends_on:
       kafka:
@@ -59,7 +62,7 @@ services:
     mem_limit: 128m
 
   seaweedfs:
-    image: cogniflow-seaweedfs:4.50
+    image: cogniflow-seaweedfs:c42-go-patched
     build:
       context: ./seaweedfs
     profiles: [lake]
@@ -80,7 +83,7 @@ services:
         max-file: "3"
 
   minio:
-    image: cogniflow-seaweedfs:4.50
+    image: cogniflow-seaweedfs:c42-go-patched
     profiles: [lake]
     command: s3 -filer=seaweedfs:8888 -port=9000 -port.iceberg=0 -port.lance=0
     environment:
@@ -105,7 +108,7 @@ services:
         max-file: "3"
 
   minio-init:
-    image: cogniflow-minio-init:module2
+    image: cogniflow-minio-init:c42-alpine-upgrade
     build:
       context: ./minio-init
     profiles: [lake]
@@ -152,7 +155,9 @@ services:
         condition: service_healthy
 
   trino:
-    image: trinodb/trino:478
+    image: cogniflow-trino:c44-patched
+    build:
+      context: ./trino
     profiles: [analytics]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
@@ -167,13 +172,13 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: [CMD-SHELL, "curl -fsS http://127.0.0.1:8080/v1/info >/dev/null"]
+      test: [CMD, /usr/bin/trino, --server, http://127.0.0.1:8080, --execute, "SELECT 1"]
       interval: 5s
       timeout: 5s
       retries: 30
 
   dbt:
-    image: cogniflow-dbt-trino:1.11.14
+    image: cogniflow-dbt-trino:c42-alpine
     build:
       context: ./dbt
     profiles: [analytics]
@@ -190,7 +195,7 @@ services:
     mem_limit: 512m
 
   dbt-runner:
-    image: cogniflow-dbt-trino:1.11.14
+    image: cogniflow-dbt-trino:c42-alpine
     profiles: [orchestration]
     entrypoint: [python, /opt/cogniflow/jobs/internal_job_runner.py]
     working_dir: /analytics
@@ -207,24 +212,25 @@ services:
     mem_limit: 384m
 
   airflow:
-    image: cogniflow-airflow:3.3.2
+    image: cogniflow-airflow:c45-patched
     build:
       context: ./airflow
     profiles: [orchestration-dev]
-    command: bash -c 'airflow db migrate && sleep infinity'
+    entrypoint: [sh, -c]
+    command: ['airflow db migrate && sleep infinity']
     environment:
-      AIRFLOW_HOME: /opt/airflow
+      AIRFLOW_HOME: /opt/airflow-home
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-}
     volumes:
-      - ../../dags:/opt/airflow/dags:ro
-      - airflow3-data:/opt/airflow
+      - ../../dags:/opt/airflow-home/dags:ro
+      - airflow3-data:/opt/airflow-home
     mem_limit: 640m
     networks: [default, seaweedfs-control, spark-control]
 
   redis:
-    image: redis:7.4.2-alpine
+    image: redis:7.4.12-alpine3.22
     profiles: [streaming]
     command: [sh, -c, 'exec redis-server --requirepass "$${REDIS_PASSWORD}" --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru']
     environment:
@@ -241,7 +247,7 @@ services:
     mem_limit: 192m
 
   flink-jobmanager:
-    image: cogniflow-flink:1.20.5
+    image: cogniflow-flink:c42-patched
     build:
       context: ../..
       dockerfile: infra/module2/flink/Dockerfile
@@ -259,7 +265,7 @@ services:
     mem_limit: 640m
 
   flink-taskmanager:
-    image: cogniflow-flink:1.20.5
+    image: cogniflow-flink:c42-patched
     profiles: [streaming]
     command: taskmanager
     environment:
@@ -273,7 +279,7 @@ services:
     mem_limit: 768m
 
   flink-submit:
-    image: cogniflow-flink:1.20.5
+    image: cogniflow-flink:c42-patched
     profiles: [streaming]
     command: >-
       sh -c 'flink run -d -m flink-jobmanager:8081

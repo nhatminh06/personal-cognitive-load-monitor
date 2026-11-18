@@ -1,20 +1,37 @@
-FROM python:3.11.14-slim-bookworm@sha256:65a93d69fa75478d554f4ad27c85c1e69fa184956261b4301ebaf6dbb0a3543d
+# syntax=docker/dockerfile:1.7
+FROM ghcr.io/astral-sh/uv:0.10.0@sha256:78a7ff97cd27b7124a5f3c2aefe146170793c56a1e03321dd31a289f6d82a04f AS uv
+FROM cgr.dev/chainguard/wolfi-base@sha256:580c9ae79c0229cc381475fbfbed0d91fab5d6606e57cd78732f9836de109e90 AS build
+
+RUN apk add --no-cache python-3.13=3.13.18_git20261115-r1
+
+WORKDIR /app
+COPY --from=uv /uv /uvx /bin/
+COPY requirements-anomaly-detector.lock .
+RUN uv venv --python /usr/bin/python3.13 /app/.venv \
+    && uv pip install --python /app/.venv/bin/python \
+        --require-hashes --only-binary=:all: \
+        --requirement requirements-anomaly-detector.lock
+
+FROM cgr.dev/chainguard/wolfi-base@sha256:580c9ae79c0229cc381475fbfbed0d91fab5d6606e57cd78732f9836de109e90 AS runtime
+
+ARG COGNIFLOW_CODE_REVISION
+RUN test -n "$COGNIFLOW_CODE_REVISION" \
+    && apk add --no-cache python-3.13=3.13.18_git20261115-r1
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/src
-RUN groupadd --gid 10001 cogniflow && useradd --uid 10001 --gid 10001 --no-create-home cogniflow
+    PYTHONPATH=/app/src \
+    PATH=/app/.venv/bin:$PATH \
+    COGNIFLOW_CODE_REVISION=$COGNIFLOW_CODE_REVISION
+
+LABEL org.opencontainers.image.revision=$COGNIFLOW_CODE_REVISION
+
 WORKDIR /app
-COPY requirements-anomaly-detector.lock .
-RUN apt-get update && apt-get upgrade --yes && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --disable-pip-version-check \
-        --require-hashes --only-binary=:all: \
-        --requirement requirements-anomaly-detector.lock \
-    && pip uninstall --yes pip setuptools wheel
-COPY src/cogniflow_anomaly src/cogniflow_anomaly
-COPY src/cogniflow_eventing src/cogniflow_eventing
-COPY src/preprocessing_api/__init__.py src/preprocessing_api/__init__.py
-COPY src/preprocessing_api/activity_events.py src/preprocessing_api/activity_events.py
-USER 10001:10001
+COPY --from=build --chown=65532:65532 /app/.venv ./.venv
+COPY --chown=65532:65532 src/cogniflow_anomaly src/cogniflow_anomaly
+COPY --chown=65532:65532 src/cogniflow_eventing src/cogniflow_eventing
+COPY --chown=65532:65532 src/preprocessing_api/__init__.py src/preprocessing_api/__init__.py
+COPY --chown=65532:65532 src/preprocessing_api/activity_events.py src/preprocessing_api/activity_events.py
+USER 65532
 EXPOSE 8080
 CMD ["uvicorn", "cogniflow_anomaly.detector:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

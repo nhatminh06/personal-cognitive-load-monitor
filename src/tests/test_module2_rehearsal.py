@@ -12,9 +12,12 @@ import pytest
 from scripts.module2_e2e_rehearsal import (
     Evidence,
     Ports,
+    QUALIFIED_IMAGE_IDS,
     SPARK_IMAGE_ID,
+    UNQUALIFIED_IMAGES,
     create_secret_file,
     validate_isolation,
+    validate_image_security,
     validate_project,
     validate_resolved_config,
     validate_resources,
@@ -23,6 +26,30 @@ from scripts.module2_e2e_rehearsal import (
 
 
 PORTS = Ports(31001, 31002, 31003, 31004, 31005)
+
+
+def test_kafka_candidate_and_persistent_log_path_are_pinned() -> None:
+    compose = Path("infra/module2/docker-compose.yml").read_text()
+    assert compose.count("image: cogniflow-kafka:c43-patched") == 2
+    assert "KAFKA_LOG_DIRS: /var/lib/kafka/data" in compose
+    assert "image: apache/kafka:3.9.2" not in compose
+
+
+def test_trino_candidate_and_cli_healthcheck_are_pinned() -> None:
+    compose = Path("infra/module2/docker-compose.yml").read_text()
+    assert "image: cogniflow-trino:c44-patched" in compose
+    assert "context: ./trino" in compose
+    assert "test: [CMD, /usr/bin/trino" in compose
+    assert "image: trinodb/trino:478" not in compose
+
+
+def test_airflow_candidate_keeps_persistent_home_off_the_virtualenv() -> None:
+    compose = Path("infra/module2/docker-compose.yml").read_text()
+    assert "image: cogniflow-airflow:c45-patched" in compose
+    assert "AIRFLOW_HOME: /opt/airflow-home" in compose
+    assert "airflow3-data:/opt/airflow-home" in compose
+    assert "entrypoint: [sh, -c]" in compose
+    assert "command: ['airflow db migrate && sleep infinity']" in compose
 
 
 def resolved_config(project: str = "cogniflow-rehearsal-test") -> dict:
@@ -78,6 +105,23 @@ def test_sec022_gate_fails_closed_for_expiry_or_image_drift() -> None:
         validate_sec022(date(2027, 1, 24), SPARK_IMAGE_ID, acceptance)
     with pytest.raises(RuntimeError, match="image ID"):
         validate_sec022(date(2026, 10, 27), "sha256:wrong", acceptance)
+
+
+def test_rehearsal_image_gate_rejects_drift_and_unqualified_images() -> None:
+    assert QUALIFIED_IMAGE_IDS["cogniflow-airflow:c45-patched"] == (
+        "sha256:ae2ef43a79bd744ec3956e5aff2412d7a3af51f4559b0e374376b28c48f986c3"
+    )
+    assert "cogniflow-airflow:3.3.2" not in UNQUALIFIED_IMAGES
+    observed = QUALIFIED_IMAGE_IDS.copy()
+    configured = set(QUALIFIED_IMAGE_IDS) | set(UNQUALIFIED_IMAGES)
+    validate_image_security(observed, (), set(QUALIFIED_IMAGE_IDS))
+    with pytest.raises(RuntimeError, match="image security gate failed"):
+        validate_image_security(observed, UNQUALIFIED_IMAGES, configured)
+    with pytest.raises(RuntimeError, match="Compose image inventory changed"):
+        validate_image_security(observed, (), {"unscanned:image"})
+    observed["redis:7.4.12-alpine3.22"] = "sha256:wrong"
+    with pytest.raises(RuntimeError, match="qualified image ID changed"):
+        validate_image_security(observed, (), set(QUALIFIED_IMAGE_IDS))
 
 
 def test_evidence_redacts_secrets_and_hashes_captured_output(tmp_path: Path) -> None:

@@ -85,3 +85,161 @@ forest by simplicity; final test accuracy/macro-F1 1.0/1.0, synthetic-only.
 Full tests: 623 passed, 2 skipped, 87.20% coverage. KFP compilation/negative lineage
 checks pass; real KFP runtime, approval and KServe deployment remain NOT_RUN.
 M10.3 NO-GO and SEC-022 remain unchanged.
+
+## C5.1 FastAPI/KServe repair — 2026-11-17
+
+[Read-only diagnosis and authorized-runtime procedure](c51-fastapi-kserve-repair.md).
+The qualification cluster has a Ready predictor revision but a failed route because
+KServe references the nonexistent `kubeflow/kubeflow-gateway`; FastAPI correctly
+stays unready while it cannot verify model provenance. The Helm chart now emits both
+required cluster-local visibility labels and explicit KServe predictor scale fields.
+A fail-closed offline validator rejects missing or unexpected gateway references.
+Local verification: 630 passed, 2 skipped, 87.20% coverage; Ruff, scoped MyPy,
+Helm lint and Knative rendering passed. No cluster object, model approval, Eventing
+setting, or historical evidence changed.
+
+## C5.3 FastAPI/KServe image remediation — 2026-11-17
+
+[Security and runtime record](../security-audit/c53-fastapi-kserve-remediation.md).
+Digest-pinned Wolfi/Python 3.13 builds replaced the vulnerable local FastAPI and
+KServe images. Exact replacement IDs independently scanned at 0 HIGH / 0 CRITICAL,
+generated SPDX SBOMs and retained BuildKit provenance metadata. Isolated direct and
+API-to-KServe inference, authentication, outage/restart recovery and wrong-model
+rejection passed with the disposable qualification fixture. Full regression: 630
+passed, 2 skipped, 87.20% coverage. Images are not published or signed; kubectl and
+gateway runtime blockers remain. M10.3 NO-GO and SEC-022 are unchanged.
+
+## C5.4 security-qualified kubectl — 2026-11-17
+
+[Qualification record](../security-audit/c54-kubectl-qualification.md). The
+official 1.35.10 client still has three HIGH Go-module findings, so an authentic
+v1.35.10 source archive was rebuilt with Go 1.27.4, `x/net` 0.62.0 and the
+required fixed dependency closure. Two builds were byte-identical at SHA-256
+`130b354df841e743ee6a5580d1cdb09844ba0a0d4538a6b39c508c1526b516ef`.
+Trivy 0.76.2 reported 0 HIGH / 0 CRITICAL and generated an 84-package SPDX SBOM.
+Help, invalid arguments, kubeconfig isolation and read-only v1.34.11 cluster
+queries passed. No cluster object changed. The standalone client passes, but
+M10.3 remains NO-GO until the exact runner is rebuilt and independently passes
+its whole-image gate; gateway and registry prerequisites also remain open.
+
+## C5.5 deployment-runner integration — 2026-11-17
+
+[Whole-image record](../security-audit/c55-runner-integration.md). The qualified
+kubectl was reconstructed, integrated and extracted from the exact runner with
+the expected SHA-256. The new local image ID is
+`sha256:073432d2da9a1c4ceb18ca7d3654984fbed88635d207ab59407b65c01f70d8a7`.
+BuildKit provenance/SBOM generation passed and the independent SPDX inventory
+contains 1,463 packages. The current whole-image scan is **NO-GO: 5 HIGH,
+0 CRITICAL**, all outside kubectl: three Ubuntu packages, Actions Runner
+WebUtilities and Cosign `x/net`. Phase-5 runner and cluster tests were correctly
+not run after the mandatory image gate failed. No container was started, no
+cluster or cloud object changed, and nothing was published or pushed.
+
+## C5.6 final runner remediation — 2026-11-17
+
+[Remediation record](../security-audit/c56-runner-remediation.md). Authenticated
+Ubuntu fixes and a source-built Cosign `v3.1.4-cogniflow.1` candidate passed
+their standalone integrity and zero-HIGH/zero-CRITICAL checks. The latest
+official Actions Runner is still vulnerable 2.338.2. A bounded source candidate
+contained fixed WebUtilities 8.0.34, but its upstream suite finished 1,161
+passed / 3 failed and therefore did not qualify. The complete runner was not
+rebuilt or started; no final C5.6 image, SBOM, provenance, runtime or cluster
+claim exists. Decision: **BLOCKED**; M10.3 remains NO-GO.
+
+## C5.7 Actions Runner qualification — 2026-11-17
+
+[Independent package record](../security-audit/c57-actions-runner-qualification.md).
+No fixed official release exists, so signed upstream commit
+`a9dcf1bf7a78751648ff630fd4d0152471293487` was built with WebUtilities
+8.0.34, .NET 8.0.428/8.0.34 and Node 24.22.3. The deterministic npm-stripped
+archive SHA-256 is
+`6d552c6b6acf854247f0b4c439586dd53196f54b94ba8320c76696d6a18d2e46`.
+The complete suite passed 1,165/1,165 after a documented test-only fix for an
+upstream `/proc` startup race; no production source was changed. Trivy 0.76.2
+reported 0 HIGH / 0 CRITICAL and an independent 383-package SPDX SBOM was
+generated. Decision: **PASS for the independent Actions Runner package**. The
+complete M10.3 image has not been rebuilt or qualified, so M10.3 remains NO-GO.
+
+## C5.8 final M10.3 runner qualification — 2026-11-17
+
+[Whole-image and runtime record](../security-audit/c58-final-runner-qualification.md).
+The nine-input offline build integrated the qualified Actions Runner, kubectl,
+Cosign and authenticated Ubuntu fixes. Exact local image
+`sha256:fea8be5e98ba4defff5f8d23059c9d31103f7014b4e33b42c1aa1dcb0498d44a`
+passed complete Trivy OS/.NET/Go/Python analysis at 0 HIGH / 0 CRITICAL and
+produced BuildKit provenance/SBOM plus an independent 1,463-package SPDX SBOM.
+The unregistered network-disabled runtime checks passed, including tool hashes,
+controlled Cosign verification, Helm render and Node/hashFiles. Full regression:
+631 passed, 5 skipped, 87.20% coverage. **Local M10.3: PASS.** Registry
+publication, signing/attestation, owner approval and Kubernetes execution remain
+separate NO-GO gates.
+
+## C5.9 immutable release preparation — 2026-11-17
+
+[Release packet and owner procedure](c59-immutable-release-preparation.md).
+The three expected local OCI index IDs still exist. C5.8 raw Trivy, SPDX and
+BuildKit metadata match their recorded checksums, and the runner runtime
+manifest remains independently identified. The C5.3 FastAPI/KServe raw
+scan/SBOM/provenance files are no longer retained locally, so the machine-readable
+release ledger fails closed as **BLOCKED**. Proposed Artifact Registry paths,
+keyless signing/attestation checks, exact gateway correction, rollback, and the
+legacy-model-only infrastructure test are prepared but were not executed. No
+registry, cloud, Kubernetes, runner, or model state changed; M10.3 deployment
+NO-GO and SEC-022 remain unchanged.
+
+## C6 real KFP execution preflight — 2026-11-17
+
+[Measured runtime and candidate evidence](c6-kfp-runtime-preflight.md). Neither
+retained kind cluster contains KFP, and no authorized endpoint exists. Host RAM,
+swap, and `/tmp` headroom fail the existing local-start gate. The retained
+historical component image has no registry, is bound to the wrong code revision,
+and lacks a current complete zero-HIGH/zero-CRITICAL qualification. No workload
+was submitted and no KFP run ID was created. The C2.2 local candidate was
+independently reverified with exact dataset, split, model and artifact digests,
+but remains non-KFP, unapproved, and undeployed. Full validation passed 632 tests
+with 2 skips and 87.20% coverage; Ruff and scoped MyPy passed. Decision:
+**BLOCKED** pending an owner-authorized isolated runtime and qualified component
+image. C5.9, M10.3 deployment NO-GO, and SEC-022 are unchanged.
+
+## C7 Knative Eventing and anomaly qualification — 2026-11-18
+
+[Security and isolated runtime record](c7-knative-anomaly-qualification.md).
+Fresh consumer and anomaly/sink OCI images built from committed revision
+`1eb7ff1` passed complete Trivy scans at 0 HIGH / 0 CRITICAL and include SBOM
+and BuildKit provenance evidence. A bounded real-application container run
+verified sanitized persistence, deduplication, normal/no-alert behavior, two
+deterministic alerts, transactional-outbox recovery without new traffic,
+restart persistence and retryable failure. Full validation passed 632 tests
+with 5 skips and 87.20% coverage; Ruff, scoped MyPy, manifest parsing and the
+immutable production renderer passed. Decision: **PASS_LOCAL** only. The fresh
+run did not execute Knative controllers, Broker/Trigger delivery or a DLQ;
+historical October runtime evidence remains distinct. Publication/signing,
+durable authenticated transport and an owner-authorized isolated Knative run
+remain blockers. C6 stays BLOCKED.
+
+## C8.1 MinIO and large-data readiness — 2026-11-18
+
+[Exact-image and bounded generator record](../module2/c81-minio-large-data-readiness.md).
+The official AIStor Free amd64 manifest was resolved without execution and
+failed the normal gate with 22 HIGH findings, root-default configuration and an
+unprovided mandatory license. The retained community image failed with 68 HIGH,
+6 CRITICAL and an end-of-life base. MinIO decision: **NO-GO**; SeaweedFS remains
+separate evidence. A 256,000,000-byte generator probe and full resume scan
+reconciled exact bytes and identities, but no pipeline processing occurred.
+Measured laptop memory, `/tmp` and disk capacity are insufficient for the full
+workload. The >100 GB and four cloud criteria remain incomplete; SEC-022, C6,
+C7 and M10.3 statuses are unchanged.
+
+## C8.2 bulk ingestion and reconciliation — 2026-11-18
+
+[Executable implementation and validation](../module2/c82-bulk-ingestion.md).
+New production code incrementally verifies generated partitions, publishes
+bounded Kafka batches, persists acknowledged offsets and checksum-read-back
+Bronze objects, resumes from atomic checkpoints, captures distributed Spark
+input/Delta accounting and fails final reconciliation without actual Gold
+evidence. Failure, corruption, duplicate and restart paths are regression-tested.
+The broader Module II suite passed 87 tests; Ruff and scoped MyPy passed. Fresh
+runtime preflight failed the unchanged 6 GiB memory gate, so Kafka/SeaweedFS and
+Spark execution are `NOT_RUN`. Full regression passed 642 tests with 5 skips and
+86.99% coverage. This advances implementation readiness only; the MinIO, cloud
+and >100 GB runtime rubric items remain incomplete.

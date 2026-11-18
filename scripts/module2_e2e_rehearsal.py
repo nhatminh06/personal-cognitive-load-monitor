@@ -23,6 +23,17 @@ SEC022 = ROOT / "docs/security-audit/sec-022-development-exception-proposal.md"
 IVY_MANIFEST = ROOT / "infra/module2/spark/ivy-manifest.sha256"
 SPARK_IMAGE = "cogniflow-spark:3.5.5-delta-3.3.2"
 SPARK_IMAGE_ID = "sha256:d55eac37429cb0d94208d79fcae0f1002662b1d9700eb1b4a522bbe6cf2bb0e8"
+QUALIFIED_IMAGE_IDS = {
+    "cogniflow-kafka:c43-patched": "sha256:a90beec03332d23649e3728e53ee13049fcf76564cabdc11ac940baaa0fc0d53",
+    "cogniflow-trino:c44-patched": "sha256:7e24d2c127be225318e5bd7e01e861893e37589829452f97a5d0b467beae34cf",
+    "cogniflow-airflow:c45-patched": "sha256:ae2ef43a79bd744ec3956e5aff2412d7a3af51f4559b0e374376b28c48f986c3",
+    "cogniflow-minio-init:c42-alpine-upgrade": "sha256:9d98869261933b5e730e91ec83817c0f1a4c3d2243ce161ee2bd56ed2d01bfee",
+    "cogniflow-seaweedfs:c42-go-patched": "sha256:7499507f4f3bcc532fffadc3aaca5f2f5146d998409b9ad5af25d5393813591a",
+    "cogniflow-flink:c42-patched": "sha256:a6dc8622eefc195995f9a03d594200fc7317f374412c842f6d74bae7d5774baa",
+    "cogniflow-dbt-trino:c42-alpine": "sha256:9633d2fadfb95ff558461a40d92bbce8b73ffca8745a5c8b7a81e5bef522ed95",
+    "redis:7.4.12-alpine3.22": "sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe",
+}
+UNQUALIFIED_IMAGES = (SPARK_IMAGE,)
 MIN_AVAILABLE_BYTES = 6 * 1024**3
 MIN_DISK_BYTES = 10 * 1024**3
 PROJECT_PATTERN = re.compile(r"^cogniflow-rehearsal-[a-z0-9-]+$")
@@ -104,6 +115,16 @@ def validate_sec022(today: date, image_id: str, exception_text: str) -> None:
         raise RuntimeError("SEC-022 acceptance record is missing")
     if image_id != SPARK_IMAGE_ID:
         raise RuntimeError("Spark image ID does not match the SEC-022 approval")
+
+
+def validate_image_security(observed: dict[str, str], blockers: tuple[str, ...], configured: set[str]) -> None:
+    if configured != set(QUALIFIED_IMAGE_IDS) | set(blockers):
+        raise RuntimeError("resolved Compose image inventory changed")
+    for image, expected in QUALIFIED_IMAGE_IDS.items():
+        if observed.get(image) != expected:
+            raise RuntimeError(f"qualified image ID changed: {image}")
+    if blockers:
+        raise RuntimeError(f"image security gate failed: {', '.join(blockers)}")
 
 
 def redact(text: str, secret_values: list[str]) -> str:
@@ -232,6 +253,7 @@ def main() -> None:
 
     image = docker_json(["docker", "image", "inspect", SPARK_IMAGE])
     validate_sec022(date.today(), image[0]["Id"], SEC022.read_text())
+    observed = {name: docker_json(["docker", "image", "inspect", name])[0]["Id"] for name in QUALIFIED_IMAGE_IDS}
     env = os.environ.copy()
     env.update(
         {
@@ -258,7 +280,9 @@ def main() -> None:
     resolved = run(resolved_command, env=env)
     if resolved.returncode:
         raise RuntimeError(redact(resolved.stderr.strip(), secret_values))
-    validate_resolved_config(json.loads(resolved.stdout), project, ports)
+    config = json.loads(resolved.stdout)
+    validate_resolved_config(config, project, ports)
+    validate_image_security(observed, UNQUALIFIED_IMAGES, {service["image"] for service in config["services"].values()})
     if not args.execute:
         print(json.dumps({"status": "dry-run", "project": project, "ports": asdict(ports), "sec022": "passed"}, sort_keys=True))
         return

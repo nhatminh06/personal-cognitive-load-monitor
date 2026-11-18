@@ -23,25 +23,27 @@ publication is scanned and its registry linux/amd64 manifest digest is verified.
 `SET_DEPLOY_RUNNER_IMAGE` remains unresolved; this directory intentionally does
 not define an accepted deployment-runner image.
 
-## Deployment-runner blockers
+## Qualified local deployment runner
 
-M10.2 independently verified the current official Linux/amd64 inputs and built
-the exact local candidate
-`sha256:dfd51490064d4834bc00cfbddc35f7f151d0c274ccec10270eb45cf790d1cde2`.
-The unsuppressed Trivy 0.76.2 scan reports **2 HIGH, 0 CRITICAL**: kubectl
-1.35.10 embeds `golang.org/x/net` 0.56.0 (`CVE-2026-78669`, fixed in 0.60.0)
-and `golang.org/x/text` 0.39.0 (`CVE-2026-56851`, fixed in 0.41.0). No newer
-official Kubernetes 1.35 patch is available, so this exact image is `BLOCKED`,
-not `PASS_EXACT_IMAGE`, and must not be published or assigned to the Pod.
+C5.8 integrates the independently qualified Actions Runner 2.338.0 source
+candidate, kubectl `v1.35.10-cogniflow.1`, Cosign
+`v3.1.4-cogniflow.1` and authenticated Ubuntu fixes. The exact local image is
+`sha256:fea8be5e98ba4defff5f8d23059c9d31103f7014b4e33b42c1aa1dcb0498d44a`.
+Its unsuppressed whole-image Trivy scan reports **0 HIGH / 0 CRITICAL**, and its
+network-disabled offline runtime qualification passes. It is still local-only:
+do not replace `SET_DEPLOY_RUNNER_IMAGE` until an authorized publication has a
+verified registry digest, signatures, attestations and owner approval.
 
-The candidate uses Cosign 3.1.4, Helm 4.3.2, kubectl 1.35.10, Trivy 0.76.2,
-and Google Cloud CLI 594.0.0. `deploy-inputs.SHA256SUMS` records the exact
-build-context bytes. Helm 4.3.2 passed this chart's lint and GKE render paths;
-cluster behavior remains unverified. Unused gcloud pip/setuptools tooling,
-gsutil, bq and the vulnerable optional `gcloud-crc32c` helper are removed.
-Docker, containerd, runc, sudo and their privileged groups remain absent.
+The candidate uses Actions Runner 2.338.0, Cosign 3.1.4-cogniflow.1, Helm 4.3.2, qualified
+kubectl `v1.35.10-cogniflow.1`, Trivy 0.76.2, and Google Cloud CLI 594.0.0.
+`deploy-inputs.SHA256SUMS` records the exact build-context bytes and
+`build-qualified-kubectl.sh` reconstructs kubectl from authenticated upstream
+source before enforcing its final digest. Helm 4.3.2 passed this chart's lint
+and GKE render paths; cluster behavior remains unverified. Unused gcloud
+pip/setuptools tooling, gsutil, bq and `gcloud-crc32c` are removed. Docker,
+containerd, runc, sudo and their privileged groups remain absent.
 
-Build from the five independently verified files only:
+Build from the nine independently verified files only:
 
 ```bash
 cp deploy/gke/runners/deploy-inputs.SHA256SUMS /OWNER/VERIFIED/deploy-inputs/SHA256SUMS
@@ -49,13 +51,13 @@ cp deploy/gke/runners/deploy-inputs.SHA256SUMS /OWNER/VERIFIED/deploy-inputs/SHA
 docker build --network=none --pull=false --platform=linux/amd64 \
   --build-context artifacts=/OWNER/VERIFIED/deploy-inputs \
   --file deploy/gke/runners/Dockerfile.deploy \
-  --tag cogniflow-deploy-runner:m10-2 .
+  --tag cogniflow-deploy-runner:c58-qualified .
 trivy image --skip-db-update --skip-check-update \
-  --severity HIGH,CRITICAL --exit-code 1 cogniflow-deploy-runner:m10-2
+  --severity HIGH,CRITICAL --exit-code 1 cogniflow-deploy-runner:c58-qualified
 ```
 
-The final command must continue to fail until an official compatible kubectl
-artifact embeds both fixed dependencies. Do not suppress either finding.
+The recorded local command passes. Re-run it on any rebuilt or published exact
+identity; never infer that standalone component scans qualify the whole image.
 
 ### Historical M10/M10.1 evidence
 

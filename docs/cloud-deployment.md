@@ -22,10 +22,11 @@ Required immutable inputs:
 
 Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the deployment runner cannot reach the internal endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
-The deployment-runner image remains **NO-GO**: the M10.2 exact candidate's
-mandatory Trivy gate reports 2 HIGH findings in kubectl 1.35.10. The earlier
-13-HIGH image remains historical evidence only. Do not publish, register or use that runner until
-the exact rebuilt image passes the existing unsuppressed HIGH/CRITICAL policy.
+The deployment-runner image remains **NO-GO**. C5.5 integrated the qualified
+kubectl, but the exact rebuilt image's current mandatory Trivy gate reports
+5 HIGH findings in Ubuntu packages, Actions Runner and Cosign. The earlier
+13-HIGH image remains historical evidence only. Do not publish, register or use
+the runner until an exact rebuild passes the unsuppressed HIGH/CRITICAL policy.
 
 ### Owner-supplied activation values
 

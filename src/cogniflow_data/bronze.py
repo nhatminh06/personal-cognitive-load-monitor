@@ -40,6 +40,14 @@ class BronzeRecord:
         }
 
 
+@dataclass(frozen=True)
+class BronzeEvidence:
+    key: str
+    sha256: str
+    bytes: int
+    records: int
+
+
 class BronzeStore:
     """Write deterministic JSONL batches and verify persisted metadata."""
 
@@ -82,37 +90,50 @@ class BronzeStore:
             f"batch={digest}.jsonl"
         )
 
-    def write_batch(self, records: list[BronzeRecord]) -> str:
-        key = self.object_key(records)
-        body = b"".join(
-            json.dumps(record.as_dict(), separators=(",", ":"), sort_keys=True).encode() + b"\n"
+    @staticmethod
+    def serialize(records: list[BronzeRecord]) -> bytes:
+        return b"".join(
+            json.dumps(record.as_dict(), separators=(",", ":"), sort_keys=True).encode()
+            + b"\n"
             for record in records
         )
+
+    def write_batch_verified(self, records: list[BronzeRecord]) -> BronzeEvidence:
+        key = self.object_key(records)
+        body = self.serialize(records)
         checksum = hashlib.sha256(body).hexdigest()
         try:
+            exists = True
             try:
                 existing = self._client.head_object(Bucket=self.bucket, Key=key)
                 if existing.get("Metadata", {}).get("sha256") != checksum:
                     raise BronzeUnavailable("Existing Bronze key has a different checksum")
-                return key
             except self._client.exceptions.ClientError as exc:
                 if exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 404:
                     raise
-            self._client.put_object(
-                Bucket=self.bucket,
-                Key=key,
-                Body=body,
-                ContentType="application/x-ndjson",
-                Metadata={"sha256": checksum, "record-count": str(len(records))},
-            )
-            persisted = self._client.head_object(Bucket=self.bucket, Key=key)
-            if persisted.get("Metadata", {}).get("sha256") != checksum:
+                exists = False
+            if not exists:
+                self._client.put_object(
+                    Bucket=self.bucket,
+                    Key=key,
+                    Body=body,
+                    ContentType="application/x-ndjson",
+                    Metadata={"sha256": checksum, "record-count": str(len(records))},
+                )
+                persisted = self._client.head_object(Bucket=self.bucket, Key=key)
+                if persisted.get("Metadata", {}).get("sha256") != checksum:
+                    raise BronzeUnavailable("Bronze checksum metadata verification failed")
+            persisted_body = self._client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+            if len(persisted_body) != len(body) or hashlib.sha256(persisted_body).hexdigest() != checksum:
                 raise BronzeUnavailable("Bronze checksum metadata verification failed")
         except BronzeUnavailable:
             raise
         except Exception as exc:
             raise BronzeUnavailable("Bronze storage is unavailable") from exc
-        return key
+        return BronzeEvidence(key, checksum, len(body), len(records))
+
+    def write_batch(self, records: list[BronzeRecord]) -> str:
+        return self.write_batch_verified(records).key
 
     def read_batch(self, key: str) -> list[BronzeRecord]:
         try:
