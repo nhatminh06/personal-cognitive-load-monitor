@@ -121,3 +121,16 @@ Help, invalid arguments, kubeconfig isolation and read-only v1.34.11 cluster
 queries passed. No cluster object changed. The standalone client passes, but
 M10.3 remains NO-GO until the exact runner is rebuilt and independently passes
 its whole-image gate; gateway and registry prerequisites also remain open.
+
+## C5.5 deployment-runner integration — 2026-11-17
+
+[Whole-image record](../security-audit/c55-runner-integration.md). The qualified
+kubectl was reconstructed, integrated and extracted from the exact runner with
+the expected SHA-256. The new local image ID is
+`sha256:073432d2da9a1c4ceb18ca7d3654984fbed88635d207ab59407b65c01f70d8a7`.
+BuildKit provenance/SBOM generation passed and the independent SPDX inventory
+contains 1,463 packages. The current whole-image scan is **NO-GO: 5 HIGH,
+0 CRITICAL**, all outside kubectl: three Ubuntu packages, Actions Runner
+WebUtilities and Cosign `x/net`. Phase-5 runner and cluster tests were correctly
+not run after the mandatory image gate failed. No container was started, no
+cluster or cloud object changed, and nothing was published or pushed.

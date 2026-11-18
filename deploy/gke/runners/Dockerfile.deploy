@@ -17,7 +17,7 @@ RUN cd /tmp/inputs \
     && ln -s /opt/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud \
     && cosign version | grep -F 'GitVersion:    v3.1.4' \
     && helm version --short | grep -E '^v4\.3\.2\+' \
-    && kubectl version --client=true -o yaml | grep -F 'gitVersion: v1.35.10' \
+    && kubectl version --client=true -o yaml | grep -F 'gitVersion: v1.35.10-cogniflow.1' \
     && trivy --version | grep -F 'Version: 0.76.2' \
     && test "$(cat /opt/google-cloud-sdk/VERSION)" = 594.0.0 \
     && rm -rf /opt/google-cloud-sdk/platform/bq \

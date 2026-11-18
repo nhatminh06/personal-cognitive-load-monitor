@@ -202,11 +202,32 @@ def test_deployment_runner_scaffold_fails_closed_on_unverified_inputs() -> None:
     assert len(verified) == 5
     assert all(len(line.split()[0]) == 64 for line in verified)
     assert 'google-cloud-sdk/VERSION)\" = 594.0.0' in dockerfile
+    assert "gitVersion: v1.35.10-cogniflow.1" in dockerfile
+    assert any(line.startswith(
+        "130b354df841e743ee6a5580d1cdb09844ba0a0d4538a6b39c508c1526b516ef  bin/kubectl"
+    ) for line in verified)
     assert "/opt/google-cloud-sdk/platform/gsutil" in dockerfile
     assert "/opt/google-cloud-sdk/bin/gcloud-crc32c" in dockerfile
     assert "/usr/bin/apt* /usr/bin/dpkg*" in dockerfile
     assert "http://" not in dockerfile
     assert "https://" not in dockerfile
+
+
+def test_qualified_kubectl_reconstruction_is_pinned_and_fail_closed() -> None:
+    script = (
+        ROOT / "deploy/gke/runners/build-qualified-kubectl.sh"
+    ).read_text()
+    assert "v1.35.10" in script
+    assert "go1.27.4.linux-amd64.tar.gz" in script
+    assert "golang.org/x/net@v0.62.0" in script
+    assert "golang.org/x/text@v0.41.0" in script
+    assert "cosign verify-blob" in script
+    assert "sha256sum --check --strict" in script
+    assert "sha512sum --check --strict" in script
+    assert "-buildvcs=false" in script
+    assert "-trimpath" in script
+    assert "GOMAXPROCS=2" in script
+    assert "130b354df841e743ee6a5580d1cdb09844ba0a0d4538a6b39c508c1526b516ef" in script
 
 
 def test_cloud_image_gate_rejects_unfixed_high_findings() -> None:

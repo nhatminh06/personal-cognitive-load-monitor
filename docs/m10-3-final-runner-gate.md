@@ -9,6 +9,11 @@
 > exact runner is rebuilt with the qualified client and passes its whole-image
 > security gate.
 
+> **C5.5 follow-up (2026-11-17):** the qualified kubectl was integrated and
+> verified byte-for-byte in a new offline runner image. The exact whole-image
+> scan reports 5 HIGH and 0 CRITICAL findings outside kubectl, so M10.3 remains
+> NO-GO. See [the C5.5 record](security-audit/c55-runner-integration.md).
+
 ## Decision
 
 **Overall decision: `BLOCKED`; deployment remains NO-GO.** No official,
