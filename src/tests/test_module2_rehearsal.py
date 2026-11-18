@@ -43,6 +43,15 @@ def test_trino_candidate_and_cli_healthcheck_are_pinned() -> None:
     assert "image: trinodb/trino:478" not in compose
 
 
+def test_airflow_candidate_keeps_persistent_home_off_the_virtualenv() -> None:
+    compose = Path("infra/module2/docker-compose.yml").read_text()
+    assert "image: cogniflow-airflow:c45-patched" in compose
+    assert "AIRFLOW_HOME: /opt/airflow-home" in compose
+    assert "airflow3-data:/opt/airflow-home" in compose
+    assert "entrypoint: [sh, -c]" in compose
+    assert "command: ['airflow db migrate && sleep infinity']" in compose
+
+
 def resolved_config(project: str = "cogniflow-rehearsal-test") -> dict:
     services = {}
     for service, port in zip(("kafka", "minio", "trino", "redis", "flink-jobmanager"), PORTS.__dict__.values()):
@@ -99,6 +108,10 @@ def test_sec022_gate_fails_closed_for_expiry_or_image_drift() -> None:
 
 
 def test_rehearsal_image_gate_rejects_drift_and_unqualified_images() -> None:
+    assert QUALIFIED_IMAGE_IDS["cogniflow-airflow:c45-patched"] == (
+        "sha256:ae2ef43a79bd744ec3956e5aff2412d7a3af51f4559b0e374376b28c48f986c3"
+    )
+    assert "cogniflow-airflow:3.3.2" not in UNQUALIFIED_IMAGES
     observed = QUALIFIED_IMAGE_IDS.copy()
     configured = set(QUALIFIED_IMAGE_IDS) | set(UNQUALIFIED_IMAGES)
     validate_image_security(observed, (), set(QUALIFIED_IMAGE_IDS))

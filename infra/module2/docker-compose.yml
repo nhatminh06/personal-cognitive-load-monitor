@@ -212,19 +212,20 @@ services:
     mem_limit: 384m
 
   airflow:
-    image: cogniflow-airflow:3.3.2
+    image: cogniflow-airflow:c45-patched
     build:
       context: ./airflow
     profiles: [orchestration-dev]
-    command: bash -c 'airflow db migrate && sleep infinity'
+    entrypoint: [sh, -c]
+    command: ['airflow db migrate && sleep infinity']
     environment:
-      AIRFLOW_HOME: /opt/airflow
+      AIRFLOW_HOME: /opt/airflow-home
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-}
     volumes:
-      - ../../dags:/opt/airflow/dags:ro
-      - airflow3-data:/opt/airflow
+      - ../../dags:/opt/airflow-home/dags:ro
+      - airflow3-data:/opt/airflow-home
     mem_limit: 640m
     networks: [default, seaweedfs-control, spark-control]
 
