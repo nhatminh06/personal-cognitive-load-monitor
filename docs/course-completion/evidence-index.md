@@ -97,3 +97,14 @@ A fail-closed offline validator rejects missing or unexpected gateway references
 Local verification: 630 passed, 2 skipped, 87.20% coverage; Ruff, scoped MyPy,
 Helm lint and Knative rendering passed. No cluster object, model approval, Eventing
 setting, or historical evidence changed.
+
+## C5.3 FastAPI/KServe image remediation — 2026-11-17
+
+[Security and runtime record](../security-audit/c53-fastapi-kserve-remediation.md).
+Digest-pinned Wolfi/Python 3.13 builds replaced the vulnerable local FastAPI and
+KServe images. Exact replacement IDs independently scanned at 0 HIGH / 0 CRITICAL,
+generated SPDX SBOMs and retained BuildKit provenance metadata. Isolated direct and
+API-to-KServe inference, authentication, outage/restart recovery and wrong-model
+rejection passed with the disposable qualification fixture. Full regression: 630
+passed, 2 skipped, 87.20% coverage. Images are not published or signed; kubectl and
+gateway runtime blockers remain. M10.3 NO-GO and SEC-022 are unchanged.
