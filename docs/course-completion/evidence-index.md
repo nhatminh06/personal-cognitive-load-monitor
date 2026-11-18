@@ -186,3 +186,17 @@ keyless signing/attestation checks, exact gateway correction, rollback, and the
 legacy-model-only infrastructure test are prepared but were not executed. No
 registry, cloud, Kubernetes, runner, or model state changed; M10.3 deployment
 NO-GO and SEC-022 remain unchanged.
+
+## C6 real KFP execution preflight — 2026-11-17
+
+[Measured runtime and candidate evidence](c6-kfp-runtime-preflight.md). Neither
+retained kind cluster contains KFP, and no authorized endpoint exists. Host RAM,
+swap, and `/tmp` headroom fail the existing local-start gate. The retained
+historical component image has no registry, is bound to the wrong code revision,
+and lacks a current complete zero-HIGH/zero-CRITICAL qualification. No workload
+was submitted and no KFP run ID was created. The C2.2 local candidate was
+independently reverified with exact dataset, split, model and artifact digests,
+but remains non-KFP, unapproved, and undeployed. Full validation passed 632 tests
+with 2 skips and 87.20% coverage; Ruff and scoped MyPy passed. Decision:
+**BLOCKED** pending an owner-authorized isolated runtime and qualified component
+image. C5.9, M10.3 deployment NO-GO, and SEC-022 are unchanged.
