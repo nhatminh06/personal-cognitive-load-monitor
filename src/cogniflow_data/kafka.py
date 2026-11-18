@@ -6,8 +6,10 @@ import hashlib
 import json
 import os
 import threading
+import time
 from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from cogniflow_data.events import DEAD_LETTER_TOPIC, SESSION_TOPIC, SessionEvent
@@ -15,6 +17,13 @@ from cogniflow_data.events import DEAD_LETTER_TOPIC, SESSION_TOPIC, SessionEvent
 
 class PublishError(RuntimeError):
     """Kafka did not durably acknowledge a message."""
+
+
+@dataclass(frozen=True)
+class KafkaAcknowledgment:
+    topic: str
+    partition: int
+    offset: int
 
 
 class EventPublisher(Protocol):
@@ -70,6 +79,52 @@ class KafkaPublisher:
             raise PublishError("Kafka publish failed") from exc
         if remaining or failure:
             raise PublishError("Kafka did not acknowledge the event")
+
+    def publish_batch(
+        self, events: list[SessionEvent], topic: str = SESSION_TOPIC
+    ) -> list[KafkaAcknowledgment]:
+        """Publish one bounded batch and return only broker-acknowledged positions."""
+
+        if not events:
+            raise ValueError("Kafka batch cannot be empty")
+        positions: list[KafkaAcknowledgment | None] = [None] * len(events)
+        failures: list[str] = []
+
+        def delivered(index: int):
+            def callback(error: object, message: Any) -> None:
+                if error is not None:
+                    failures.append(str(error))
+                    return
+                positions[index] = KafkaAcknowledgment(
+                    message.topic(), message.partition(), message.offset()
+                )
+
+            return callback
+
+        try:
+            deadline = time.monotonic() + 30.0
+            for index, event in enumerate(events):
+                while True:
+                    try:
+                        self._producer.produce(
+                            topic,
+                            key=event.kafka_key(),
+                            value=event.wire_bytes(),
+                            on_delivery=delivered(index),
+                        )
+                        break
+                    except BufferError:
+                        if time.monotonic() >= deadline:
+                            raise PublishError("Kafka producer queue remained full")
+                        self._producer.poll(0.1)
+            remaining = self._producer.flush(max(0.0, deadline - time.monotonic()))
+        except PublishError:
+            raise
+        except Exception as exc:
+            raise PublishError("Kafka batch publish failed") from exc
+        if remaining or failures or any(position is None for position in positions):
+            raise PublishError("Kafka did not acknowledge the complete batch")
+        return [position for position in positions if position is not None]
 
 
 class RecentEventIds:

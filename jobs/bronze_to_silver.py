@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from datetime import datetime, timezone
 
 import boto3
 from botocore.config import Config
 from delta.tables import DeltaTable
+from pyspark import StorageLevel
 from pyspark.sql import DataFrame, SparkSession, functions as F, types as T
+
+from cogniflow_data.storage_accounting import list_objects, prefix_evidence
 
 LAKEHOUSE_BUCKET = os.getenv("MINIO_LAKEHOUSE_BUCKET", "cogniflow-lakehouse")
 SILVER_URI = f"s3a://{LAKEHOUSE_BUCKET}/silver/session_features"
@@ -52,6 +56,50 @@ BEHAVIORAL_SCHEMA = T.StructType(
         T.StructField("kafka_topic", T.StringType(), False),
         T.StructField("kafka_partition", T.LongType(), False),
         T.StructField("kafka_offset", T.LongType(), False),
+    ]
+)
+BRONZE_SESSION_SCHEMA = T.StructType(
+    [
+        T.StructField(
+            "event",
+            T.StructType(
+                [
+                    T.StructField("event_id", T.StringType(), True),
+                    T.StructField("session_id", T.StringType(), True),
+                    T.StructField("user_id", T.StringType(), True),
+                    T.StructField("event_time", T.StringType(), True),
+                    T.StructField("ingested_at", T.StringType(), True),
+                    T.StructField("schema_version", T.StringType(), True),
+                    T.StructField("event_type", T.StringType(), True),
+                    T.StructField("source", T.StringType(), True),
+                    T.StructField(
+                        "payload",
+                        T.StructType(
+                            [
+                                T.StructField("focus_minutes", T.LongType(), True),
+                                T.StructField("distraction_minutes", T.LongType(), True),
+                                T.StructField("tasks_due", T.LongType(), True),
+                                T.StructField("hours_to_deadline", T.DoubleType(), True),
+                            ]
+                        ),
+                        True,
+                    ),
+                ]
+            ),
+            True,
+        ),
+        T.StructField(
+            "kafka",
+            T.StructType(
+                [
+                    T.StructField("topic", T.StringType(), True),
+                    T.StructField("partition", T.LongType(), True),
+                    T.StructField("offset", T.LongType(), True),
+                ]
+            ),
+            True,
+        ),
+        T.StructField("_corrupt_record", T.StringType(), True),
     ]
 )
 
@@ -128,14 +176,24 @@ def s3_client():
     )
 
 
-def load_bronze() -> tuple[list[dict], list[dict]]:
-    client = s3_client()
+def _listed_objects(client, bucket: str, prefix: str) -> list[dict]:
+    return list_objects(client, bucket, prefix)
+
+
+def load_bronze_accounted(client=None) -> tuple[list[dict], list[dict], dict[str, int]]:
+    client = client or s3_client()
     bucket = os.getenv("MINIO_BRONZE_BUCKET", "cogniflow-bronze")
     valid, rejected = [], []
-    listing = client.list_objects_v2(Bucket=bucket, Prefix="session_events/")
-    for item in listing.get("Contents", []):
-        body = client.get_object(Bucket=bucket, Key=item["Key"])["Body"]
-        for line in body.iter_lines():
+    input_bytes = 0
+    input_rows = 0
+    objects = _listed_objects(client, bucket, "session_events/")
+    for item in objects:
+        body = client.get_object(Bucket=bucket, Key=item["Key"])["Body"].read()
+        input_bytes += len(body)
+        for line in body.splitlines():
+            if not line:
+                continue
+            input_rows += 1
             try:
                 row = json.loads(line)
                 event = validate_event(row["event"])
@@ -160,6 +218,15 @@ def load_bronze() -> tuple[list[dict], list[dict]]:
                 )
             except Exception as exc:
                 rejected.append({"object_key": item["Key"], "error": type(exc).__name__})
+    return valid, rejected, {
+        "spark_input_bytes": input_bytes,
+        "bronze_rows_read": input_rows,
+        "bronze_objects_read": len(objects),
+    }
+
+
+def load_bronze() -> tuple[list[dict], list[dict]]:
+    valid, rejected, _accounting = load_bronze_accounted()
     return valid, rejected
 
 
@@ -167,8 +234,7 @@ def load_behavioral_bronze() -> tuple[list[dict], list[dict]]:
     client = s3_client()
     bucket = os.getenv("MINIO_BRONZE_BUCKET", "cogniflow-bronze")
     valid, rejected = [], []
-    listing = client.list_objects_v2(Bucket=bucket, Prefix="behavioral_activity/")
-    for item in listing.get("Contents", []):
+    for item in _listed_objects(client, bucket, "behavioral_activity/"):
         body = client.get_object(Bucket=bucket, Key=item["Key"])["Body"]
         for line in body.iter_lines():
             try:
@@ -190,6 +256,87 @@ def load_behavioral_bronze() -> tuple[list[dict], list[dict]]:
             except Exception as exc:
                 rejected.append({"object_key": item["Key"], "error": type(exc).__name__})
     return valid, rejected
+
+
+def prefix_bytes(client, bucket: str, prefix: str) -> int:
+    return prefix_evidence(client, bucket, prefix)["bytes"]
+
+
+def load_bronze_frame(spark: SparkSession, client) -> tuple[DataFrame, dict[str, int]]:
+    """Read session Bronze through Spark, never through driver-resident event lists."""
+
+    bucket = os.getenv("MINIO_BRONZE_BUCKET", "cogniflow-bronze")
+    inventory = prefix_evidence(client, bucket, "session_events/")
+    if not inventory["objects"]:
+        return spark.createDataFrame([], SILVER_SCHEMA), {
+            "spark_input_bytes": 0,
+            "bronze_rows_read": 0,
+            "bronze_objects_read": 0,
+            "valid_rows": 0,
+            "rejected_rows": 0,
+        }
+    raw = (
+        spark.read.schema(BRONZE_SESSION_SCHEMA)
+        .option("mode", "PERMISSIVE")
+        .option("columnNameOfCorruptRecord", "_corrupt_record")
+        .json(f"s3a://{bucket}/session_events/")
+    )
+    event = F.col("event")
+    payload = F.col("event.payload")
+    valid_condition = (
+        F.col("_corrupt_record").isNull()
+        & event.event_id.isNotNull()
+        & event.session_id.isNotNull()
+        & (event.schema_version == "1.0")
+        & (event.event_type == "session.snapshot")
+        & F.to_timestamp(event.event_time).isNotNull()
+        & F.to_timestamp(event.ingested_at).isNotNull()
+        & payload.focus_minutes.between(0, 1440)
+        & payload.distraction_minutes.between(0, 1440)
+        & payload.tasks_due.between(0, 1000)
+        & payload.hours_to_deadline.between(0, 87600)
+        & F.col("kafka.topic").isNotNull()
+        & F.col("kafka.partition").isNotNull()
+        & F.col("kafka.offset").isNotNull()
+    )
+    counts = raw.agg(
+        F.count(F.lit(1)).alias("total"),
+        F.sum(F.when(valid_condition, 1).otherwise(0)).alias("valid"),
+    ).first()
+    total = int(counts.total)
+    valid_rows = int(counts.valid or 0)
+    valid = raw.filter(valid_condition)
+    rows = valid.select(
+        event.event_id.alias("event_id"),
+        event.session_id.alias("session_id"),
+        event.user_id.alias("user_id"),
+        F.to_timestamp(event.event_time).alias("event_time"),
+        F.to_timestamp(event.ingested_at).alias("ingested_at"),
+        event.schema_version.alias("schema_version"),
+        event.source.alias("source"),
+        payload.focus_minutes.alias("focus_minutes"),
+        payload.distraction_minutes.alias("distraction_minutes"),
+        payload.tasks_due.alias("tasks_due"),
+        payload.hours_to_deadline.alias("hours_to_deadline"),
+        F.col("kafka.topic").alias("kafka_topic"),
+        F.col("kafka.partition").alias("kafka_partition"),
+        F.col("kafka.offset").alias("kafka_offset"),
+    )
+    return rows, {
+        "spark_input_bytes": inventory["bytes"],
+        "bronze_rows_read": total,
+        "bronze_objects_read": inventory["objects"],
+        "valid_rows": valid_rows,
+        "rejected_rows": total - valid_rows,
+    }
+
+
+def write_evidence(path: str, result: dict) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    os.replace(temporary, target)
 
 
 def merge_delta(spark: SparkSession, frame: DataFrame, uri: str) -> None:
@@ -244,18 +391,25 @@ def spark_session() -> SparkSession:
 def main() -> None:
     spark = spark_session()
     spark.sparkContext.setLogLevel("WARN")
-    rows, rejected = load_bronze()
+    client = s3_client()
+    session_rows, accounting = load_bronze_frame(spark, client)
     behavioral_rows, behavioral_rejected = load_behavioral_bronze()
-    if not rows and not behavioral_rows:
+    if not accounting["valid_rows"] and not behavioral_rows:
         raise RuntimeError("No valid Bronze records found")
-    if rows:
-        frame = add_features(spark.createDataFrame(rows, SILVER_SCHEMA)).dropDuplicates(["event_id"])
+    if accounting["valid_rows"]:
+        frame = add_features(session_rows).dropDuplicates(["event_id"])
         frame = frame.filter(
             F.col("event_time").isNotNull()
             & F.col("focus_ratio").isNotNull()
             & F.col("distraction_ratio").isNotNull()
-        )
-        merge_delta(spark, frame, SILVER_URI)
+        ).persist(StorageLevel.DISK_ONLY)
+        silver_batch_rows = frame.count()
+        try:
+            merge_delta(spark, frame, SILVER_URI)
+        finally:
+            frame.unpersist()
+    else:
+        silver_batch_rows = 0
     behavioral_count = 0
     if behavioral_rows:
         behavioral = spark.createDataFrame(behavioral_rows, BEHAVIORAL_SCHEMA).dropDuplicates(
@@ -265,13 +419,24 @@ def main() -> None:
         )
         merge_delta(spark, behavioral, BEHAVIORAL_SILVER_URI)
         behavioral_count = spark.read.format("delta").load(BEHAVIORAL_SILVER_URI).count()
-    count = spark.read.format("delta").load(SILVER_URI).count() if rows else 0
+    count = spark.read.format("delta").load(SILVER_URI).count() if accounting["valid_rows"] else 0
     history = (DeltaTable.forPath(spark, SILVER_URI).history().select("version", "operation").collect()
-               if rows else [])
-    result = {"silver_rows": count, "behavioral_silver_rows": behavioral_count,
-              "rejected_rows": len(rejected) + len(behavioral_rejected),
-              "history": [row.asDict() for row in history]}
+               if accounting["valid_rows"] else [])
+    result = {
+        "schema_version": "1.0",
+        "status": "spark_complete",
+        **accounting,
+        "duplicates_excluded": accounting["valid_rows"] - silver_batch_rows,
+        "silver_batch_rows": silver_batch_rows,
+        "silver_total_rows": count,
+        "delta_physical_bytes": prefix_bytes(client, LAKEHOUSE_BUCKET, "silver/session_features/"),
+        "behavioral_silver_rows": behavioral_count,
+        "behavioral_rejected_rows": len(behavioral_rejected),
+        "history": [row.asDict() for row in history],
+    }
     spark.stop()
+    if evidence_path := os.getenv("SPARK_EVIDENCE_PATH"):
+        write_evidence(evidence_path, result)
     print(json.dumps(result))
 
 

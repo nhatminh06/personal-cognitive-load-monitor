@@ -229,3 +229,17 @@ reconciled exact bytes and identities, but no pipeline processing occurred.
 Measured laptop memory, `/tmp` and disk capacity are insufficient for the full
 workload. The >100 GB and four cloud criteria remain incomplete; SEC-022, C6,
 C7 and M10.3 statuses are unchanged.
+
+## C8.2 bulk ingestion and reconciliation — 2026-11-18
+
+[Executable implementation and validation](../module2/c82-bulk-ingestion.md).
+New production code incrementally verifies generated partitions, publishes
+bounded Kafka batches, persists acknowledged offsets and checksum-read-back
+Bronze objects, resumes from atomic checkpoints, captures distributed Spark
+input/Delta accounting and fails final reconciliation without actual Gold
+evidence. Failure, corruption, duplicate and restart paths are regression-tested.
+The broader Module II suite passed 87 tests; Ruff and scoped MyPy passed. Fresh
+runtime preflight failed the unchanged 6 GiB memory gate, so Kafka/SeaweedFS and
+Spark execution are `NOT_RUN`. Full regression passed 642 tests with 5 skips and
+86.99% coverage. This advances implementation readiness only; the MinIO, cloud
+and >100 GB runtime rubric items remain incomplete.
