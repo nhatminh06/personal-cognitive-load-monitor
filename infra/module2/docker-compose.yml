@@ -59,7 +59,7 @@ services:
     mem_limit: 128m
 
   seaweedfs:
-    image: cogniflow-seaweedfs:4.50
+    image: cogniflow-seaweedfs:c42-go-patched
     build:
       context: ./seaweedfs
     profiles: [lake]
@@ -80,7 +80,7 @@ services:
         max-file: "3"
 
   minio:
-    image: cogniflow-seaweedfs:4.50
+    image: cogniflow-seaweedfs:c42-go-patched
     profiles: [lake]
     command: s3 -filer=seaweedfs:8888 -port=9000 -port.iceberg=0 -port.lance=0
     environment:
@@ -105,7 +105,7 @@ services:
         max-file: "3"
 
   minio-init:
-    image: cogniflow-minio-init:module2
+    image: cogniflow-minio-init:c42-alpine-upgrade
     build:
       context: ./minio-init
     profiles: [lake]
@@ -173,7 +173,7 @@ services:
       retries: 30
 
   dbt:
-    image: cogniflow-dbt-trino:1.11.14
+    image: cogniflow-dbt-trino:c42-alpine
     build:
       context: ./dbt
     profiles: [analytics]
@@ -190,7 +190,7 @@ services:
     mem_limit: 512m
 
   dbt-runner:
-    image: cogniflow-dbt-trino:1.11.14
+    image: cogniflow-dbt-trino:c42-alpine
     profiles: [orchestration]
     entrypoint: [python, /opt/cogniflow/jobs/internal_job_runner.py]
     working_dir: /analytics
@@ -224,7 +224,7 @@ services:
     networks: [default, seaweedfs-control, spark-control]
 
   redis:
-    image: redis:7.4.2-alpine
+    image: redis:7.4.12-alpine3.22
     profiles: [streaming]
     command: [sh, -c, 'exec redis-server --requirepass "$${REDIS_PASSWORD}" --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru']
     environment:
@@ -241,7 +241,7 @@ services:
     mem_limit: 192m
 
   flink-jobmanager:
-    image: cogniflow-flink:1.20.5
+    image: cogniflow-flink:c42-patched
     build:
       context: ../..
       dockerfile: infra/module2/flink/Dockerfile
@@ -259,7 +259,7 @@ services:
     mem_limit: 640m
 
   flink-taskmanager:
-    image: cogniflow-flink:1.20.5
+    image: cogniflow-flink:c42-patched
     profiles: [streaming]
     command: taskmanager
     environment:
@@ -273,7 +273,7 @@ services:
     mem_limit: 768m
 
   flink-submit:
-    image: cogniflow-flink:1.20.5
+    image: cogniflow-flink:c42-patched
     profiles: [streaming]
     command: >-
       sh -c 'flink run -d -m flink-jobmanager:8081

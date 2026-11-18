@@ -12,9 +12,12 @@ import pytest
 from scripts.module2_e2e_rehearsal import (
     Evidence,
     Ports,
+    QUALIFIED_IMAGE_IDS,
     SPARK_IMAGE_ID,
+    UNQUALIFIED_IMAGES,
     create_secret_file,
     validate_isolation,
+    validate_image_security,
     validate_project,
     validate_resolved_config,
     validate_resources,
@@ -78,6 +81,19 @@ def test_sec022_gate_fails_closed_for_expiry_or_image_drift() -> None:
         validate_sec022(date(2027, 1, 24), SPARK_IMAGE_ID, acceptance)
     with pytest.raises(RuntimeError, match="image ID"):
         validate_sec022(date(2026, 10, 27), "sha256:wrong", acceptance)
+
+
+def test_rehearsal_image_gate_rejects_drift_and_unqualified_images() -> None:
+    observed = QUALIFIED_IMAGE_IDS.copy()
+    configured = set(QUALIFIED_IMAGE_IDS) | set(UNQUALIFIED_IMAGES)
+    validate_image_security(observed, (), set(QUALIFIED_IMAGE_IDS))
+    with pytest.raises(RuntimeError, match="image security gate failed"):
+        validate_image_security(observed, UNQUALIFIED_IMAGES, configured)
+    with pytest.raises(RuntimeError, match="Compose image inventory changed"):
+        validate_image_security(observed, (), {"unscanned:image"})
+    observed["redis:7.4.12-alpine3.22"] = "sha256:wrong"
+    with pytest.raises(RuntimeError, match="qualified image ID changed"):
+        validate_image_security(observed, (), set(QUALIFIED_IMAGE_IDS))
 
 
 def test_evidence_redacts_secrets_and_hashes_captured_output(tmp_path: Path) -> None:
