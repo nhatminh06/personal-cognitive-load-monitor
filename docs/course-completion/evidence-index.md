@@ -200,3 +200,19 @@ but remains non-KFP, unapproved, and undeployed. Full validation passed 632 test
 with 2 skips and 87.20% coverage; Ruff and scoped MyPy passed. Decision:
 **BLOCKED** pending an owner-authorized isolated runtime and qualified component
 image. C5.9, M10.3 deployment NO-GO, and SEC-022 are unchanged.
+
+## C7 Knative Eventing and anomaly qualification — 2026-11-18
+
+[Security and isolated runtime record](c7-knative-anomaly-qualification.md).
+Fresh consumer and anomaly/sink OCI images built from committed revision
+`1eb7ff1` passed complete Trivy scans at 0 HIGH / 0 CRITICAL and include SBOM
+and BuildKit provenance evidence. A bounded real-application container run
+verified sanitized persistence, deduplication, normal/no-alert behavior, two
+deterministic alerts, transactional-outbox recovery without new traffic,
+restart persistence and retryable failure. Full validation passed 632 tests
+with 5 skips and 87.20% coverage; Ruff, scoped MyPy, manifest parsing and the
+immutable production renderer passed. Decision: **PASS_LOCAL** only. The fresh
+run did not execute Knative controllers, Broker/Trigger delivery or a DLQ;
+historical October runtime evidence remains distinct. Publication/signing,
+durable authenticated transport and an owner-authorized isolated Knative run
+remain blockers. C6 stays BLOCKED.
