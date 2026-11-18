@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1.7
+FROM golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY api/go.mod api/go.sum api/
+COPY kubernetes_platform/go.mod kubernetes_platform/go.sum kubernetes_platform/
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+      -buildvcs=false -mod=readonly -trimpath -ldflags='-buildid=' \
+      -o /out/apiserver ./backend/src/apiserver
+
+FROM ghcr.io/kubeflow/kfp-api-server@sha256:d896bf8eaa224f5ba005d72a7f865b51a680e36e4ffc8a265623098f1b6b9c2f AS release-assets
+
+FROM gcr.io/distroless/base-debian13:nonroot@sha256:a08d9054afbaf1af9b90fd02cdc7b32236319b5376d374505a41548d42b0c5db
+ARG SOURCE_REVISION=7dd28116ad652bfb7b6c282e7920be84e6a7634a
+LABEL org.opencontainers.image.source="https://github.com/kubeflow/pipelines" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="2.18.1-cogniflow.1"
+ENV COMMIT_SHA=${SOURCE_REVISION} TAG_NAME=2.18.1
+WORKDIR /bin
+COPY backend/src/apiserver/config/ /config/
+COPY --from=release-assets /samples/ /samples/
+COPY --from=builder /out/apiserver /bin/apiserver
+USER 65532:65532
+EXPOSE 8887 8888
+ENTRYPOINT ["/bin/apiserver"]
+CMD ["--config=/config", "--sampleconfig=/samples/sample_config.json", "-logtostderr=true", "--logLevel=info"]
