@@ -1,0 +1,33 @@
+{
+  "artifacts": {
+    "cognitive-load-api": {
+      "local_index_digest": "sha256:9609981bd9c775b3937a0d8cf7158c02e786089cd35ce1de5352d90b4ace26c0",
+      "local_runtime_manifest_digest": null,
+      "planned_repository": "cognitive-load-api",
+      "raw_evidence_complete": false,
+      "remote_reference": null
+    },
+    "cogniflow-deploy-runner": {
+      "local_index_digest": "sha256:fea8be5e98ba4defff5f8d23059c9d31103f7014b4e33b42c1aa1dcb0498d44a",
+      "local_runtime_manifest_digest": "sha256:3aab5b8fe68d83df3608c6cb1f7b3c1b02798643c068345344a56b8816b2b182",
+      "planned_repository": "cogniflow-deploy-runner",
+      "raw_evidence_complete": true,
+      "remote_reference": null
+    },
+    "cogniflow-kserve": {
+      "local_index_digest": "sha256:6e4a0d3c3682fec3c85e3676acb268d422819f5378494f3b26e78ad99cba3f9b",
+      "local_runtime_manifest_digest": null,
+      "planned_repository": "cogniflow-kserve",
+      "raw_evidence_complete": false,
+      "remote_reference": null
+    }
+  },
+  "registry": {
+    "location": "us-central1",
+    "project_id": null,
+    "repository": "cogniflow-images"
+  },
+  "schema_version": "1.0",
+  "source_commit": "b3b34e2ed10e1747a96ba632ceddefa108c2cd19",
+  "status": "BLOCKED"
+}

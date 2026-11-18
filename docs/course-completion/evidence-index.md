@@ -173,3 +173,16 @@ controlled Cosign verification, Helm render and Node/hashFiles. Full regression:
 631 passed, 5 skipped, 87.20% coverage. **Local M10.3: PASS.** Registry
 publication, signing/attestation, owner approval and Kubernetes execution remain
 separate NO-GO gates.
+
+## C5.9 immutable release preparation — 2026-11-17
+
+[Release packet and owner procedure](c59-immutable-release-preparation.md).
+The three expected local OCI index IDs still exist. C5.8 raw Trivy, SPDX and
+BuildKit metadata match their recorded checksums, and the runner runtime
+manifest remains independently identified. The C5.3 FastAPI/KServe raw
+scan/SBOM/provenance files are no longer retained locally, so the machine-readable
+release ledger fails closed as **BLOCKED**. Proposed Artifact Registry paths,
+keyless signing/attestation checks, exact gateway correction, rollback, and the
+legacy-model-only infrastructure test are prepared but were not executed. No
+registry, cloud, Kubernetes, runner, or model state changed; M10.3 deployment
+NO-GO and SEC-022 remain unchanged.
