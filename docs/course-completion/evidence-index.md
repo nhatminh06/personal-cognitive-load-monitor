@@ -85,3 +85,15 @@ forest by simplicity; final test accuracy/macro-F1 1.0/1.0, synthetic-only.
 Full tests: 623 passed, 2 skipped, 87.20% coverage. KFP compilation/negative lineage
 checks pass; real KFP runtime, approval and KServe deployment remain NOT_RUN.
 M10.3 NO-GO and SEC-022 remain unchanged.
+
+## C5.1 FastAPI/KServe repair — 2026-11-17
+
+[Read-only diagnosis and authorized-runtime procedure](c51-fastapi-kserve-repair.md).
+The qualification cluster has a Ready predictor revision but a failed route because
+KServe references the nonexistent `kubeflow/kubeflow-gateway`; FastAPI correctly
+stays unready while it cannot verify model provenance. The Helm chart now emits both
+required cluster-local visibility labels and explicit KServe predictor scale fields.
+A fail-closed offline validator rejects missing or unexpected gateway references.
+Local verification: 630 passed, 2 skipped, 87.20% coverage; Ruff, scoped MyPy,
+Helm lint and Knative rendering passed. No cluster object, model approval, Eventing
+setting, or historical evidence changed.

@@ -29,10 +29,16 @@ metadata:
   labels:
     {{- include "cognitive-load-monitor.labels" . | nindent 4 }}
     {{- if .Values.kserve.clusterLocal }}
+    networking.kserve.io/visibility: cluster-local
     networking.knative.dev/visibility: cluster-local
     {{- end }}
 spec:
   predictor:
+    {{- if eq .Values.kserve.deploymentMode "Knative" }}
+    minReplicas: {{ .Values.kserve.knativeAutoscaling.minScale }}
+    maxReplicas: {{ .Values.kserve.knativeAutoscaling.maxScale }}
+    scaleTarget: {{ .Values.kserve.knativeAutoscaling.targetConcurrency }}
+    {{- end }}
     serviceAccountName: {{ include "cognitive-load-monitor.kserveServiceAccountName" . }}
     containers:
       - name: kserve-container

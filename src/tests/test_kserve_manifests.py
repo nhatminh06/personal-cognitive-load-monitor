@@ -88,7 +88,10 @@ def test_module1_knative_mode_renders_explicit_scale_to_zero_contract():
 
     assert 'serving.kserve.io/deploymentMode: "Knative"' in rendered
     assert "networking.knative.dev/visibility: cluster-local" in rendered
-    assert "networking.kserve.io/visibility" not in rendered
+    assert "networking.kserve.io/visibility: cluster-local" in rendered
+    assert "minReplicas: 0" in rendered
+    assert "maxReplicas: 3" in rendered
+    assert "scaleTarget: 1" in rendered
     assert 'image: "us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cognitive-load-api@sha256:' in rendered
     assert 'image: "us-central1-docker.pkg.dev/SET_PROJECT/cogniflow-images/cogniflow-kserve@sha256:' in rendered
     assert "autoscaling.knative.dev/class: kpa.autoscaling.knative.dev" in rendered
