@@ -1,0 +1,13 @@
+{
+  "cluster_name": "cogniflow-c11-isolated",
+  "context": "kind-cogniflow-c11-isolated",
+  "option": "dedicated_kind",
+  "owner_authorization": false,
+  "kubeconfig": "/tmp/cogniflow-c11-isolated.yaml",
+  "qualified_kubectl": "build/c54-kubectl/work/_output/c54/kubectl",
+  "image_ledger": null,
+  "controller_matrix": "deploy/c11/controller-compatibility.json",
+  "storage_qualified": false,
+  "minimum_available_memory_bytes": 12884901888,
+  "minimum_disk_bytes": 64424509440
+}

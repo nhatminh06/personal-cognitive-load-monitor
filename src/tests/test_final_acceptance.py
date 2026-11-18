@@ -41,6 +41,18 @@ def test_offline_runner_records_contract_failure(tmp_path: Path) -> None:
     assert report["local_validation"]["status"] == "FAIL"
 
 
+def test_offline_runner_binds_additional_preflight_evidence(tmp_path: Path) -> None:
+    preflight = tmp_path / "c11-preflight.json"
+    preflight.write_text('{"status":"BLOCKED"}\n')
+    path = run_offline(
+        ROOT, tmp_path, runner=successful_runner, additional_evidence=(preflight,)
+    )
+    report = validate(path)
+    assert [item["path"] for item in report["local_validation"]["evidence"]] == [
+        "offline-contract-tests.txt", "c11-preflight.json",
+    ]
+
+
 def test_validator_rejects_tampered_local_evidence(tmp_path: Path) -> None:
     path, _ = offline_report(tmp_path)
     (tmp_path / "offline-contract-tests.txt").write_text("fabricated")

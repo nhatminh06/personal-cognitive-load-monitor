@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "status": "BLOCKED",
+  "components": {
+    "kubernetes": {
+      "version": "1.35.x proposed",
+      "qualified": false,
+      "source": "https://kubernetes.io/releases/version-skew-policy/",
+      "blocker": "exact kind node digest and complete runtime image scan are missing"
+    },
+    "kubectl": {
+      "version": "1.35.10-cogniflow.1",
+      "qualified": true,
+      "source": "https://kubernetes.io/releases/version-skew-policy/",
+      "evidence": "docs/security-audit/c54-kubectl-qualification.md"
+    },
+    "kfp-runtime": {
+      "version": "2.17.2 proposed",
+      "qualified": false,
+      "source": "https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/",
+      "blocker": "backend images lack current zero-finding scans, signatures, SBOMs and provenance"
+    },
+    "kfp-sdk": {
+      "version": "2.17.3",
+      "qualified": true,
+      "source": "https://www.kubeflow.org/docs/components/pipelines/reference/version-compatibility/",
+      "evidence": "pyproject.toml"
+    },
+    "kserve": {
+      "version": "0.20.0 proposed",
+      "qualified": false,
+      "source": "https://kserve.github.io/website/blog/kserve-0.20-release",
+      "blocker": "controller images and Kubernetes 1.35 combination are not independently qualified"
+    },
+    "knative-serving": {
+      "version": "1.23.0 proposed",
+      "qualified": false,
+      "source": "https://knative.dev/docs/install/",
+      "blocker": "controller images and selected ingress are not independently qualified"
+    },
+    "knative-eventing": {
+      "version": "1.23.0 proposed",
+      "qualified": false,
+      "source": "https://knative.dev/docs/install/",
+      "blocker": "controller and durable-transport images are not independently qualified"
+    },
+    "istio": {
+      "version": "unselected",
+      "qualified": false,
+      "source": "https://knative.dev/docs/install/installing-istio/",
+      "blocker": "exact supported version and immutable images are unselected"
+    },
+    "cert-manager": {
+      "version": "1.21.2 proposed",
+      "qualified": false,
+      "source": "https://cert-manager.io/docs/installation/supported-releases/",
+      "blocker": "only historical cluster evidence exists; current images are unqualified"
+    },
+    "artifact-storage": {
+      "version": "unselected",
+      "qualified": false,
+      "source": "https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/",
+      "blocker": "isolated object-store implementation and images are unselected"
+    },
+    "mlflow": {
+      "version": "3.17.2 proposed",
+      "qualified": false,
+      "source": "https://mlflow.org/docs/latest/ml/tracking/artifact-stores/",
+      "blocker": "no immutable security-qualified isolated-runtime image exists"
+    }
+  }
+}

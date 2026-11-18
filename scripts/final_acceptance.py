@@ -112,6 +112,7 @@ def run_offline(
     output_dir: Path,
     *,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    additional_evidence: tuple[Path, ...] = (),
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     log = output_dir / "offline-contract-tests.txt"
@@ -120,6 +121,11 @@ def run_offline(
     log.write_text(result.stdout + result.stderr)
     log.chmod(0o600)
     status = "PASS" if result.returncode == 0 else "FAIL"
+    evidence = [{"path": log.name, "sha256": _digest(log)}]
+    for artifact in additional_evidence:
+        if artifact.parent.resolve() != output_dir.resolve() or not artifact.is_file():
+            raise ValueError("additional evidence must be a file inside the output directory")
+        evidence.append({"path": artifact.name, "sha256": _digest(artifact)})
     report = {
         "schema_version": "1.0",
         "commit_sha": _commit(root),
@@ -135,7 +141,7 @@ def run_offline(
             "status": status,
             "scope": "local_contract",
             "command": command,
-            "evidence": [{"path": log.name, "sha256": _digest(log)}],
+            "evidence": evidence,
         },
         "checks": _blocked_checks(),
         "uncompleted_criteria": list(CHECKS),
@@ -268,12 +274,16 @@ def main() -> None:
     offline = subparsers.add_parser("offline")
     offline.add_argument("--root", type=Path, default=Path.cwd())
     offline.add_argument("--output-dir", type=Path, required=True)
+    offline.add_argument("--additional-evidence", action="append", type=Path, default=[])
     verify = subparsers.add_parser("validate")
     verify.add_argument("report", type=Path)
     args = parser.parse_args()
     try:
         if args.command == "offline":
-            path = run_offline(args.root.resolve(), args.output_dir.resolve())
+            path = run_offline(
+                args.root.resolve(), args.output_dir.resolve(),
+                additional_evidence=tuple(item.resolve() for item in args.additional_evidence),
+            )
             report = validate(path)
             print(path)
             if report["local_validation"]["status"] != "PASS":
