@@ -4,6 +4,12 @@
 **Starting HEAD:** `20a1d1e0755f9727728fa998146f48570824e62e`
 **Policy:** Historical runtime evidence is labeled as historical. No raw Track B evidence is included.
 
+## C13 pre-deployment qualification — 2026-11-18
+
+[Fresh application-image scans, first KFP controller result, real bounded
+Kafka/Bronze runtime evidence and fail-closed deployment automation](c13-predeployment-qualification.md).
+Kubernetes and cloud runtime remain blocked; no protected cluster was changed.
+
 ## Module I
 
 | Requirement | Weight | Current status | Exact supporting evidence | Commit or dated runtime evidence | Verification environment | Outstanding acceptance condition |
