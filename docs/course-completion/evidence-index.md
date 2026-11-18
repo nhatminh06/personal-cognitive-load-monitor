@@ -134,3 +134,14 @@ contains 1,463 packages. The current whole-image scan is **NO-GO: 5 HIGH,
 WebUtilities and Cosign `x/net`. Phase-5 runner and cluster tests were correctly
 not run after the mandatory image gate failed. No container was started, no
 cluster or cloud object changed, and nothing was published or pushed.
+
+## C5.6 final runner remediation — 2026-11-17
+
+[Remediation record](../security-audit/c56-runner-remediation.md). Authenticated
+Ubuntu fixes and a source-built Cosign `v3.1.4-cogniflow.1` candidate passed
+their standalone integrity and zero-HIGH/zero-CRITICAL checks. The latest
+official Actions Runner is still vulnerable 2.338.2. A bounded source candidate
+contained fixed WebUtilities 8.0.34, but its upstream suite finished 1,161
+passed / 3 failed and therefore did not qualify. The complete runner was not
+rebuilt or started; no final C5.6 image, SBOM, provenance, runtime or cluster
+claim exists. Decision: **BLOCKED**; M10.3 remains NO-GO.
