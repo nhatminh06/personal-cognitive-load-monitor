@@ -62,7 +62,9 @@ were removed; both kind clusters were untouched.
 `scripts/deploy.sh` no longer accepts mutable defaults or mutates immediately.
 It now requires exact remote digests, commit/model identity, action-bound owner
 authorization, explicit execution authorization and an explicit non-protected
-context. It also rejects candidate/unapproved model packages. Deploy verifies signatures, SPDX/SLSA attestations and fresh scans,
+context. Before any mutation, it also matches the exact kubeconfig digest, API
+endpoint and live `kube-system` UID to the owner-authorized target, so a context
+alias cannot redirect deployment. It rejects candidate/unapproved model packages. Deploy verifies signatures, SPDX/SLSA attestations and fresh scans,
 uses atomic Helm, waits for API and InferenceService health, supports exact
 revision rollback and verified teardown, and writes a sanitized exclusive
 evidence record.

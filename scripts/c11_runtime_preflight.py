@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 from typing import Any
 
 
@@ -53,6 +56,7 @@ def kubectl_command(binary: Path, kubeconfig: Path, context: str, *arguments: st
 
 
 def validate_image_ledger(path: Path) -> None:
+    """Validate offline ledger shape only; this does not qualify any image."""
     ledger = json.loads(path.read_text())
     if not isinstance(ledger, dict) or set(ledger) != REQUIRED_IMAGES:
         raise ValueError("image qualification ledger is incomplete")
@@ -66,6 +70,99 @@ def validate_image_ledger(path: Path) -> None:
             or not re.fullmatch(r"[0-9a-f]{64}", str(item.get("provenance_sha256", "")))
         ):
             raise ValueError(f"image qualification is incomplete for {name}")
+
+
+def _run(binary: Path, *arguments: str) -> str:
+    if not binary.is_file() or not os.access(binary, os.X_OK) or binary.is_symlink():
+        raise ValueError(f"qualified tool is missing or unsafe: {binary}")
+    try:
+        return subprocess.run(
+            [str(binary), *arguments], check=True, capture_output=True, text=True
+        ).stdout
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"qualified tool verification failed: {binary.name}") from error
+
+
+def _attestation_payload(output: str, reference: str, predicate: str) -> bytes:
+    digest = reference.rsplit("@sha256:", 1)[1]
+    for line in output.splitlines():
+        try:
+            envelope = json.loads(line)
+            payload = base64.b64decode(envelope["payload"], validate=True)
+            statement = json.loads(payload)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        subjects = statement.get("subject", [])
+        predicate_type = str(statement.get("predicateType", "")).lower()
+        if (
+            isinstance(subjects, list)
+            and any(
+                isinstance(subject, dict)
+                and isinstance(subject.get("digest"), dict)
+                and subject["digest"].get("sha256") == digest
+                for subject in subjects
+            )
+            and predicate in predicate_type
+        ):
+            return payload
+    raise ValueError(f"missing digest-bound {predicate} attestation for {reference}")
+
+
+def qualify_image_ledger(
+    path: Path,
+    cosign: Path,
+    cosign_sha256: str,
+    trivy: Path,
+    trivy_sha256: str,
+    certificate_identity_regexp: str,
+) -> None:
+    validate_image_ledger(path)
+    if not certificate_identity_regexp or "\n" in certificate_identity_regexp:
+        raise ValueError("Cosign certificate identity regexp is required")
+    for binary, expected in ((cosign, cosign_sha256), (trivy, trivy_sha256)):
+        if not re.fullmatch(r"[0-9a-f]{64}", expected):
+            raise ValueError("qualified tool digest is invalid")
+        if hashlib.sha256(binary.read_bytes()).hexdigest() != expected:
+            raise ValueError(f"qualified tool digest mismatch: {binary.name}")
+    if not re.search(r"GitVersion:\s+v3\.1\.4(?:-cogniflow\.1)?\b", _run(cosign, "version")):
+        raise ValueError("cosign v3.1.4 is required")
+    if "Version: 0.76.2" not in _run(trivy, "--version"):
+        raise ValueError("Trivy 0.76.2 is required")
+
+    ledger = json.loads(path.read_text())
+    identity = (
+        "--certificate-identity-regexp", certificate_identity_regexp,
+        "--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
+    )
+    for name, item in ledger.items():
+        reference = item["reference"]
+        _run(cosign, "verify", *identity, reference)
+        for attestation_type, predicate, digest_field in (
+            ("spdxjson", "spdx", "sbom_sha256"),
+            ("slsaprovenance", "slsa", "provenance_sha256"),
+        ):
+            output = _run(
+                cosign, "verify-attestation", "--type", attestation_type, *identity, reference
+            )
+            payload = _attestation_payload(output, reference, predicate)
+            if hashlib.sha256(payload).hexdigest() != item[digest_field]:
+                raise ValueError(f"{name} {predicate} evidence digest mismatch")
+        report = json.loads(_run(
+            trivy, "image", "--format", "json", "--scanners", "vuln",
+            "--severity", "HIGH,CRITICAL", "--ignorefile", "/dev/null", reference,
+        ))
+        if report.get("ArtifactName") != reference or not isinstance(report.get("Results"), list):
+            raise ValueError(f"scanner report identity mismatch for {name}")
+        findings = [
+            finding
+            for result in report["Results"]
+            if isinstance(result, dict)
+            for finding in result.get("Vulnerabilities") or []
+            if isinstance(finding, dict)
+            and str(finding.get("Severity", "")).upper() in {"HIGH", "CRITICAL"}
+        ]
+        if findings:
+            raise ValueError(f"{name} has HIGH/CRITICAL vulnerabilities")
 
 
 def controller_matrix_qualified(path: Path) -> bool:
@@ -93,7 +190,9 @@ def assess(plan_path: Path, output: Path) -> dict[str, Any]:
     plan = json.loads(plan_path.read_text())
     required = {
         "cluster_name", "context", "option", "owner_authorization", "kubeconfig",
-        "qualified_kubectl", "image_ledger", "controller_matrix", "storage_qualified",
+        "qualified_kubectl", "qualified_cosign", "qualified_cosign_sha256",
+        "qualified_trivy", "qualified_trivy_sha256",
+        "cosign_certificate_identity_regexp", "image_ledger", "controller_matrix", "storage_qualified",
         "minimum_available_memory_bytes", "minimum_disk_bytes",
     }
     if not isinstance(plan, dict) or set(plan) != required:
@@ -116,12 +215,21 @@ def assess(plan_path: Path, output: Path) -> dict[str, Any]:
             Path(str(plan["controller_matrix"]))
         ),
         "storage": plan["storage_qualified"] is True,
-        "images": bool(plan["image_ledger"]),
+        "images": bool(
+            plan["image_ledger"] and plan["qualified_cosign"]
+            and plan["qualified_cosign_sha256"] and plan["qualified_trivy"]
+            and plan["qualified_trivy_sha256"]
+        ),
         "kubeconfig": Path(str(plan["kubeconfig"])).is_file(),
         "kubectl": Path(str(plan["qualified_kubectl"])).is_file(),
     }
     if gates["images"]:
-        validate_image_ledger(Path(str(plan["image_ledger"])))
+        qualify_image_ledger(
+            Path(str(plan["image_ledger"])), Path(str(plan["qualified_cosign"])),
+            str(plan["qualified_cosign_sha256"]), Path(str(plan["qualified_trivy"])),
+            str(plan["qualified_trivy_sha256"]),
+            str(plan["cosign_certificate_identity_regexp"]),
+        )
     if gates["kubeconfig"] and gates["kubectl"]:
         kubectl_command(
             Path(str(plan["qualified_kubectl"])), Path(str(plan["kubeconfig"])),

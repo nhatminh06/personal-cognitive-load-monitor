@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
+import scripts.c11_runtime_preflight as preflight
 
 from scripts.c11_runtime_preflight import (
     REQUIRED_CONTROLLERS,
@@ -11,6 +14,7 @@ from scripts.c11_runtime_preflight import (
     assess,
     controller_matrix_qualified,
     kubectl_command,
+    qualify_image_ledger,
     validate_image_ledger,
     validate_target,
 )
@@ -24,6 +28,11 @@ def plan(tmp_path: Path) -> Path:
         "owner_authorization": False,
         "kubeconfig": str(tmp_path / "missing-kubeconfig"),
         "qualified_kubectl": str(tmp_path / "missing-kubectl"),
+        "qualified_cosign": None,
+        "qualified_cosign_sha256": None,
+        "qualified_trivy": None,
+        "qualified_trivy_sha256": None,
+        "cosign_certificate_identity_regexp": "",
         "image_ledger": None,
         "controller_matrix": None,
         "storage_qualified": False,
@@ -84,22 +93,123 @@ def test_kubectl_requires_explicit_safe_files(tmp_path: Path) -> None:
     ]
 
 
-def test_image_ledger_requires_every_zero_finding_signed_identity(tmp_path: Path) -> None:
+def image_ledger(tmp_path: Path, sbom_sha256: str = "b" * 64) -> Path:
     item = {
         "reference": "registry.example/cogniflow/image@sha256:" + "a" * 64,
         "signature_verified": True,
         "scan": {"complete": True, "high": 0, "critical": 0},
-        "sbom_sha256": "b" * 64,
+        "sbom_sha256": sbom_sha256,
         "provenance_sha256": "c" * 64,
     }
     ledger = tmp_path / "ledger.json"
     ledger.write_text(json.dumps({name: item for name in REQUIRED_IMAGES}))
+    return ledger
+
+
+def test_image_ledger_schema_requires_every_claimed_identity(tmp_path: Path) -> None:
+    ledger = image_ledger(tmp_path)
     validate_image_ledger(ledger)
     value = json.loads(ledger.read_text())
     value["kserve-controller"]["scan"]["high"] = 1
     ledger.write_text(json.dumps(value))
     with pytest.raises(ValueError, match="kserve-controller"):
         validate_image_ledger(ledger)
+
+
+def attestation(reference: str, predicate_type: str) -> tuple[str, str]:
+    payload = json.dumps({
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [{"name": reference.split("@", 1)[0], "digest": {
+            "sha256": reference.rsplit(":", 1)[1]
+        }}],
+        "predicateType": predicate_type,
+        "predicate": {},
+    }, sort_keys=True).encode()
+    envelope = json.dumps({"payload": base64.b64encode(payload).decode()})
+    return envelope, hashlib.sha256(payload).hexdigest()
+
+
+def test_qualification_rejects_claims_not_backed_by_verified_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "registry.example/cogniflow/image@sha256:" + "a" * 64
+    sbom, sbom_digest = attestation(reference, "https://spdx.dev/Document")
+    provenance, provenance_digest = attestation(reference, "https://slsa.dev/provenance/v1")
+    ledger = image_ledger(tmp_path, sbom_digest)
+    contents = json.loads(ledger.read_text())
+    for item in contents.values():
+        item["provenance_sha256"] = provenance_digest
+    ledger.write_text(json.dumps(contents))
+    cosign = tmp_path / "cosign"
+    trivy = tmp_path / "trivy"
+    for tool in (cosign, trivy):
+        tool.write_text("tool")
+        tool.chmod(0o700)
+
+    def verified_output(binary: Path, *arguments: str) -> str:
+        if arguments == ("version",):
+            return "GitVersion:    v3.1.4"
+        if arguments == ("--version",):
+            return "Version: 0.76.2"
+        if arguments[0] == "verify-attestation":
+            return sbom if "spdxjson" in arguments else provenance
+        if binary == trivy:
+            return json.dumps({"ArtifactName": reference, "Results": []})
+        return "verified signature"
+
+    monkeypatch.setattr(preflight, "_run", verified_output)
+    qualify_image_ledger(
+        ledger, cosign, hashlib.sha256(cosign.read_bytes()).hexdigest(),
+        trivy, hashlib.sha256(trivy.read_bytes()).hexdigest(), "^trusted-workflow$",
+    )
+
+    contents = json.loads(ledger.read_text())
+    contents["kfp-api"]["sbom_sha256"] = "d" * 64
+    ledger.write_text(json.dumps(contents))
+    with pytest.raises(ValueError, match="evidence digest mismatch"):
+        qualify_image_ledger(
+            ledger, cosign, hashlib.sha256(cosign.read_bytes()).hexdigest(),
+            trivy, hashlib.sha256(trivy.read_bytes()).hexdigest(), "^trusted-workflow$",
+        )
+
+
+def test_qualification_uses_actual_scan_not_zero_count_claims(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = "registry.example/cogniflow/image@sha256:" + "a" * 64
+    sbom, sbom_digest = attestation(reference, "https://spdx.dev/Document")
+    provenance, provenance_digest = attestation(reference, "https://slsa.dev/provenance/v1")
+    ledger = image_ledger(tmp_path, sbom_digest)
+    contents = json.loads(ledger.read_text())
+    for item in contents.values():
+        item["provenance_sha256"] = provenance_digest
+    ledger.write_text(json.dumps(contents))
+    cosign = tmp_path / "cosign"
+    trivy = tmp_path / "trivy"
+    for tool in (cosign, trivy):
+        tool.write_text("tool")
+        tool.chmod(0o700)
+
+    def vulnerable_scan(binary: Path, *arguments: str) -> str:
+        if arguments == ("version",):
+            return "GitVersion:    v3.1.4"
+        if arguments == ("--version",):
+            return "Version: 0.76.2"
+        if arguments[0] == "verify-attestation":
+            return sbom if "spdxjson" in arguments else provenance
+        if binary == trivy:
+            return json.dumps({
+                "ArtifactName": reference,
+                "Results": [{"Vulnerabilities": [{"Severity": "HIGH"}]}],
+            })
+        return "verified signature"
+
+    monkeypatch.setattr(preflight, "_run", vulnerable_scan)
+    with pytest.raises(ValueError, match="HIGH/CRITICAL"):
+        qualify_image_ledger(
+            ledger, cosign, hashlib.sha256(cosign.read_bytes()).hexdigest(),
+            trivy, hashlib.sha256(trivy.read_bytes()).hexdigest(), "^trusted-workflow$",
+        )
 
 
 def test_controller_matrix_requires_every_qualified_component(tmp_path: Path) -> None:

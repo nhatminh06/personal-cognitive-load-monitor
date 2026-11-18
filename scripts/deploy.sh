@@ -5,7 +5,7 @@ action=${1:-}
 [[ "$action" =~ ^(plan|deploy|rollback|teardown)$ ]] || {
   echo "usage: $0 plan|deploy|rollback|teardown" >&2; exit 2;
 }
-required=(KUBE_CONTEXT KUBECONFIG NAMESPACE RELEASE API_IMAGE KSERVE_IMAGE SOURCE_COMMIT MODEL_NAME MODEL_VERSION MODEL_SHA256 MODEL_ARTIFACT_SHA256 MODEL_DATASET_SHA256 MODEL_FEATURE_SCHEMA_VERSION MODEL_PACKAGE_SHA256 MODEL_APPROVAL_STATUS OWNER_AUTHORIZATION)
+required=(KUBE_CONTEXT KUBECONFIG KUBECONFIG_SHA256 TARGET_API_SERVER TARGET_CLUSTER_UID NAMESPACE RELEASE API_IMAGE KSERVE_IMAGE SOURCE_COMMIT MODEL_NAME MODEL_VERSION MODEL_SHA256 MODEL_ARTIFACT_SHA256 MODEL_DATASET_SHA256 MODEL_FEATURE_SCHEMA_VERSION MODEL_PACKAGE_SHA256 MODEL_APPROVAL_STATUS OWNER_AUTHORIZATION)
 for name in "${required[@]}"; do
   [[ -n "${!name:-}" ]] || { echo "$name is required" >&2; exit 2; }
 done
@@ -14,6 +14,9 @@ done
 }
 [[ "$KUBE_CONTEXT" =~ ^[A-Za-z0-9._/-]+$ && "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ && "$RELEASE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || {
   echo "context, namespace or release is invalid" >&2; exit 2;
+}
+[[ "$KUBECONFIG_SHA256" =~ ^[a-f0-9]{64}$ && "$TARGET_CLUSTER_UID" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$ && "$TARGET_API_SERVER" =~ ^https://[^[:space:]]+$ ]] || {
+  echo "owner-approved cluster identity is invalid" >&2; exit 2;
 }
 [[ "$API_IMAGE" =~ ^[a-z0-9-]+-docker\.pkg\.dev/[a-z0-9-]+/cogniflow-images/cognitive-load-api@sha256:[a-f0-9]{64}$ ]] || {
   echo "API_IMAGE must be an immutable Artifact Registry digest" >&2; exit 2;
@@ -28,7 +31,7 @@ done
   echo "model name and version are invalid" >&2; exit 2;
 }
 [[ "$MODEL_APPROVAL_STATUS" == approved ]] || { echo "model approval is required" >&2; exit 2; }
-[[ "$OWNER_AUTHORIZATION" == "DEPLOY:${SOURCE_COMMIT}:${MODEL_PACKAGE_SHA256}:${KUBE_CONTEXT}:${NAMESPACE}:${RELEASE}:${action}" ]] || {
+[[ "$OWNER_AUTHORIZATION" == "DEPLOY:${SOURCE_COMMIT}:${MODEL_PACKAGE_SHA256}:${KUBE_CONTEXT}:${KUBECONFIG_SHA256}:${TARGET_API_SERVER}:${TARGET_CLUSTER_UID}:${NAMESPACE}:${RELEASE}:${action}" ]] || {
   echo "owner authorization is not bound to this exact action" >&2; exit 2;
 }
 if [[ "$action" == rollback ]]; then
@@ -45,14 +48,21 @@ printf 'action=%s\ncontext=%s\nnamespace=%s\nrelease=%s\napi=%s\nkserve=%s\nsour
 umask 077
 
 export KUBECONFIG
-kubectl --context "$KUBE_CONTEXT" auth can-i get namespaces >/dev/null
+[[ -f "$KUBECONFIG" && ! -L "$KUBECONFIG" ]] || { echo "KUBECONFIG must be a real file" >&2; exit 2; }
+actual_kubeconfig_sha256=$(sha256sum -- "$KUBECONFIG" | awk '{print $1}')
+[[ "$actual_kubeconfig_sha256" == "$KUBECONFIG_SHA256" ]] || { echo "kubeconfig identity mismatch" >&2; exit 2; }
+actual_api_server=$(kubectl --kubeconfig "$KUBECONFIG" --context "$KUBE_CONTEXT" config view --minify --raw -o 'jsonpath={.clusters[0].cluster.server}')
+[[ "$actual_api_server" == "$TARGET_API_SERVER" ]] || { echo "cluster API identity mismatch" >&2; exit 2; }
+actual_cluster_uid=$(kubectl --kubeconfig "$KUBECONFIG" --context "$KUBE_CONTEXT" get namespace kube-system -o 'jsonpath={.metadata.uid}')
+[[ "$actual_cluster_uid" == "$TARGET_CLUSTER_UID" ]] || { echo "cluster UID identity mismatch" >&2; exit 2; }
+kubectl --kubeconfig "$KUBECONFIG" --context "$KUBE_CONTEXT" auth can-i get namespaces >/dev/null
 case "$action" in
   deploy)
     scripts/verify_cloud_release.sh "$API_IMAGE" "$KSERVE_IMAGE"
     api_repo=${API_IMAGE%@*}; api_digest=${API_IMAGE#*@}
     kserve_repo=${KSERVE_IMAGE%@*}; kserve_digest=${KSERVE_IMAGE#*@}
     helm upgrade --install "$RELEASE" ./helm/cognitive-load-monitor \
-      --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" --atomic --wait --timeout 10m --history-max 10 \
+      --kubeconfig "$KUBECONFIG" --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" --atomic --wait --timeout 10m --history-max 10 \
       --set image.repository="$api_repo" --set image.digest="$api_digest" \
       --set kserve.enabled=true --set kserve.image.repository="$kserve_repo" \
       --set kserve.image.digest="$kserve_digest" --set config.inferenceMode=kserve \
@@ -60,18 +70,18 @@ case "$action" in
       --set config.modelSha256="$MODEL_SHA256" --set config.modelArtifactSha256="$MODEL_ARTIFACT_SHA256" \
       --set config.modelDatasetSha256="$MODEL_DATASET_SHA256" \
       --set config.modelFeatureSchemaVersion="$MODEL_FEATURE_SCHEMA_VERSION"
-    kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" rollout status deployment/"$RELEASE" --timeout=5m
-    kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" wait --for=condition=Ready \
+    kubectl --kubeconfig "$KUBECONFIG" --context "$KUBE_CONTEXT" -n "$NAMESPACE" rollout status deployment/"$RELEASE" --timeout=5m
+    kubectl --kubeconfig "$KUBECONFIG" --context "$KUBE_CONTEXT" -n "$NAMESPACE" wait --for=condition=Ready \
       inferenceservice/cognitive-load-classifier --timeout=10m
     ;;
   rollback)
-    helm rollback "$RELEASE" "$ROLLBACK_REVISION" --kube-context "$KUBE_CONTEXT" \
+    helm rollback "$RELEASE" "$ROLLBACK_REVISION" --kubeconfig "$KUBECONFIG" --kube-context "$KUBE_CONTEXT" \
       --namespace "$NAMESPACE" --wait --timeout 10m
-    helm status "$RELEASE" --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" >/dev/null
+    helm status "$RELEASE" --kubeconfig "$KUBECONFIG" --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" >/dev/null
     ;;
   teardown)
-    helm uninstall "$RELEASE" --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" --wait
-    if helm status "$RELEASE" --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" >/dev/null 2>&1; then
+    helm uninstall "$RELEASE" --kubeconfig "$KUBECONFIG" --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" --wait
+    if helm status "$RELEASE" --kubeconfig "$KUBECONFIG" --kube-context "$KUBE_CONTEXT" --namespace "$NAMESPACE" >/dev/null 2>&1; then
       echo "release still exists after teardown" >&2; exit 1
     fi
     ;;
