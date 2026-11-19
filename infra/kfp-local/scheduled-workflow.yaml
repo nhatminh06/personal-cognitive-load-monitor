@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-pipeline-scheduledworkflow
+  namespace: kubeflow
+spec:
+  template:
+    spec:
+      containers:
+        - name: ml-pipeline-scheduledworkflow
+          image: cogniflow-kfp-scheduled-workflow@sha256:9fa52c2f7e8a6eb62df0e38afec42be1d44cd15ffd85cd3942b2910455d491f3
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault

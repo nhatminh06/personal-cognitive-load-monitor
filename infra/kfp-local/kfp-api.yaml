@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-pipeline
+  namespace: kubeflow
+spec:
+  template:
+    spec:
+      containers:
+        - name: ml-pipeline-api-server
+          image: cogniflow-kfp-api@sha256:d70accf415ef407fd23fd7a790cfd8f9ec9877324018434264fdb66d378859ad
+          imagePullPolicy: Never
+          env:
+            - name: DBCONFIG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mysql
+                  key: username
+            - name: DBCONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mysql
+                  key: password
+            - name: DBCONFIG_MYSQLCONFIG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mysql
+                  key: username
+            - name: DBCONFIG_MYSQLCONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mysql
+                  key: password
+            - name: V2_DRIVER_IMAGE
+              value: cogniflow-kfp-driver@sha256:175b9bbf02a4fde6211a6716dc499524236729b30dd75e6cd2362fc25480f963
+            - name: V2_LAUNCHER_IMAGE
+              value: cogniflow-kfp-launcher@sha256:8e2f3860b0853bd841c8fc86113f5fe3d9964f7e87ebf693cd064abfd57ad9c5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault

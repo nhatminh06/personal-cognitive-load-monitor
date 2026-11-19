@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metadata-envoy-deployment
+  namespace: kubeflow
+spec:
+  template:
+    spec:
+      containers:
+        - name: container
+          image: ghcr.io/kubeflow/kfp-metadata-envoy@sha256:bf7ad93d1c0621f0081e1c2f5be1e96b6955b2615115564837f88b3e95c33126
+          imagePullPolicy: Never

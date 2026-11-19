@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: kubeflow
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 27
+        fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mysql
+          image: cogniflow/mysql@sha256:367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3
+          imagePullPolicy: Never
+          args:
+            - --datadir
+            - /var/lib/mysql
+            - --authentication-policy=mysql_native_password
+            - --mysql-native-password=ON
+            - --disable-log-bin
+          env:
+            - name: MYSQL_ALLOW_EMPTY_PASSWORD
+              $patch: delete
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mysql
+                  key: root-password
+            - name: MYSQL_DATABASE
+              value: metadb
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mysql
+                  key: username
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mysql
+                  key: password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsGroup: 27
+            runAsNonRoot: true
+            runAsUser: 27
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: mysql-tmp
+              mountPath: /tmp
+            - name: mysql-run
+              mountPath: /var/run/mysqld
+      volumes:
+        - name: mysql-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: mysql-run
+          emptyDir:
+            sizeLimit: 16Mi
