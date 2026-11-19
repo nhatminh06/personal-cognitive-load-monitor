@@ -1,7 +1,9 @@
 # C18 platform completion
 
-**Date:** 2026-11-19  
-**Starting revision:** `52c6666dd520139057528c934b5664e2800f9bae`  
+**Date:** 2026-11-19
+
+**Starting revision:** `52c6666dd520139057528c934b5664e2800f9bae`
+
 **Overall decision:** **BLOCKED — database locally qualified; platform runtime incomplete**
 
 ## Implemented and executed
