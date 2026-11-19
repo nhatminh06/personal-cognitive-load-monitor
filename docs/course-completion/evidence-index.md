@@ -308,3 +308,17 @@ RPM, but a fail-closed inventory assertion found an unowned residual
 `/usr/lib/mysqlsh` tree, so no image was exported or scanned. Decision:
 **BLOCKED**. Future work requires a from-minimal-RPM packaging path, not another
 derived-image cleanup loop.
+
+## C18 end-to-end platform completion — 2026-11-19
+
+[Implementation and execution record](c18-platform-completion.md). C18 replaced
+the failed derived-image experiments with a minimal Oracle Linux plus official
+MySQL 8.4 server-minimal package. Exact local image
+`sha256:367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3`
+scanned at 0 HIGH / 0 CRITICAL and passed real initialization, authentication,
+schema, persistence, restart and integrity checks as non-root. The
+[machine-readable assessment](c18-evidence/assessment.json) binds the local
+identity and evidence checksums. KFP execution remains blocked on publication,
+signing, the remaining runtime-role ledger, isolated-host resources and owner
+authorization; no run ID, model approval, protected-cluster mutation or cloud
+claim was created.

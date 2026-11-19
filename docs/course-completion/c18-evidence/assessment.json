@@ -1,0 +1,41 @@
+{
+  "build": {
+    "dockerfile_sha256": "007ea58557e090fe6221e778a803edbae45ba412ba6bf6b0f71396a7fae16127",
+    "initializer_sha256": "3719da7127a79b090b7caf1756298d1e2b89cbe3eb2384ca6566092d8bb229de",
+    "mysql_rpm": "mysql-community-server-minimal-8.4.13-1.el9",
+    "mysql_signing_key_id": "b7b3b788a8d3785c",
+    "oracle_linux_base": "oraclelinux@sha256:59431c7e33419d7f28a2c8bb94c77fffea3f4ee3d07583940d7172736932a93b",
+    "upstream_entrypoint_image": "mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902"
+  },
+  "candidate": {
+    "image_id": "sha256:367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3",
+    "local_repository_digest": "cogniflow/mysql@sha256:367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3",
+    "remote_digest": null,
+    "signed": false
+  },
+  "runtime": {
+    "authentication_rejection": "PASS",
+    "databases": ["cachedb", "metadb", "mlpipeline"],
+    "integrity_check": "PASS",
+    "maximum_observed_memory_mib": 436.3,
+    "non_root_user": "mysql:mysql (27:27)",
+    "persistent_bytes": 218427673,
+    "read_only_root": true,
+    "restart_readback": "PASS",
+    "runtime_evidence_sha256": "c78552a13c900b6e23efc596d31f9b8031f189dd342df3d4dc7014d18d53633c"
+  },
+  "scan": {
+    "critical": 0,
+    "database_downloaded_at": "2026-11-19T19:35:38.140510762Z",
+    "database_updated_at": "2026-11-19T13:02:29.533007734Z",
+    "high": 0,
+    "os": "Oracle Linux 9.8",
+    "package_count": 115,
+    "raw_report_sha256": "b056d612e5a93a08961e555e1022d117abbc3ee6d4a1aa935c442fa011b324dc",
+    "sbom_sha256": "f48d812bf3c9f96d081be2ebb86356b9f57096655892cf476e51938d33dfee5b",
+    "scanner": "Trivy 0.76.2",
+    "suppression": false
+  },
+  "starting_commit": "52c6666dd520139057528c934b5664e2800f9bae",
+  "status": "LOCALLY_INTEGRATED"
+}
