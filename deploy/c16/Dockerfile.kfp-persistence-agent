@@ -1,0 +1,30 @@
+FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY kubernetes_platform/go.mod kubernetes_platform/go.mod
+COPY api/go.mod api/go.mod
+RUN apk add --no-cache git
+ENV GOPROXY=https://proxy.golang.org|direct
+RUN GO111MODULE=on go mod download
+COPY . .
+RUN CGO_ENABLED=0 GO111MODULE=on go build -buildvcs=false -mod=readonly -trimpath \
+    -o /persistence_agent ./backend/src/agent/persistence
+
+FROM alpine:3.23.8@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
+
+RUN addgroup -S -g 65532 appuser && adduser -S -D -H -u 65532 -G appuser appuser
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder --chown=65532:65532 /persistence_agent /bin/persistence_agent
+USER 65532:65532
+WORKDIR /bin
+ENV NAMESPACE="" \
+    TTL_SECONDS_AFTER_WORKFLOW_FINISH=86400 \
+    NUM_WORKERS=2 \
+    LOG_LEVEL=info \
+    EXECUTIONTYPE=Workflow
+CMD ["/bin/sh", "-c", "exec /bin/persistence_agent --logtostderr=true --namespace=${NAMESPACE} --ttlSecondsAfterWorkflowFinish=${TTL_SECONDS_AFTER_WORKFLOW_FINISH} --numWorker=${NUM_WORKERS} --executionType=${EXECUTIONTYPE} --logLevel=${LOG_LEVEL}"]
+
+LABEL org.opencontainers.image.source="https://github.com/kubeflow/pipelines" \
+      org.opencontainers.image.revision="7dd28116ad652bfb7b6c282e7920be84e6a7634a" \
+      org.opencontainers.image.version="2.18.1-cogniflow.1"

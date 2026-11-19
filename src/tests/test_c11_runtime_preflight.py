@@ -107,6 +107,7 @@ def image_ledger(tmp_path: Path, sbom_sha256: str = "b" * 64) -> Path:
 
 
 def test_image_ledger_schema_requires_every_claimed_identity(tmp_path: Path) -> None:
+    assert {"kfp-driver", "kfp-launcher", "workflow-executor", "kfp-database"} <= REQUIRED_IMAGES
     ledger = image_ledger(tmp_path)
     validate_image_ledger(ledger)
     value = json.loads(ledger.read_text())

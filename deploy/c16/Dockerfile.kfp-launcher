@@ -1,0 +1,13 @@
+FROM ghcr.io/kubeflow/kfp-launcher@sha256:4feea4874d2b37fc4b4939c89dbf71bd2077feb5ff9433a3bf79d9a4221cb027 AS upstream
+FROM alpine:3.23.8@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
+
+RUN addgroup -S -g 65532 appuser && adduser -S -D -H -u 65532 -G appuser appuser
+COPY --from=upstream /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=upstream --chown=65532:65532 /bin/launcher-v2 /bin/launcher-v2
+USER 65532:65532
+WORKDIR /bin
+ENTRYPOINT ["/bin/launcher-v2"]
+
+LABEL org.opencontainers.image.source="https://github.com/kubeflow/pipelines" \
+      org.opencontainers.image.revision="7dd28116ad652bfb7b6c282e7920be84e6a7634a" \
+      org.opencontainers.image.version="2.18.1-cogniflow.1"
