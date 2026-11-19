@@ -1,0 +1,47 @@
+{
+  "decision": "PASS_LOCAL",
+  "source_revision": "acc3bef1abc8c985867ee7dc36b154dd07a54c6d",
+  "image": "sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9",
+  "runtime_manifest": "sha256:90ecb73bfe8a28fdffbc3d4a7df39646589a12f4c4de5622b7224224fe41adee",
+  "attestation_manifest": "sha256:b4231572af2b08faecc6af9cac29e697df8c815daf3bde2441c36a9625f0805d",
+  "security": {
+    "scanner": "Trivy 0.76.2",
+    "database_updated_at": "2026-11-19T19:04:59.970326968Z",
+    "wolfi_packages": 34,
+    "python_distributions": 89,
+    "high": 0,
+    "critical": 0,
+    "scan_sha256": "5017932de031fa1870b7a01092c3dfd96eb3672850168f4de481a1a6d1ad8b86",
+    "spdx_sha256": "d36e0e8820e0e195188b7abffdae65a97ce84e1fe3a5442f8a0f2a0c2e615efe"
+  },
+  "isolated_component_run": {
+    "kfp_runtime": false,
+    "commands_passed": 6,
+    "rows": {"train": 108, "validation": 36, "test": 36},
+    "dataset_sha256": "6679e9edb87451ee968e21c0aef5280226b2cf609554e048ec365378c3aca80f",
+    "split_sha256": "1b3ec0fb93c8b829af83560b2b4de8766178182d15497d5ad8a514ac962098b9",
+    "selected_model": "logistic_regression",
+    "validation_accuracy": 1.0,
+    "validation_macro_f1": 1.0,
+    "test_accuracy": 1.0,
+    "test_macro_f1": 1.0,
+    "approval_status": "candidate",
+    "pipeline_run_id": "not-a-kfp-run"
+  },
+  "compiled_pipeline_sha256": "c893a6505b4cf83e464f90501ac9355230818460f08fbc4cdcb2336abc3cca9a",
+  "validation": {
+    "full_pytest": "687 passed, 2 skipped",
+    "coverage_percent": 87.0,
+    "ruff": "PASS",
+    "scoped_mypy": "PASS (3 source files)",
+    "helm_lint_and_render": "PASS",
+    "module2_compose": "PASS",
+    "terraform_fmt": "PASS",
+    "terraform_validate": "PASS after backend-disabled initialization with lockfile-pinned signed provider",
+    "gitleaks": "8.30.1 PASS (0 findings)",
+    "gitleaks_report_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  },
+  "kubernetes_executed": false,
+  "published": false,
+  "signed": false
+}

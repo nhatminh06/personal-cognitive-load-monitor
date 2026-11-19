@@ -237,7 +237,7 @@ deploymentSpec:
         - -m
         - cogniflow_data.kfp_tasks
         - evaluate
-        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        image: cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         resources:
           cpuLimit: 1.0
           cpuRequest: 0.25
@@ -292,7 +292,7 @@ deploymentSpec:
         - -m
         - cogniflow_data.kfp_tasks
         - prepare
-        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        image: cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         resources:
           cpuLimit: 1.0
           cpuRequest: 0.25
@@ -318,13 +318,13 @@ deploymentSpec:
         - --pipeline-run-id
         - '{{$.inputs.parameters[''pipeline_run_id'']}}'
         - --component-image
-        - localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        - cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         command:
         - python
         - -m
         - cogniflow_data.kfp_tasks
         - provenance
-        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        image: cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         resources:
           cpuLimit: 1.0
           cpuRequest: 0.25
@@ -356,13 +356,13 @@ deploymentSpec:
         - --pipeline-run-id
         - '{{$.inputs.parameters[''pipeline_run_id'']}}'
         - --component-image
-        - localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        - cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         command:
         - python
         - -m
         - cogniflow_data.kfp_tasks
         - register
-        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        image: cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         resources:
           cpuLimit: 1.0
           cpuRequest: 0.25
@@ -388,7 +388,7 @@ deploymentSpec:
         - -m
         - cogniflow_data.kfp_tasks
         - train
-        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        image: cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         resources:
           cpuLimit: 1.0
           cpuRequest: 0.25
@@ -416,7 +416,7 @@ deploymentSpec:
         - -m
         - cogniflow_data.kfp_tasks
         - validate
-        image: localhost:5001/cogniflow-kfp@sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614
+        image: cogniflow-kfp@sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9
         resources:
           cpuLimit: 1.0
           cpuRequest: 0.25

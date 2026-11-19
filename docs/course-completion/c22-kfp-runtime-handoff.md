@@ -63,9 +63,10 @@ a second orchestrator. Perform it only on an isolated, explicitly authorized
 target matching `cogniflow-c11-*`, with at least 12 GiB available memory and 60
 GiB free disk.
 
-1. Build a dedicated training-component image from the current commit and pass
-   the zero-HIGH/zero-CRITICAL gate. The retained combined image
-   `sha256:8cd171d9…3a614` has 60 HIGH findings and is prohibited.
+1. Use the C23-qualified training-component image
+   `sha256:e296269c…d1f9`; do not use the retained image
+   `sha256:8cd171d9…3a614`, which has 60 HIGH findings. Rebuild and requalify
+   C23 if the application source changes.
 2. Publish every qualified byte-identical image, including the new writer and
    training component. Resolve remote manifest digests, sign them, attach SPDX
    and SLSA attestations, and freshly scan those remote digests.
