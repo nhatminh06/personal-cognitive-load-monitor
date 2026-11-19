@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-19",
+  "decision": "BLOCKED",
+  "starting_commit": "c22eefc11c22930e7a1fb2fbfeac73cb48111262",
+  "platform": "linux/amd64",
+  "contract": {
+    "backend": "MySQL 8.4",
+    "databases": ["mlpipeline", "cachedb", "metadb"],
+    "required_binaries": ["mysqld", "mysql", "mysqladmin", "gosu"],
+    "mysql_shell_required": false,
+    "oci_sdk_required": false,
+    "embedded_python_required": false
+  },
+  "build": {
+    "attempts": 1,
+    "image_created": false,
+    "base": "mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+    "server_package": "mysql-community-server-minimal-8.4.13-1.el9.x86_64",
+    "removed_package": "mysql-shell-8.4.10-1.el9.x86_64",
+    "removed_dependencies": 0,
+    "failure": "fail-closed assertion found residual unowned /usr/lib/mysqlsh tree after RPM removal",
+    "memory_limit_bytes": 4294967296,
+    "cpu_limit": 2
+  },
+  "inventory": {
+    "valid": false,
+    "mysql_shell_rpm_present": false,
+    "mysqlsh_residual_tree_present": true,
+    "python_dist_info_present_after_removal": false,
+    "required_binaries_present": true
+  },
+  "scan": {
+    "performed": false,
+    "reason": "candidate image was not created"
+  },
+  "integration": {
+    "performed": false,
+    "reason": "security qualification prerequisite was not reached"
+  },
+  "resources": {
+    "prebuild_available_memory_bytes": 6135808000,
+    "prebuild_root_available_bytes": 107671703552,
+    "prebuild_tmp_available_bytes": 4047106048,
+    "final_available_memory_bytes": 7668441088,
+    "final_root_available_bytes": 107666726912,
+    "final_tmp_available_bytes": 4183117824
+  },
+  "tests": {
+    "focused": "38 passed",
+    "ruff": "PASS",
+    "scoped_mypy": "PASS",
+    "pipeline_compile": "PASS",
+    "manifest_yaml_json": "PASS",
+    "changed_evidence_gitleaks": "PASS",
+    "git_whitespace": "PASS",
+    "full_regression": "NOT_RUN: no application source or failed candidate Dockerfile retained"
+  },
+  "recommended_next_strategy": "install pinned official mysql-community-server-minimal RPMs into a pinned Oracle Linux base so mysql-shell never enters an image layer",
+  "restrictions": {
+    "kubernetes_mutation": false,
+    "cloud_access": false,
+    "registry_publication": false,
+    "model_approval": false,
+    "docker_prune": false
+  }
+}
