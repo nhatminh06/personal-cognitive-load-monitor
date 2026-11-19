@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-controller
+  namespace: kubeflow
+spec:
+  template:
+    spec:
+      containers:
+        - name: workflow-controller
+          image: cogniflow-argo-workflow-controller@sha256:c115303d506de611f4d230c1a3f234eb7b1feae153c755a79dad56ebb91b44fd
+          imagePullPolicy: Never
+          args:
+            - --configmap
+            - workflow-controller-configmap
+            - --executor-image
+            - cogniflow-argoexec@sha256:f597b17060742da11004bd5badc1a401cb65125035fcdb1f6550c802a4515802
+            - --namespaced
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsGroup: 8737
+            runAsNonRoot: true
+            runAsUser: 8737
+            seccompProfile:
+              type: RuntimeDefault

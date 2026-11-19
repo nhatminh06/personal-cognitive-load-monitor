@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kubeflow/pipelines.git/manifests/kustomize/env/platform-agnostic?ref=7dd28116ad652bfb7b6c282e7920be84e6a7634a
+  - mlflow.yaml
+patches:
+  - path: kfp-launcher.yaml
+  - path: mlmd.yaml
+  - path: mysql.yaml
+  - path: kfp-api.yaml
+  - path: persistence-agent.yaml
+  - path: scheduled-workflow.yaml
+  - path: workflow-controller.yaml
+  - path: metadata-envoy.yaml
+  - path: remove-upstream-mysql-secret.yaml
+  - target:
+      kind: Deployment
+      name: (cache-deployer-deployment|cache-server|ml-pipeline-ui|ml-pipeline-viewer-crd|ml-pipeline-visualizationserver)
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: unused
+  - target:
+      kind: Job
+      name: ml-pipeline-ui-signing-key-init.*
+    patch: |-
+      $patch: delete
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: unused

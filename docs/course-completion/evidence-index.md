@@ -347,3 +347,14 @@ persistence. The [machine-readable assessment](c20-evidence/assessment.json)
 records exact identities and results. Decision: **PARTIAL** because the bounded
 MLMD and metadata-writer builds produced no candidates; Kubernetes metadata
 publication and the six-component KFP run remain BLOCKED.
+
+## C21 KFP metadata integration — 2026-11-19
+
+[Build and execution record](c21-kfp-metadata-integration.md). Supported Ubuntu
+24.04 MLMD image `sha256:d17f04d9…544876` received a complete 0 HIGH / 0
+CRITICAL scan. Real MySQL/MLMD execution migrated schema version 10 and passed
+type, artifact, execution, context, event, association, readback, restart and
+wrong-credential tests. The [machine-readable assessment](c21-evidence/assessment.json)
+binds exact identities and results. Decision: **PARTIAL** because the sole
+metadata-writer rebuild stopped before image creation when its Wolfi builder
+lacked `wget`; no Kubernetes publication or KFP run ID was fabricated.
