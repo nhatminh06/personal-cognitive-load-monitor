@@ -276,3 +276,14 @@ Python packages, and gosu. The one allowed remediation stopped before image
 creation because its verified Go 1.27.4 builder was Debian-based while the
 recipe invoked `apk`; it was not retried. Decision: **BLOCKED**. No database
 container, Kubernetes object, cloud resource, registry, or model was changed.
+
+## C16.2 MySQL security remediation — 2026-11-19
+
+[Bounded build record](c16-2-mysql-security-remediation.md). The Debian/Alpine
+builder mismatch was corrected, gosu 1.20 built successfully from its verified
+revision with Go 1.27.4, and the four vulnerable Oracle Linux packages upgraded
+to their scanner-fixed release. The sole candidate build then stopped before
+image creation because `pyOpenSSL 26.0.0` requires `cryptography <47` while the
+security fix requires `cryptography 50.0.0`. A resolver-only check established
+that `pyOpenSSL 26.4.0` is compatible, but no second build was attempted.
+Decision: **BLOCKED**. No scan or database runtime claim was fabricated.
