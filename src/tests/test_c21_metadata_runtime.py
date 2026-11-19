@@ -8,6 +8,10 @@ MLMD_IMAGE = (
     "cogniflow-mlmd@sha256:"
     "d17f04d9138660061f3bca87d3cfae06a812781e3fae0aa03330443f08544876"
 )
+WRITER_IMAGE = (
+    "cogniflow-metadata-writer@sha256:"
+    "c2a8d2322156040087818323c1e5d1e685dbb63142f52bad263512fb00fa2ae1"
+)
 MYSQL_IMAGE = (
     "cogniflow/mysql@sha256:"
     "367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3"
@@ -63,9 +67,9 @@ def test_overlay_removes_upstream_empty_secret_and_pins_source() -> None:
     ][0]
     assert removal["$patch"] == "delete"
     assert removal["metadata"]["name"] == "mysql-secret"
-    assert "metadata-writer" not in "\n".join(
+    assert "metadata-writer.yaml" in {
         str(item.get("path", "")) for item in overlay["patches"]
-    )
+    }
 
 
 def test_overlay_reuses_qualified_controller_identities() -> None:
@@ -88,3 +92,29 @@ def test_mlmd_build_preserves_upstream_binary_on_supported_non_root_base() -> No
     assert "ubuntu@sha256:73b999393d07" in dockerfile
     assert "COPY --from=upstream" in dockerfile
     assert "USER 10001:10001" in dockerfile
+
+
+def test_metadata_writer_is_pinned_bounded_and_uses_real_mlmd_service() -> None:
+    deployment = _load("metadata-writer.yaml")
+    pod = deployment["spec"]["template"]["spec"]
+    container = pod["containers"][0]
+    environment = {item["name"]: item for item in container["env"]}
+
+    assert container["image"] == WRITER_IMAGE
+    assert container["imagePullPolicy"] == "Never"
+    assert environment["METADATA_GRPC_SERVICE_HOST"]["value"] == (
+        "metadata-grpc-service"
+    )
+    assert environment["METADATA_GRPC_SERVICE_PORT"]["value"] == "8080"
+    assert container["resources"]["limits"] == {"cpu": "500m", "memory": "512Mi"}
+    assert container["securityContext"]["readOnlyRootFilesystem"] is True
+    assert container["securityContext"]["runAsUser"] == 65532
+
+
+def test_metadata_writer_build_uses_checksum_native_source_retrieval() -> None:
+    dockerfile = (ROOT / "deploy/c22/metadata-writer/Dockerfile").read_text()
+
+    assert "ADD --checksum=sha256:4b50a172" in dockerfile
+    assert "wget" not in dockerfile and "curl" not in dockerfile
+    assert "--require-hashes" in dockerfile
+    assert "USER 65532:65532" in dockerfile

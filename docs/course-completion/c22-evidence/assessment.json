@@ -1,0 +1,100 @@
+{
+  "starting_commit": "a234676e8dd8cc43dcd5802110cd02b5d6c78e5e",
+  "status": "PARTIAL",
+  "metadata_writer": {
+    "image": "sha256:c2a8d2322156040087818323c1e5d1e685dbb63142f52bad263512fb00fa2ae1",
+    "manifest": "sha256:cda27ead2630f39395c6acecc0d97ca3d35e8ad38497d47751cc44bd8fb4b643",
+    "attestation_manifest": "sha256:065c862a6a961aefb96331c16db438aa84b2ea08a3142dd824d19b0f14d9a9b1",
+    "user": "65532:65532",
+    "size_bytes": 257844855,
+    "wolfi_packages": 34,
+    "python_distributions": 33,
+    "high": 0,
+    "critical": 0,
+    "scan_sha256": "d946273b0c12aaf101c2a1e2e1884b325edbfc94964f9de2698123ddd473f78d",
+    "sbom_sha256": "b57412d59a829b0fd15d11523cca22e7292fd38f196aee396ca4f3537c1d0470",
+    "dockerfile_sha256": "4e71faf773aca9ef0c4cc359378171626b7b1eda288d69b35afe6a1069a62c74",
+    "requirements_sha256": "6d7ea1e637eeb0f7f4d926b4730c728cf857238b79629f87961c4ba7de2c3065",
+    "source_commit": "7dd28116ad652bfb7b6c282e7920be84e6a7634a",
+    "source_archive_sha256": "4b50a172728854115776532673e0df6d98679fb8303a806d901bb7825e359e55",
+    "source_files_sha256": {
+      "metadata_helpers.py": "ed2abaa955bf6b6209587f4b7b3b6d024c7c8f7ae55945e17c2314f72b06c2bd",
+      "metadata_helpers_test.py": "5bded805aa90c5cb3ef39fae52b17cf163fa7c58fe4deb6587ead24a8c50a7b9",
+      "metadata_writer.py": "60059990a97c571cbdd53fd5061c27289f0345af62a10b1b600533e7c08d72d1"
+    },
+    "upstream_helper_tests": "11 passed",
+    "entrypoint": "/venv/bin/python -u /kfp/metadata_writer/metadata_writer.py",
+    "missing_kubernetes_context_exit": 1,
+    "status": "QUALIFIED_LOCAL"
+  },
+  "mlmd_invalid_credentials": {
+    "image": "sha256:d17f04d9138660061f3bca87d3cfae06a812781e3fae0aa03330443f08544876",
+    "exit_code": 139,
+    "signal": 11,
+    "oom_killed": false,
+    "classification": "UPSTREAM_CORRECTNESS_DEFECT_SEGMENTATION_FAULT",
+    "database_tables_before": 0,
+    "database_tables_after": 0,
+    "unauthorized_access": false,
+    "unauthorized_writes": false,
+    "test_secrets_in_logs": false,
+    "correctness_fix": "NOT_ATTEMPTED_CAUSE_NOT_ESTABLISHED"
+  },
+  "metadata_tests": {
+    "c21_real_mlmd_schema_version": 10,
+    "c21_artifact_execution_context_event_association": "PASS_LOCAL",
+    "c21_restart_persistence": "PASS_LOCAL",
+    "writer_real_kubernetes_publication": "BLOCKED_NO_AUTHORIZED_WORKFLOW_CONTEXT"
+  },
+  "headless_overlay": {
+    "kfp": "2.18.1",
+    "argo": "4.1.6",
+    "render_sha256": "6dc13b9fedfb4f8b528f87a5f6be33175bf1a9f29c11c1bf95d279b100f13322",
+    "schema_validation_sha256": "4969de8165de872281b6d2ada2577d59180439920702d389bd40a09cafd2881d",
+    "documents": 73,
+    "container_image_uses": 16,
+    "mutable_image_uses": 0,
+    "schema_errors": 0,
+    "applied_to_kubernetes": false
+  },
+  "pipeline": {
+    "compiled_sha256_with_placeholder_component": "c2f1c8c85d35aef40b9b89065a0ce821082273e4c73d361fa3151658fb44e43c",
+    "component_image": "BLOCKED_EXISTING_LOCAL_IMAGE_HAS_60_HIGH_FINDINGS",
+    "real_run_id": null,
+    "runtime_executed": false
+  },
+  "remote_release_prerequisites": {
+    "images_published": false,
+    "remote_digests_resolved": false,
+    "signatures_verified": false,
+    "spdx_attestations_verified": false,
+    "slsa_attestations_verified": false,
+    "qualified_training_component": false,
+    "owner_authorization": false,
+    "isolated_kubeconfig": false,
+    "cogniflow_mysql_secret": false,
+    "artifact_credentials_secret": false
+  },
+  "resources": {
+    "initial_available_memory_bytes": 7234887680,
+    "postcleanup_available_memory_bytes": 7571955712,
+    "final_available_memory_bytes": 6980091904,
+    "negative_test_mysql_peak_memory": "431 MiB",
+    "negative_test_mysql_volume_bytes": 218314474,
+    "final_root_available_bytes": 102030942208,
+    "final_tmp_available_bytes": 7988703232
+  },
+  "validation": {
+    "focused_pytest": "48 passed, 1 warning",
+    "upstream_metadata_helper_pytest": "11 passed",
+    "ruff": "PASS",
+    "scoped_mypy": "PASS (3 source files)",
+    "helm_lint_and_render": "PASS",
+    "module2_compose_validation": "PASS",
+    "kubernetes_openapi_validation": "73/73 objects, 0 errors",
+    "full_regression": "NOT_RERUN_NO_APPLICATION_SOURCE_CHANGE",
+    "retained_full_regression": "C21: 684 passed, 5 skipped, 86.95% coverage",
+    "gitleaks": "UNAVAILABLE"
+  },
+  "decision": "PARTIAL"
+}

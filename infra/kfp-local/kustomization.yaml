@@ -12,6 +12,7 @@ patches:
   - path: scheduled-workflow.yaml
   - path: workflow-controller.yaml
   - path: metadata-envoy.yaml
+  - path: metadata-writer.yaml
   - path: remove-upstream-mysql-secret.yaml
   - target:
       kind: Deployment
