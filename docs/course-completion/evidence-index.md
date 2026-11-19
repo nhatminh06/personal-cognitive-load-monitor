@@ -370,3 +370,11 @@ MLMD wrong credentials were independently confirmed to trigger SIGSEGV with no
 authentication, writes or secret leakage. Decision: **PARTIAL** because real
 writer publication and KFP execution require authorized Kubernetes, remote
 signed images, and a separately qualified training-component image.
+
+## C23 KFP training component — 2026-11-19
+
+[Qualification record](c23-kfp-component-qualification.md). A minimal,
+hash-locked non-root image now runs all six production commands and scans at
+0 HIGH/0 CRITICAL. The compiled KFP graph is bound to its exact local digest.
+Decision: **PASS_LOCAL**; this is isolated component qualification, not a KFP
+run, remote release, model approval or Kubernetes acceptance.
