@@ -358,3 +358,15 @@ wrong-credential tests. The [machine-readable assessment](c21-evidence/assessmen
 binds exact identities and results. Decision: **PARTIAL** because the sole
 metadata-writer rebuild stopped before image creation when its Wolfi builder
 lacked `wget`; no Kubernetes publication or KFP run ID was fabricated.
+
+## C22 metadata writer and runtime handoff — 2026-11-19
+
+[Qualification and handoff record](c22-kfp-runtime-handoff.md). Checksum-native
+source retrieval produced non-root writer image `sha256:c2a8d232…a2ae1`; its
+complete Wolfi/Python scan reported 0 HIGH and 0 CRITICAL, upstream helper tests
+passed 11/11, and missing Kubernetes context failed cleanly. The headless KFP
+overlay now has 16/16 immutable service image uses and 73 schema-valid objects.
+MLMD wrong credentials were independently confirmed to trigger SIGSEGV with no
+authentication, writes or secret leakage. Decision: **PARTIAL** because real
+writer publication and KFP execution require authorized Kubernetes, remote
+signed images, and a separately qualified training-component image.
