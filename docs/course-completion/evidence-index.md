@@ -334,3 +334,16 @@ records exact identities and status. The vertical slice remains **PARTIAL**:
 MLMD uses unsupported Ubuntu 20.04, metadata writer has 47 HIGH findings, and
 the existing MLflow image has 60 HIGH findings, so database migration, MLflow
 registration and Kubernetes pipeline execution were correctly not run.
+
+## C20 MLMD, metadata writer and MLflow integration — 2026-11-19
+
+[Build and execution record](c20-mlmd-metadata-mlflow.md). A minimal non-root
+MLflow 3.17.2 image (`sha256:de0b5f8b…863b5`) received a complete current
+Wolfi/Python scan with 0 HIGH and 0 CRITICAL findings. Real task-owned MySQL,
+MLflow and SeaweedFS services completed schema migration, experiment/run
+creation, model logging, unapproved candidate registration, direct artifact
+checksum verification, negative credential/artifact checks and restart
+persistence. The [machine-readable assessment](c20-evidence/assessment.json)
+records exact identities and results. Decision: **PARTIAL** because the bounded
+MLMD and metadata-writer builds produced no candidates; Kubernetes metadata
+publication and the six-component KFP run remain BLOCKED.
