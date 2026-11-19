@@ -1,0 +1,97 @@
+{
+  "artifact_runtime": {
+    "authentication_rejection": "PASS",
+    "bytes": 36,
+    "cleanup": "PASS",
+    "image": "ghcr.io/chrislusf/seaweedfs@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15",
+    "maximum_observed_memory_mib": 150.5,
+    "object_sha256": "09ce944f453750e6386dbbcb48bf2fdecf25f9cded90ff1938898564b712f2f5",
+    "restart_readback": "PASS",
+    "status": "PASS_LOCAL"
+  },
+  "c10_checks": {
+    "actual_pipeline_execution": "NOT_RUN",
+    "artifact_persistence": "PASS_LOCAL",
+    "candidate_checksum_verification": "NOT_RUN",
+    "candidate_registration": "NOT_RUN",
+    "database_migration": "NOT_RUN",
+    "kfp_controller_readiness": "NOT_RUN",
+    "mlflow_integration": "BLOCKED",
+    "mlmd_integration": "BLOCKED"
+  },
+  "images": {
+    "artifact_store": {
+      "critical": 0,
+      "high": 0,
+      "sbom_sha256": "80c9360399d7c760b842c5394684bbedd7d7b8674baa11a875669ccd78ed9e65",
+      "scan_sha256": "8b6c457ca147aba537d9e812b51f230b166c448933303241ac61aee43b4b447e",
+      "status": "QUALIFIED_LOCAL",
+      "value": "sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15"
+    },
+    "init_helper": {
+      "critical": 0,
+      "high": 0,
+      "sbom_sha256": "67c950cd5a17a4f728f1f50daa963eaa8117b62e7f223d2c4fe707fed4ae3e56",
+      "scan_sha256": "f6dbdb1c565a28c2e6f0a92b83689162cbff2595551e89fb3edeed42dc97285a",
+      "status": "QUALIFIED_LOCAL",
+      "value": "sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2"
+    },
+    "metadata_envoy": {
+      "critical": 0,
+      "high": 0,
+      "sbom_sha256": "cab5ba5453edb6f655f28aa50b38ad71fb2e1dacdf13cf4c8c0c2eb1bc4ce476",
+      "scan_sha256": "a776b88d20f79c089771c66b86c53b4798ce0725a94f0ec855c2482ec25d5aed",
+      "source_revision": "7dd28116ad652bfb7b6c282e7920be84e6a7634a",
+      "status": "QUALIFIED_LOCAL",
+      "value": "sha256:bf7ad93d1c0621f0081e1c2f5be1e96b6955b2615115564837f88b3e95c33126"
+    },
+    "metadata_writer": {
+      "critical": 0,
+      "high": 47,
+      "scan_sha256": "aa288c8ad9d19f5d218cd06c1893d1b2f47364b825946c553c9b5b6965f9ac97",
+      "status": "BLOCKED",
+      "value": "sha256:6f5a8d7793a24cebb498f147e3c92fc05115828b7bdbea60ea5f6493e14c20bf"
+    },
+    "mlflow_existing": {
+      "critical": 0,
+      "high": 60,
+      "scan_sha256": "1c0fd04c67c690d542f435238ee875ab8cd93e674c0bad97619be995e15b525c",
+      "status": "BLOCKED",
+      "value": "sha256:8cd171d9d71610e0a29469d86f94caa638662e201563a038d2db06976c43a614"
+    },
+    "mlmd": {
+      "critical": 0,
+      "high": 0,
+      "scan_sha256": "4a9ccbc6a6c58a481980965a941d7f696b79f7a63b7a894d551a442443e98bf6",
+      "status": "BLOCKED_UNSUPPORTED_OS",
+      "value": "sha256:51404ef4419c1426da80f3e14a83dcb55f65bb5a971371d36d14cec1e50af830"
+    },
+    "mysql": {
+      "status": "REUSED_QUALIFIED_LOCAL",
+      "value": "sha256:367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3"
+    }
+  },
+  "kfp_render": {
+    "document_count": 78,
+    "image_use_count": 21,
+    "render_sha256": "1e70dd98380ed9e034505961474cc040dbef054c213ce1388d34af323d431e0e",
+    "schema_status": "PASS_OFFLINE",
+    "schema_validation_sha256": "71795988f9954ea4aefc912276e311029c8c68fc81f8886eeb6504255f2295ee"
+  },
+  "pipeline": {
+    "compiled_sha256": "fc8622c1d5087985b843e62b95de3d96b26680d119360a00817b4113d15d49ee",
+    "runtime_executed": false
+  },
+  "publication": {
+    "attestations_verified": false,
+    "images_published": false,
+    "signatures_verified": false
+  },
+  "scanner": {
+    "database_updated_at": "2026-11-19T13:02:29.533007734Z",
+    "suppressions": false,
+    "version": "0.76.2"
+  },
+  "starting_commit": "075eb2704521f997a1064eedfaa955ed48fbca1a",
+  "status": "PARTIAL"
+}
