@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-19",
+  "decision": "NO-GO",
+  "starting_commit": "75e07ee06977365dc07ecbacb94159c277626c9d",
+  "platform": "linux/amd64",
+  "candidate": {
+    "image_id": "sha256:fcccca5dc28fe353dc30704e2311b4c4d272cf1644ea4c8f89cb325f829fc88c",
+    "tag": "cogniflow/mysql:8.4.13-c163",
+    "retained": false
+  },
+  "build": {
+    "attempts": 1,
+    "succeeded": true,
+    "memory_limit_bytes": 4294967296,
+    "cpu_limit": 2,
+    "dockerfile_sha256": "f33413e6ea97152f63e077f52270759dd04920faf832dd48e168b269de21473e",
+    "buildkit_metadata_sha256": "a41003da7ecdc02b1809430deba25504640c046db1d8746e10f497117e836b02"
+  },
+  "inputs": {
+    "mysql_base": "mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+    "go_builder": "golang@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea",
+    "gosu_commit": "29b939aa5bd4dc588af765b8248f6e39150d2565",
+    "python_requested": {
+      "certifi": "2026.10.18",
+      "cryptography": "50.0.0",
+      "pyOpenSSL": "26.4.0",
+      "urllib3": "2.8.0"
+    }
+  },
+  "scan": {
+    "raw_high": 0,
+    "raw_critical": 0,
+    "accepted": false,
+    "scan_sha256": "e17c1d354463f9c03baac9d7704f2e4337783c013eb77c7f044c41714a5a3d27",
+    "spdx_sha256": "5f960d39f5c0a7bd220646e87e2daf4675e2e48e4a8ad37f4b80497d66e9eb62",
+    "reason": "duplicate dist-info directories and missing old METADATA files made the embedded Python inventory incomplete"
+  },
+  "integration": {
+    "performed": false,
+    "reason": "mandatory security qualification failed"
+  },
+  "resources": {
+    "prebuild_available_memory_bytes": 8026882048,
+    "prebuild_root_available_bytes": 107702308864,
+    "prebuild_tmp_available_bytes": 5839523840,
+    "final_available_memory_bytes": 6174531584,
+    "final_root_available_bytes": 107656773632,
+    "final_tmp_available_bytes": 4047134720
+  },
+  "tests": {
+    "focused": "38 passed",
+    "ruff": "PASS",
+    "scoped_mypy": "PASS",
+    "pipeline_compile": "PASS",
+    "manifest_yaml_json": "PASS",
+    "changed_evidence_gitleaks": "PASS",
+    "git_whitespace": "PASS",
+    "full_regression": "NOT_RUN: no application source or failed candidate Dockerfile retained"
+  },
+  "restrictions": {
+    "kubernetes_mutation": false,
+    "cloud_access": false,
+    "registry_publication": false,
+    "model_approval": false,
+    "docker_prune": false
+  }
+}

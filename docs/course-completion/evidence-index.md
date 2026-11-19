@@ -287,3 +287,13 @@ image creation because `pyOpenSSL 26.0.0` requires `cryptography <47` while the
 security fix requires `cryptography 50.0.0`. A resolver-only check established
 that `pyOpenSSL 26.4.0` is compatible, but no second build was attempted.
 Decision: **BLOCKED**. No scan or database runtime claim was fabricated.
+
+## C16.3 final MySQL dependency correction — 2026-11-19
+
+[Build and security record](c16-3-mysql-dependency-correction.md). The sole
+bounded candidate built and its raw complete Trivy scan reported 0 HIGH and
+0 CRITICAL. Qualification was nevertheless rejected: MySQL Shell's OCI package
+conflicted with the requested cryptography/pyOpenSSL fixes, and pip left
+duplicate package metadata directories with the old `METADATA` files missing.
+This made the scanner inventory incomplete and accepting it would hide packages.
+Decision: **NO-GO**. Functional database tests were correctly not started.
