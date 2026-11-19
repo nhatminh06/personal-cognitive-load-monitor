@@ -264,3 +264,15 @@ fail-closed missing-Kubernetes behavior were verified. Decision: **BLOCKED**
 because task restrictions prohibit the isolated Kubernetes API needed for
 readiness, live SDK, SeaweedFS and authentication checks. The production KFP
 matrix, retained clusters, C6 and SEC-022 are unchanged.
+
+## C16.1 KFP database qualification — 2026-11-19
+
+[Database selection and bounded remediation record](c16-1-database-qualification.md).
+The exact KFP 2.18.1 production overlay selects MySQL for `mlpipeline`,
+`cachedb`, and MLMD's `metadb`; PostgreSQL is not the supported production
+choice. The pinned MySQL 8.4.13 image failed a complete unsuppressed scan with
+42 HIGH and 2 CRITICAL findings across Oracle Linux, embedded MySQL Shell
+Python packages, and gosu. The one allowed remediation stopped before image
+creation because its verified Go 1.27.4 builder was Debian-based while the
+recipe invoked `apk`; it was not retried. Decision: **BLOCKED**. No database
+container, Kubernetes object, cloud resource, registry, or model was changed.

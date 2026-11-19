@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-19",
+  "decision": "BLOCKED",
+  "starting_commit": "4fb770568c01c48ff1d550413c9124adc3c5f5cf",
+  "platform": "linux/amd64",
+  "selected_backend": "mysql",
+  "kfp_version": "2.18.1",
+  "databases": ["mlpipeline", "cachedb", "metadb"],
+  "image": {
+    "reference": "mysql:8.4@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+    "architecture": "amd64",
+    "scan_sha256": "45d42ac44dc38c4f04b020b9005f37196564cc805de5f2999a8f4e761998e8e0",
+    "high": 42,
+    "critical": 2,
+    "qualified": false
+  },
+  "findings": {
+    "os": {"high": 8, "critical": 0},
+    "python": {"high": 8, "critical": 1},
+    "gosu": {"high": 26, "critical": 1}
+  },
+  "remediation": {
+    "attempts": 1,
+    "gosu_release": "1.20",
+    "gosu_commit": "29b939aa5bd4dc588af765b8248f6e39150d2565",
+    "result": "failed before image creation: Debian Go builder recipe invoked apk",
+    "dockerfile_retained": false
+  },
+  "render": {
+    "mysql_documents": 78,
+    "mysql_sha256": "1e70dd98380ed9e034505961474cc040dbef054c213ce1388d34af323d431e0e",
+    "postgres_documents": 79,
+    "postgres_sha256": "feb63a155941cd109f4324f0b20368449f33c9a5bc523aee967da93e99b86eaf"
+  },
+  "integration": {
+    "started": false,
+    "reason": "image did not pass the security gate"
+  },
+  "tests": {
+    "focused": "38 passed",
+    "full_regression": "675 passed, 5 skipped, 5 warnings",
+    "coverage_percent": 87,
+    "ruff": "PASS",
+    "scoped_mypy": "PASS",
+    "pipeline_compile": "PASS",
+    "manifest_yaml": "PASS",
+    "changed_evidence_gitleaks": "PASS",
+    "history_gitleaks": "3 pre-existing findings in docs/cloud-deployment.md at 2a2f16b3dc780d3c184ddce80b1c574de16a9707"
+  },
+  "restrictions": {
+    "kubernetes_mutation": false,
+    "cloud_access": false,
+    "registry_publication": false,
+    "model_approval": false,
+    "docker_prune": false
+  }
+}
