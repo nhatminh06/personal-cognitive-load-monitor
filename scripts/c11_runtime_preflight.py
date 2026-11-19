@@ -17,7 +17,9 @@ from typing import Any
 PROTECTED_CLUSTERS = {"cogniflow-local", "cogniflow-module1-qualification"}
 IMAGE = re.compile(r"[a-z0-9./_-]+@sha256:[0-9a-f]{64}")
 REQUIRED_IMAGES = {
-    "kfp-api", "kfp-persistence-agent", "kfp-scheduled-workflow", "workflow-controller",
+    "kfp-api", "kfp-persistence-agent", "kfp-scheduled-workflow", "kfp-driver",
+    "kfp-launcher", "kfp-metadata-writer", "kfp-metadata-envoy", "ml-metadata",
+    "kfp-database", "kfp-init", "workflow-controller", "workflow-executor",
     "kserve-controller", "knative-serving-controller", "knative-eventing-controller",
     "eventing-durable-transport", "ingress-controller", "cert-manager", "artifact-store",
     "mlflow", "cogniflow-kfp", "cogniflow-kserve", "cognitive-load-api",

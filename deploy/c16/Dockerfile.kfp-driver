@@ -1,0 +1,13 @@
+FROM ghcr.io/kubeflow/kfp-driver@sha256:3014196eb60166a7bfcb89def61e020d72bfd5253eab2844e9d592eba19cde15 AS upstream
+FROM alpine:3.23.8@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
+
+RUN addgroup -S -g 65532 appuser && adduser -S -D -H -u 65532 -G appuser appuser
+COPY --from=upstream /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=upstream --chown=65532:65532 /bin/driver /bin/driver
+USER 65532:65532
+WORKDIR /bin
+ENTRYPOINT ["/bin/driver"]
+
+LABEL org.opencontainers.image.source="https://github.com/kubeflow/pipelines" \
+      org.opencontainers.image.revision="7dd28116ad652bfb7b6c282e7920be84e6a7634a" \
+      org.opencontainers.image.version="2.18.1-cogniflow.1"

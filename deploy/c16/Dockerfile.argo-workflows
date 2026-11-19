@@ -1,0 +1,35 @@
+FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS builder
+
+WORKDIR /src
+RUN apk add --no-cache git ca-certificates mailcap
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go get github.com/go-jose/go-jose/v4@v4.1.6 golang.org/x/net@v0.62.0
+RUN CGO_ENABLED=0 go build -mod=mod -trimpath \
+    -ldflags '-s -w -extldflags -static -X github.com/argoproj/argo-workflows/v4.version=v4.1.6-cogniflow.1 -X github.com/argoproj/argo-workflows/v4.buildDate=2026-10-22T08:10:54Z -X github.com/argoproj/argo-workflows/v4.gitCommit=43021573c5a35cbafae009043c132dfcef43a112 -X github.com/argoproj/argo-workflows/v4.gitTreeState=patched -X github.com/argoproj/argo-workflows/v4.gitTag=v4.1.6' \
+    -o /workflow-controller ./cmd/workflow-controller
+RUN CGO_ENABLED=0 go build -mod=mod -trimpath \
+    -ldflags '-s -w -extldflags -static -X github.com/argoproj/argo-workflows/v4.version=v4.1.6-cogniflow.1 -X github.com/argoproj/argo-workflows/v4.buildDate=2026-10-22T08:10:54Z -X github.com/argoproj/argo-workflows/v4.gitCommit=43021573c5a35cbafae009043c132dfcef43a112 -X github.com/argoproj/argo-workflows/v4.gitTreeState=patched -X github.com/argoproj/argo-workflows/v4.gitTag=v4.1.6' \
+    -o /argoexec ./cmd/argoexec
+
+FROM gcr.io/distroless/static-debian13:latest@sha256:034df5c1737e8241f6ed6423a12e720ee0f6d6f088609ee172f98f6f2166ef5d AS workflow-controller
+USER 8737:8737
+COPY hack/ssh_known_hosts /etc/ssh/
+COPY hack/nsswitch.conf /etc/
+COPY --from=builder --chown=8737:8737 /workflow-controller /bin/workflow-controller
+ENTRYPOINT ["/bin/workflow-controller"]
+LABEL org.opencontainers.image.source="https://github.com/argoproj/argo-workflows" \
+      org.opencontainers.image.revision="43021573c5a35cbafae009043c132dfcef43a112" \
+      org.opencontainers.image.version="v4.1.6-cogniflow.1"
+
+FROM gcr.io/distroless/static-debian13:latest@sha256:034df5c1737e8241f6ed6423a12e720ee0f6d6f088609ee172f98f6f2166ef5d AS argoexec
+USER 8737:8737
+COPY --from=builder /etc/mime.types /etc/mime.types
+COPY hack/ssh_known_hosts /etc/ssh/
+COPY hack/nsswitch.conf /etc/
+COPY --from=builder --chown=8737:8737 /argoexec /bin/argoexec
+ENTRYPOINT ["/bin/argoexec"]
+LABEL org.opencontainers.image.source="https://github.com/argoproj/argo-workflows" \
+      org.opencontainers.image.revision="43021573c5a35cbafae009043c132dfcef43a112" \
+      org.opencontainers.image.version="v4.1.6-cogniflow.1"

@@ -1,0 +1,15 @@
+FROM ghcr.io/kubeflow/kfp-scheduled-workflow-controller@sha256:b602c205f465070e68a63eb0e86d32007f66dd715d63457acd3871598880c2bd AS upstream
+FROM alpine:3.23.8@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
+
+RUN addgroup -S -g 65532 appuser && adduser -S -D -H -u 65532 -G appuser appuser
+COPY --from=upstream /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=upstream /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=upstream --chown=65532:65532 /bin/controller /bin/controller
+USER 65532:65532
+WORKDIR /bin
+ENV NAMESPACE="" LOG_LEVEL=info
+CMD ["/bin/sh", "-c", "exec /bin/controller --logtostderr=true --multiUser=${MULTIUSER:-false} --namespace=${NAMESPACE} --logLevel=${LOG_LEVEL} --clientQPS=${CLIENT_QPS:-5} --clientBurst=${CLIENT_BURST:-10} --recurringRunResyncIntervalSeconds=${RESYNC_INTERVAL_SECONDS:-30} --metricsPort=${METRICS_PORT:-9090} --userIdentityHeader=\"${USER_IDENTITY_HEADER:-}\" --userIdentityValue=\"${USER_IDENTITY_VALUE:-}\""]
+
+LABEL org.opencontainers.image.source="https://github.com/kubeflow/pipelines" \
+      org.opencontainers.image.revision="7dd28116ad652bfb7b6c282e7920be84e6a7634a" \
+      org.opencontainers.image.version="2.18.1-cogniflow.1"

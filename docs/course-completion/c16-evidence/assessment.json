@@ -1,0 +1,141 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-19",
+  "decision": "PARTIAL",
+  "source_commit": "6cb6bf353726c8465861daecde9191aa008dc6ee",
+  "platform": "linux/amd64",
+  "selected_versions": {
+    "kfp": "2.18.1",
+    "kfp_source_commit": "7dd28116ad652bfb7b6c282e7920be84e6a7634a",
+    "argo_workflows": "4.1.6",
+    "argo_source_commit": "43021573c5a35cbafae009043c132dfcef43a112",
+    "database": "PostgreSQL 18.7-alpine3.23",
+    "artifact_store": "SeaweedFS 4.54"
+  },
+  "scanner": {
+    "name": "Trivy",
+    "version": "0.76.2",
+    "database_schema": 2,
+    "database_updated_at": "2026-11-19T01:05:40.842299544Z",
+    "database_downloaded_at": "2026-11-19T06:10:37.578813775Z",
+    "suppressions": false
+  },
+  "qualified_local_images": {
+    "kfp-api": {
+      "image_id": "sha256:d70accf415ef407fd23fd7a790cfd8f9ec9877324018434264fdb66d378859ad",
+      "user": "65532:65532",
+      "scan_sha256": "863c59824455fa04b7a8824719362c669543001e5f599db961890fc5118187a6",
+      "sbom_sha256": "7a0c6d5e61864c07af8bac2d441747937d7fb10e0de9b58f373efc1232e5bead",
+      "high": 0,
+      "critical": 0
+    },
+    "kfp-persistence-agent": {
+      "image_id": "sha256:707c3af5abdb6c57902036916fd0d74d6bb014889a30c19e16574a71c92a68dc",
+      "user": "65532:65532",
+      "scan_sha256": "830d53d99ef3b0baedfa0aa77634d05a83d8dc04e0a80e582bd29c4e4ff6f354",
+      "sbom_sha256": "4e4c75ce01c601e6917a7fb074b9b56f15388bc7ab1a655417c92fa89d333664",
+      "high": 0,
+      "critical": 0
+    },
+    "kfp-scheduled-workflow": {
+      "image_id": "sha256:9fa52c2f7e8a6eb62df0e38afec42be1d44cd15ffd85cd3942b2910455d491f3",
+      "user": "65532:65532",
+      "scan_sha256": "bf037b568b982dfeac7d6e2b2959dbac6706495c1d4db6f7d38045c2b90f1482",
+      "sbom_sha256": "0fb551e41f67e24dd6753cc13b1d58426f2404b9336dcec4d538b5efcf46eceb",
+      "high": 0,
+      "critical": 0
+    },
+    "workflow-controller": {
+      "image_id": "sha256:c115303d506de611f4d230c1a3f234eb7b1feae153c755a79dad56ebb91b44fd",
+      "user": "8737:8737",
+      "scan_sha256": "180b20c4b8132ae62c5dbce7f203f9d3918f8c6e9b0fcd4ee23c39b926d168a6",
+      "sbom_sha256": "9390b782a159b415e194721bc85d43e972272012a61f699ce24cb0125b4733a4",
+      "high": 0,
+      "critical": 0
+    },
+    "workflow-executor": {
+      "image_id": "sha256:f597b17060742da11004bd5badc1a401cb65125035fcdb1f6550c802a4515802",
+      "user": "8737:8737",
+      "scan_sha256": "8a9189793d2f801b5f608d6a2993fc1e4c06ccbc27b2875e8ab96d9d5ad7770d",
+      "sbom_sha256": "f667380c475318fd70ef602f605fdc629bccd727fc0603492f856916ce908482",
+      "high": 0,
+      "critical": 0
+    },
+    "kfp-driver": {
+      "image_id": "sha256:175b9bbf02a4fde6211a6716dc499524236729b30dd75e6cd2362fc25480f963",
+      "user": "65532:65532",
+      "scan_sha256": "ead9fa0cc285504dac246d4a32322747f60583d8ac45037be644ccdd5a1c0c71",
+      "sbom_sha256": "d3583bef3cae14346e23538657ab43b6f8e5447f7164bb3983ffa521a2d70c97",
+      "high": 0,
+      "critical": 0
+    },
+    "kfp-launcher": {
+      "image_id": "sha256:8e2f3860b0853bd841c8fc86113f5fe3d9964f7e87ebf693cd064abfd57ad9c5",
+      "user": "65532:65532",
+      "scan_sha256": "e6c5b0c836696491d5e1dba989bf2d4669c3c9e1d630689c0cda5b9532c37bc1",
+      "sbom_sha256": "35460bcaf8819b350d6a9539fe7627486129f7dd02850b7db32aef648bca10ce",
+      "high": 0,
+      "critical": 0
+    }
+  },
+  "blocked_image": {
+    "role": "kfp-database",
+    "reference": "docker.io/postgres:18.7-alpine3.23@sha256:e6014245dccbc0f28b07dac8e3f793c94a18420f78690e9db547957514a524f1",
+    "scan_sha256": "52fa414fde30338c44adb824203dac7fa7b1995a68bcc17952947a57c6877656",
+    "high": 26,
+    "critical": 1,
+    "cause": "usr/local/bin/gosu 1.19 embeds Go 1.24.6",
+    "remediation_attempts": 1,
+    "remediation_result": "failed before image creation because github.com/tianon/gosu has no v1.19 Go module tag"
+  },
+  "source_provenance": {
+    "kfp_source_archive_sha256": "49da3fcb824ece95335140f1252672257b4d47bb99f7c4f5b093428a1a5667ce",
+    "kfp_commit_signature_verified": true,
+    "kfp_release_tag_signed": false,
+    "argo_source_archive_sha256": "94d75d93774c8352417a74b465e13804da93875b1bfa29151a41a2ba31eda7bb",
+    "argo_commit_signature_verified": true
+  },
+  "build_inputs": {
+    "apiserver_dockerfile_sha256": "2dbefd434ed1b887dbf3f58a6f9db2f4a79e29a41f6077445849c9c24e6f1691",
+    "kfp_persistence_agent_dockerfile_sha256": "cc231370f9a4c77be33964d7546f5e9ffe266ff818561a9f2ac5d60d090341a4",
+    "kfp_scheduled_workflow_dockerfile_sha256": "67442facb3490448befe22f9eeefaf4d15815f0492fda4b4391a95c6260b4a7f",
+    "argo_dockerfile_sha256": "ca36a209e10230016c37d21676a36e11efd442183604326aa188050594ff29c7",
+    "kfp_driver_dockerfile_sha256": "38c227dd32ca809388729b6c6c7b5f40d07e133dec930de80fb94a2fb18f434f",
+    "kfp_launcher_dockerfile_sha256": "9396007c0f2c24b9993938049091d5bd17bbb686dd4ac042724925013e4009f9"
+  },
+  "publication": {
+    "images_published": false,
+    "signatures_available": false,
+    "attestations_available": false,
+    "live_runtime_qualified": false
+  },
+  "resources": {
+    "prebuild_mem_available_bytes": 6665265152,
+    "final_mem_available_bytes": 8463310848,
+    "final_swap_used_bytes": 5648465920,
+    "final_root_available_bytes": 110210437120,
+    "final_tmp_available_bytes": 5904842752,
+    "docker_images_bytes_reported": "132.3GB",
+    "docker_build_cache_bytes_reported": "83.6GB"
+  },
+  "tests": {
+    "focused": "66 passed",
+    "full_regression": "675 passed, 2 skipped, 5 warnings",
+    "coverage_percent": 87,
+    "manifest_render_documents": 79,
+    "manifest_render_sha256": "feb63a155941cd109f4324f0b20368449f33c9a5bc523aee967da93e99b86eaf",
+    "c11_acceptance": "BLOCKED fail-closed with mutation_executed=false",
+    "ruff": "PASS",
+    "mypy": "PASS",
+    "helm": "PASS"
+  },
+  "restrictions": {
+    "kubernetes_mutation": false,
+    "cloud_access": false,
+    "registry_publication": false,
+    "model_approval": false,
+    "docker_prune": false,
+    "kserve_started": false,
+    "knative_started": false
+  }
+}

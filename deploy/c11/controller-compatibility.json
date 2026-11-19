@@ -15,15 +15,15 @@
       "evidence": "docs/security-audit/c54-kubectl-qualification.md"
     },
     "kfp-runtime": {
-      "version": "2.17.2 proposed",
+      "version": "2.18.1 proposed with Argo Workflows 4.1.6",
       "qualified": false,
       "source": "https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/",
-      "blocker": "the first-priority API image has 92 HIGH and 3 CRITICAL findings; remaining backend roles were not pulled after this mandatory gate failed",
+      "blocker": "seven mandatory local images pass the security gate, but PostgreSQL 18.7-alpine3.23 has 1 CRITICAL and 26 HIGH findings in gosu; its single bounded remediation build failed",
       "first_priority_image": {
-        "reference": "ghcr.io/kubeflow/kfp-api-server@sha256:8e9f9e66d127fe27f61236bc35a66e8558c58e5f828ad50b15257220140bf023",
-        "platform_manifest": "sha256:dcae5f50acaecffc2fc2e596fd241db7864627c82089fac4ad92dc4e692bc619",
-        "scan": {"complete": true, "high": 92, "critical": 3},
-        "scan_sha256": "bf72aa5b8fe847bd2d94972da27c52df122bb3c4744640faea4e813c4d35763d"
+        "reference": "cogniflow-kfp-api@sha256:d70accf415ef407fd23fd7a790cfd8f9ec9877324018434264fdb66d378859ad",
+        "published": false,
+        "scan": {"complete": true, "high": 0, "critical": 0},
+        "scan_sha256": "863c59824455fa04b7a8824719362c669543001e5f599db961890fc5118187a6"
       }
     },
     "kfp-sdk": {
