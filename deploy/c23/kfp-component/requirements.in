@@ -1,0 +1,6 @@
+joblib==1.6.0
+mlflow==3.17.2
+pandas==2.3.3
+pydantic==2.14.1
+scikit-learn==1.9.1
+skops==0.16.0
