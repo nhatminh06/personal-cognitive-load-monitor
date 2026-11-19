@@ -214,18 +214,41 @@ Inspect TLS, ServiceAccounts, requests/limits and NetworkPolicies, then use the 
 Never apply the checked-in Knative workload YAML directly in GKE: those files
 intentionally contain local `:dev` images and `imagePullPolicy: Never`.
 `scripts/render_production_knative.py` is the fail-closed production path. It
-accepts only the two released Artifact Registry digest references, replaces all
-four logging/dead-letter/detector/sink container occurrences, and fails if any
-mutable or development image remains. Apply its reviewed output only from the
-separate manual `.github/workflows/deploy-knative.yaml` action. That workflow is
-main-only, uses the separately protected `production-knative` environment and
-the OIDC deployer identity, re-verifies all four released image digests, checks
-namespace-local authorization and restricted Pod Security admission, then
-applies the network policy, Broker, rendered workloads and Triggers. It neither
-builds nor publishes images. Before its first authorized run, a bootstrap
-administrator must create/label the namespace and apply
+accepts only the two released Artifact Registry digest references and the name
+of an owner-provisioned durable-channel ConfigMap, replaces all four
+logging/dead-letter/detector/sink container occurrences, and fails if any
+mutable image or the default in-memory Broker channel remains:
+
+```bash
+python scripts/render_production_knative.py \
+  --event-consumer "$EVENT_CONSUMER_IMAGE_AT_DIGEST" \
+  --anomaly-detector "$ANOMALY_IMAGE_AT_DIGEST" \
+  --durable-channel-configmap "$REVIEWED_DURABLE_CHANNEL_CONFIGMAP" \
+  > /tmp/cogniflow-knative-production.yaml
+```
+
+No tracked workflow currently applies that output; adding an owner-protected,
+OIDC-authenticated deployment job remains a release prerequisite. Before its
+first authorized run, a bootstrap administrator must create/label the namespace and apply
 `deploy/gke/eventing-deployer-rbac.yaml` with the reviewed project substitution;
-the workflow deliberately cannot grant itself access.
+the future deployment job must not be allowed to grant itself access.
+
+After a KFP run registers a candidate, bind its exact `.skops` bytes to an
+immutable GCS generation and both MLflow identities using Workload Identity:
+
+```bash
+python scripts/qualify_gcs_candidate.py \
+  --bucket "$MLFLOW_BUCKET" --artifact "$MODEL_SKOPS" \
+  --model-name "$MODEL_NAME" --model-version "$MODEL_VERSION" \
+  --run-id "$MLFLOW_RUN_ID" --source-revision "$SOURCE_REVISION" \
+  --tracking-uri http://mlflow.mlflow.svc.cluster.local:5000 \
+  --output /tmp/gcs-candidate-identity.json
+```
+
+The command uses create-only GCS upload, records the object generation and
+checksums, independently downloads that generation, and refuses non-candidate
+MLflow versions. It uses Application Default Credentials; no key-file argument
+exists. Mocked unit tests do not constitute GCS runtime acceptance.
 
 ## 7. Final demo acceptance
 

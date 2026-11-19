@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-18",
+  "starting_head": "4d20c15223b1670eea9f2a5b100302c2c90367d8",
+  "decision": "BLOCKED",
+  "blocker": "Readiness and live API compatibility require Kubernetes API access, which the task restrictions prohibit creating or mutating.",
+  "original": {
+    "release": "2.17.2",
+    "image_id": "sha256:d0994aa988a71e3ff047a2d87d1d95b76d51484fba5bb08d64acf5722e700c6b",
+    "scan_sha256": "bf72aa5b8fe847bd2d94972da27c52df122bb3c4744640faea4e813c4d35763d",
+    "high": 92,
+    "critical": 3,
+    "os_findings": 68,
+    "go_findings": 27,
+    "python_javascript_findings": 0,
+    "unsupported_runtime_findings": 0
+  },
+  "upstream_release": {
+    "version": "2.18.1",
+    "source_commit": "7dd28116ad652bfb7b6c282e7920be84e6a7634a",
+    "github_commit_signature_verified": true,
+    "annotated_tag_signature_verified": false,
+    "source_archive_sha256": "49da3fcb824ece95335140f1252672257b4d47bb99f7c4f5b093428a1a5667ce",
+    "released_image_digest": "sha256:d896bf8eaa224f5ba005d72a7f865b51a680e36e4ffc8a265623098f1b6b9c2f",
+    "released_image_high": 48,
+    "released_image_critical": 0,
+    "released_image_scan_sha256": "2d9b9b21f7d378e5a11fe7b24e2a7975a6e0afb22a32a2a53d6e9f6f1c32b464"
+  },
+  "source_build": {
+    "attempts": 1,
+    "dockerfile_sha256": "2dbefd434ed1b887dbf3f58a6f9db2f4a79e29a41f6077445849c9c24e6f1691",
+    "image_id": "sha256:d70accf415ef407fd23fd7a790cfd8f9ec9877324018434264fdb66d378859ad",
+    "runtime_user": "65532:65532",
+    "high": 0,
+    "critical": 0,
+    "medium": 19,
+    "low": 8,
+    "unknown": 8,
+    "scan_sha256": "1846f43885390ce74548e828e2002105273d71e1c26e6f8d83b0a2b23ae7c156"
+  },
+  "resource_measurements": {
+    "prebuild_available_memory_bytes": 6870614016,
+    "postbuild_available_memory_bytes": 8814018560,
+    "postbuild_persistent_free_bytes": 123553087488,
+    "postbuild_tmp_free_bytes": 8041943040,
+    "api_memory": "20.84 MiB",
+    "mysql_memory": "658.1 MiB"
+  },
+  "tests": {
+    "existing_pipeline_and_tasks": "20 passed, 1 warning",
+    "upstream_upload_authorization": "PASS",
+    "binary_launch": "PASS",
+    "mysql_initialization": "PASS",
+    "missing_kubernetes_failure": "PASS: fail closed after configured 5s timeout",
+    "health_and_readiness": "BLOCKED: no Kubernetes API permitted",
+    "live_sdk_api_compatibility": "BLOCKED: server did not reach readiness",
+    "artifact_repository_runtime": "BLOCKED: server did not reach readiness",
+    "retained_clusters_mutated": false
+  }
+}

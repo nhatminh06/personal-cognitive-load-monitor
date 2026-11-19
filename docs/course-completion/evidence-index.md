@@ -4,6 +4,12 @@
 **Starting HEAD:** `20a1d1e0755f9727728fa998146f48570824e62e`
 **Policy:** Historical runtime evidence is labeled as historical. No raw Track B evidence is included.
 
+## C13 pre-deployment qualification — 2026-11-18
+
+[Fresh application-image scans, first KFP controller result, real bounded
+Kafka/Bronze runtime evidence and fail-closed deployment automation](c13-predeployment-qualification.md).
+Kubernetes and cloud runtime remain blocked; no protected cluster was changed.
+
 ## Module I
 
 | Requirement | Weight | Current status | Exact supporting evidence | Commit or dated runtime evidence | Verification environment | Outstanding acceptance condition |
@@ -243,3 +249,18 @@ runtime preflight failed the unchanged 6 GiB memory gate, so Kafka/SeaweedFS and
 Spark execution are `NOT_RUN`. Full regression passed 642 tests with 5 skips and
 86.99% coverage. This advances implementation readiness only; the MinIO, cloud
 and >100 GB runtime rubric items remain incomplete.
+
+## C14 KFP API Server security remediation — 2026-11-18
+
+[Targeted security and compatibility record](c14-kfp-api-security-remediation.md).
+The C13 report was classified finding by finding: 68 OS and 27 embedded Go
+findings, with no Python, JavaScript or unsupported-runtime findings. Official
+KFP 2.18.1 still had 48 HIGH OS findings. One bounded build from the verified
+2.18.1 source commit produced non-root local image
+`sha256:d70accf415ef407fd23fd7a790cfd8f9ec9877324018434264fdb66d378859ad`
+with a complete unsuppressed 0 HIGH / 0 CRITICAL scan. Existing CogniFlow tests
+and focused upstream authorization tests passed; MySQL initialization and
+fail-closed missing-Kubernetes behavior were verified. Decision: **BLOCKED**
+because task restrictions prohibit the isolated Kubernetes API needed for
+readiness, live SDK, SeaweedFS and authentication checks. The production KFP
+matrix, retained clusters, C6 and SEC-022 are unchanged.

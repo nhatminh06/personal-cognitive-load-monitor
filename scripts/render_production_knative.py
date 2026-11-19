@@ -14,24 +14,35 @@ IMAGE_RE = re.compile(
     r"^[a-z0-9-]+-docker\.pkg\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/"
     r"cogniflow-images/[a-z0-9-]+@sha256:[a-f0-9]{64}$"
 )
-FILES = ("consumer.yaml", "dead-letter.yaml", "anomaly.yaml")
+FILES = (
+    "namespace.yaml", "networkpolicy.yaml", "broker.yaml", "trigger.yaml",
+    "anomaly-trigger.yaml", "consumer.yaml", "dead-letter.yaml", "anomaly.yaml",
+)
 IMAGES = {
     "cogniflow-event-consumer:dev": "event_consumer",
     "cogniflow-anomaly-detector:dev": "anomaly_detector",
 }
 
 
-def render(source: Path, replacements: dict[str, str]) -> str:
+def render(
+    source: Path, replacements: dict[str, str], durable_channel_configmap: str
+) -> str:
     for image in replacements.values():
         if not IMAGE_RE.fullmatch(image):
             raise ValueError(f"production image must be an Artifact Registry digest: {image}")
 
     documents: list[dict[str, object]] = []
     replaced: set[str] = set()
+    if not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", durable_channel_configmap):
+        raise ValueError("durable channel ConfigMap must be a DNS label")
+    if durable_channel_configmap == "config-br-default-channel":
+        raise ValueError("production Broker must not use the default in-memory channel config")
     for filename in FILES:
         for document in yaml.safe_load_all((source / filename).read_text()):
             if not document:
                 continue
+            if document.get("kind") == "Broker":
+                document["spec"]["config"]["name"] = durable_channel_configmap
             containers = (
                 document.get("spec", {})
                 .get("template", {})
@@ -58,6 +69,7 @@ def main() -> None:
     parser.add_argument("--source", type=Path, default=Path("deploy/knative"))
     parser.add_argument("--event-consumer", required=True)
     parser.add_argument("--anomaly-detector", required=True)
+    parser.add_argument("--durable-channel-configmap", required=True)
     args = parser.parse_args()
     try:
         sys.stdout.write(
@@ -67,6 +79,7 @@ def main() -> None:
                     "event_consumer": args.event_consumer,
                     "anomaly_detector": args.anomaly_detector,
                 },
+                args.durable_channel_configmap,
             )
         )
     except (OSError, ValueError, yaml.YAMLError) as error:

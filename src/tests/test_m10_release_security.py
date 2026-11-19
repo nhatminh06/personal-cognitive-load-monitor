@@ -242,6 +242,8 @@ def test_cloud_image_gate_rejects_unfixed_high_findings() -> None:
     verifier = (ROOT / "scripts/verify_cloud_release.sh").read_text()
     assert "Version: 0.76.2" in verifier
     assert "--severity HIGH,CRITICAL --exit-code 1" in verifier
+    assert "cosign verify-attestation" in verifier
+    assert "spdxjson slsaprovenance" in verifier
     assert "--ignore-unfixed" not in verifier
 
 
