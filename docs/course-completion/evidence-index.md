@@ -297,3 +297,14 @@ conflicted with the requested cryptography/pyOpenSSL fixes, and pip left
 duplicate package metadata directories with the old `METADATA` files missing.
 This made the scanner inventory incomplete and accepting it would hide packages.
 Decision: **NO-GO**. Functional database tests were correctly not started.
+
+## C17 minimal MySQL runtime qualification — 2026-11-19
+
+[Contract and bounded build record](c17-minimal-mysql-runtime.md). Exact KFP
+2.18.1 source confirms MySQL Shell/OCI/Python are unnecessary: KFP and MLMD use
+the MySQL protocol, while the official entrypoint needs only server-minimal
+binaries and gosu. The sole build removed exactly the optional `mysql-shell`
+RPM, but a fail-closed inventory assertion found an unowned residual
+`/usr/lib/mysqlsh` tree, so no image was exported or scanned. Decision:
+**BLOCKED**. Future work requires a from-minimal-RPM packaging path, not another
+derived-image cleanup loop.
