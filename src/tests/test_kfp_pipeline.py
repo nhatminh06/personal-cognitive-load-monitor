@@ -9,6 +9,21 @@ from kfp import compiler
 from pipelines.cogniflow_training_pipeline import build_pipeline
 
 IMAGE = "localhost/cogniflow-kfp@sha256:" + "a" * 64
+ROOT = Path(__file__).parents[2]
+
+
+def test_component_image_build_is_pinned_minimal_and_non_root() -> None:
+    dockerfile = (ROOT / "deploy/c23/kfp-component/Dockerfile").read_text()
+    requirements = (ROOT / "deploy/c23/kfp-component/requirements.txt").read_text()
+
+    assert dockerfile.count("@sha256:") == 3
+    assert "--require-hashes" in dockerfile
+    assert "COPY --chown=65532:65532 src/cogniflow_data" in dockerfile
+    assert "COPY --chown=65532:65532 src/preprocessing_api/features.py" in dockerfile
+    assert "COPY src ./src" not in dockerfile
+    assert "USER 65532:65532" in dockerfile
+    assert "COGNIFLOW_CODE_REVISION" in dockerfile
+    assert "--hash=sha256:" in requirements
 
 
 def compiled(tmp_path: Path) -> tuple[str, dict]:
