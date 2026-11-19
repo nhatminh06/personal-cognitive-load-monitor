@@ -1,0 +1,100 @@
+{
+  "starting_commit": "b552cc1f8dc22988f68a4ca6b379a4851c47ecd8",
+  "status": "PARTIAL",
+  "images": {
+    "mysql": {
+      "status": "REUSED_QUALIFIED_LOCAL",
+      "value": "sha256:367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3"
+    },
+    "seaweedfs": {
+      "status": "REUSED_QUALIFIED_LOCAL",
+      "value": "sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15"
+    },
+    "mlflow": {
+      "value": "sha256:de0b5f8bbd26bfea3693700b90a9602cfb5620cb64887a908da60bad4ba863b5",
+      "manifest": "sha256:9a4c27a81411b1198cf6b3f1f71ca15cc9e5ae61fe1dd34652a74d41155f019e",
+      "attestation_manifest": "sha256:bdec52cfe0815043a6cfcaf7e772d240f4a3e1357f31f003da3d52de72b94f83",
+      "status": "QUALIFIED_LOCAL",
+      "user": "65532:65532",
+      "os_packages": 34,
+      "python_distributions": 92,
+      "high": 0,
+      "critical": 0,
+      "scan_sha256": "22013078449571e9a4eeaf81fd027b26319155d81a15ad7a7b458d5c29677335",
+      "sbom_sha256": "67976750e7a512182d2d4106f2992115044804a34b5cd466a6b1b0ac8ae28c49"
+    },
+    "mlmd": {
+      "status": "BLOCKED_NO_CANDIDATE",
+      "cause": "the single supported-base build stopped before export because Ubuntu 24.04 already owns UID 1000"
+    },
+    "metadata_writer": {
+      "status": "BLOCKED_NO_CANDIDATE",
+      "cause": "the single pinned-source build produced no image, so no scan or publication behavior was claimed"
+    }
+  },
+  "scanner": {
+    "name": "Trivy",
+    "version": "0.76.2",
+    "database_updated_at": "2026-11-19T19:04:59.970326968Z",
+    "java_database_updated_at": "2026-11-19T00:58:12.750843023Z",
+    "suppressions": false
+  },
+  "build_inputs": {
+    "dockerfile_sha256": "d11a3365685475d6c2bbe6f5f950e904c161873a7dd06b10f42048cfde19dfad",
+    "requirements_sha256": "1437c8a01c8a8c4d5c4ff5e5245a317bd5ea88804ccf4891329812abd1664fc6",
+    "entrypoint_sha256": "610d446521739b24f5f547800828713721f07f69cc044b4788a199819a7c7538"
+  },
+  "mlflow_runtime": {
+    "status": "PASS_LOCAL",
+    "experiment_id": "1",
+    "run_id": "15093afd53674e409be8cb83fa188f6a",
+    "model_name": "cogniflow-c20-synthetic",
+    "model_version": "1",
+    "approval_status": "candidate-unapproved",
+    "fixture_sha256": "7ecfa75ed0c1c3d4a8d121ccab9993664a2ccbb1f0c5289831f0999a62d66b18",
+    "model_tree_sha256": "604819aba0e5eaa4ec0728e06a4204db83bd259cd68a099053cd1db702ed582b",
+    "mysql_schema_migration": "PASS",
+    "seaweedfs_direct_readback": "PASS",
+    "invalid_credentials": "REJECTED",
+    "invalid_artifact": "REJECTED",
+    "restart_persistence": "PASS",
+    "cleanup": "PASS"
+  },
+  "resources": {
+    "preintegration_available_memory_bytes": 7589289984,
+    "postcleanup_available_memory_bytes": 7498706944,
+    "mysql_maximum_observed_memory": "507.7 MiB",
+    "seaweedfs_maximum_observed_memory": "175.1 MiB",
+    "mlflow_maximum_observed_memory": "1.474 GiB",
+    "mysql_volume_bytes": 227763186,
+    "seaweedfs_volume_bytes": 34446,
+    "root_available_bytes_before_integration": 102240399360,
+    "tmp_available_bytes_before_integration": 8074162176
+  },
+  "acceptance": {
+    "database": "PASS_LOCAL",
+    "mlmd": "BLOCKED",
+    "metadata_writer": "BLOCKED",
+    "mlflow_registration": "PASS_LOCAL",
+    "artifact_persistence": "PASS_LOCAL",
+    "kubernetes_controller_readiness": "BLOCKED",
+    "six_component_kfp_execution": "BLOCKED"
+  },
+  "publication": {
+    "published": false,
+    "remote_signature_verified": false,
+    "slsa_attestation_verified": false
+  },
+  "tests": {
+    "focused": "30 passed, 1 warning",
+    "full_regression": "679 passed, 5 skipped, 5 warnings",
+    "coverage_percent": 87,
+    "kfp_compiled_sha256": "51fefde5e1c2df638af54bd74b18d8d42eccbf5a0b473b71f04cd5893e20c266",
+    "ruff": "PASS",
+    "mypy": "PASS",
+    "helm_lint_and_render": "PASS",
+    "compose_validation": "PASS",
+    "git_whitespace": "PASS",
+    "gitleaks": "BLOCKED_NOT_INSTALLED"
+  }
+}
