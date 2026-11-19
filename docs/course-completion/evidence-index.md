@@ -322,3 +322,15 @@ identity and evidence checksums. KFP execution remains blocked on publication,
 signing, the remaining runtime-role ledger, isolated-host resources and owner
 authorization; no run ID, model approval, protected-cluster mutation or cloud
 claim was created.
+
+## C19 KFP training and registry vertical slice — 2026-11-19
+
+[Execution and qualification record](c19-kfp-vertical-slice.md). The exact KFP
+2.18.1 SeaweedFS 4.54 image and metadata Envoy/init helpers freshly scanned at
+0 HIGH / 0 CRITICAL. A real isolated SeaweedFS service passed authenticated S3
+write/read, invalid-credential rejection, checksum verification, restart
+persistence and task-owned cleanup. The [machine-readable assessment](c19-evidence/assessment.json)
+records exact identities and status. The vertical slice remains **PARTIAL**:
+MLMD uses unsupported Ubuntu 20.04, metadata writer has 47 HIGH findings, and
+the existing MLflow image has 60 HIGH findings, so database migration, MLflow
+registration and Kubernetes pipeline execution were correctly not run.
