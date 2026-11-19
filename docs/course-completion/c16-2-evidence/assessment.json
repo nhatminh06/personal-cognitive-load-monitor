@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-19",
+  "decision": "BLOCKED",
+  "starting_commit": "5488d4422d1594361824b73553c0d21a630f4706",
+  "platform": "linux/amd64",
+  "build_attempts": 1,
+  "build_inputs": {
+    "mysql_base": "mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902",
+    "go_builder": "golang@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea",
+    "go_version": "1.27.4",
+    "gosu_version": "1.20",
+    "gosu_commit": "29b939aa5bd4dc588af765b8248f6e39150d2565",
+    "os_package_version": "2.37.4-28.0.1.el9_9"
+  },
+  "build_result": {
+    "image_created": false,
+    "candidate_reference": "cogniflow/mysql:8.4.13-c162",
+    "failure": "pyOpenSSL 26.0.0 requires cryptography >=46,<47 but the security fix requires cryptography 50.0.0",
+    "gosu_build_succeeded": true,
+    "os_upgrade_succeeded": true
+  },
+  "resolved_followup": {
+    "pyopenssl": "26.4.0",
+    "cryptography": "50.0.0",
+    "pip_dry_run_compatible": true,
+    "build_attempted": false
+  },
+  "scan": {
+    "performed": false,
+    "reason": "candidate image was not created"
+  },
+  "integration": {
+    "performed": false,
+    "reason": "security qualification prerequisite was not reached"
+  },
+  "resources": {
+    "build_memory_limit_bytes": 4294967296,
+    "build_cpu_limit": 2,
+    "prebuild_available_memory_bytes": 8022806528,
+    "prebuild_root_available_bytes": 110200135680,
+    "final_available_memory_bytes": 8305831936,
+    "final_root_available_bytes": 107706925056,
+    "final_tmp_available_bytes": 5839552512
+  },
+  "tests": {
+    "focused": "38 passed",
+    "ruff": "PASS",
+    "scoped_mypy": "PASS",
+    "pipeline_compile": "PASS",
+    "manifest_yaml_json": "PASS",
+    "changed_evidence_gitleaks": "PASS",
+    "git_whitespace": "PASS",
+    "full_regression": "NOT_RUN: no application source or usable build source retained"
+  },
+  "restrictions": {
+    "kubernetes_mutation": false,
+    "cloud_access": false,
+    "registry_publication": false,
+    "model_approval": false,
+    "docker_prune": false
+  }
+}
