@@ -665,35 +665,35 @@ platforms:
           activeDeadlineSeconds: '600'
           imagePullPolicy: IfNotPresent
           securityContext:
-            runAsGroup: '10001'
-            runAsUser: '10001'
+            runAsGroup: '65532'
+            runAsUser: '65532'
         exec-prepare-dataset-component:
           activeDeadlineSeconds: '600'
           imagePullPolicy: IfNotPresent
           securityContext:
-            runAsGroup: '10001'
-            runAsUser: '10001'
+            runAsGroup: '65532'
+            runAsUser: '65532'
         exec-record-provenance-component:
           activeDeadlineSeconds: '600'
           imagePullPolicy: IfNotPresent
           securityContext:
-            runAsGroup: '10001'
-            runAsUser: '10001'
+            runAsGroup: '65532'
+            runAsUser: '65532'
         exec-register-candidate-component:
           activeDeadlineSeconds: '600'
           imagePullPolicy: IfNotPresent
           securityContext:
-            runAsGroup: '10001'
-            runAsUser: '10001'
+            runAsGroup: '65532'
+            runAsUser: '65532'
         exec-train-candidates-component:
           activeDeadlineSeconds: '600'
           imagePullPolicy: IfNotPresent
           securityContext:
-            runAsGroup: '10001'
-            runAsUser: '10001'
+            runAsGroup: '65532'
+            runAsUser: '65532'
         exec-validate-inputs-component:
           activeDeadlineSeconds: '600'
           imagePullPolicy: IfNotPresent
           securityContext:
-            runAsGroup: '10001'
-            runAsUser: '10001'
+            runAsGroup: '65532'
+            runAsUser: '65532'

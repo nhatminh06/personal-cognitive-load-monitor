@@ -7,7 +7,7 @@ machine_type      = "e2-standard-4"
 github_repository = "nhatminh06/personal-cognitive-load-monitor"
 billing_account_id = "000000-000000-000000" # Required only after budget approval.
 project_number     = "123456789012"
-monthly_budget_usd = 225 # Alert threshold only; it does not cap spend.
+monthly_budget_usd = 15 # Alert threshold only; it does not cap spend.
 budget_notification_channel_ids = [
   "projects/123456789012/notificationChannels/REPLACE_WITH_CHANNEL_ID",
 ]

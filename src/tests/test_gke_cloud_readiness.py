@@ -90,7 +90,7 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "namespace-scoped deployment identities must not" in runbook
 
 
-def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
+def test_cloud_mlflow_uses_secret_backed_mysql_registry_and_gcs_artifacts() -> None:
     documents = list(yaml.safe_load_all((ROOT / "deploy/gke/mlflow.yaml").read_text()))
     by_kind = {document["kind"]: document for document in documents}
     deployment = by_kind["Deployment"]
@@ -98,7 +98,7 @@ def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
     args = container["args"]
 
     assert set(by_kind) == {
-        "Namespace", "ServiceAccount", "PersistentVolumeClaim", "Deployment",
+        "Namespace", "ServiceAccount", "Deployment",
         "Service", "NetworkPolicy",
     }
     assert by_kind["Service"]["spec"]["type"] == "ClusterIP"
@@ -107,7 +107,11 @@ def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
     assert container["image"] == "SET_MLFLOW_IMAGE"
     assert "--backend-store-uri" in args
     assert "--registry-store-uri" in args
-    assert args.count("sqlite:////mlflow/metadata/mlflow.db") == 2
+    assert args.count("$(MLFLOW_BACKEND_STORE_URI)") == 2
+    assert container["env"][0]["valueFrom"]["secretKeyRef"] == {
+        "name": "cogniflow-mlflow", "key": "backend-store-uri",
+    }
+    assert deployment["spec"]["template"]["spec"]["securityContext"]["runAsUser"] == 65532
     assert "gs://SET_MLFLOW_BUCKET/artifacts" in args
     assert "--serve-artifacts" in args
     assert args[args.index("--workers") + 1] == "1"
@@ -122,12 +126,8 @@ def test_cloud_mlflow_uses_private_sqlite_registry_and_gcs_artifacts() -> None:
         for probe in ("startupProbe", "readinessProbe", "livenessProbe")
     )
     assert {mount["mountPath"] for mount in container["volumeMounts"]} >= {
-        "/mlflow/metadata", "/tmp",
+        "/tmp",
     }
-    assert by_kind["PersistentVolumeClaim"]["spec"]["accessModes"] == ["ReadWriteOnce"]
-    assert by_kind["PersistentVolumeClaim"]["spec"]["storageClassName"] == (
-        "cogniflow-retain-rwo"
-    )
     assert by_kind["ServiceAccount"]["metadata"]["annotations"] == {
         "iam.gke.io/gcp-service-account": (
             "cogniflow-mlflow@SET_PROJECT.iam.gserviceaccount.com"
@@ -217,7 +217,7 @@ def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
         "capacity": {"cpu_millicores": 8000, "memory_mib": 32768},
         "system_reserve_percent": 20,
     }
-    assert budget["required_requests"]["mlflow_sqlite"] == {
+    assert budget["required_requests"]["mlflow_mysql_client"] == {
         "cpu_millicores": 100,
         "memory_mib": 512,
     }

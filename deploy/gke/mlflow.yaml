@@ -16,18 +16,6 @@ metadata:
     iam.gke.io/gcp-service-account: cogniflow-mlflow@SET_PROJECT.iam.gserviceaccount.com
 automountServiceAccountToken: false
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mlflow-metadata
-  namespace: mlflow
-spec:
-  storageClassName: cogniflow-retain-rwo
-  accessModes: [ReadWriteOnce]
-  resources:
-    requests:
-      storage: 2Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,16 +37,22 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 10001
-        runAsGroup: 10001
-        fsGroup: 10001
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: mlflow
           image: SET_MLFLOW_IMAGE
           imagePullPolicy: IfNotPresent
-          command: [mlflow]
+          command: [/venv/bin/mlflow]
+          env:
+            - name: MLFLOW_BACKEND_STORE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: cogniflow-mlflow
+                  key: backend-store-uri
           args:
             - server
             - --host
@@ -66,9 +60,9 @@ spec:
             - --port
             - "5000"
             - --backend-store-uri
-            - sqlite:////mlflow/metadata/mlflow.db
+            - $(MLFLOW_BACKEND_STORE_URI)
             - --registry-store-uri
-            - sqlite:////mlflow/metadata/mlflow.db
+            - $(MLFLOW_BACKEND_STORE_URI)
             - --artifacts-destination
             - gs://SET_MLFLOW_BUCKET/artifacts
             - --serve-artifacts
@@ -98,12 +92,8 @@ spec:
             capabilities:
               drop: [ALL]
           volumeMounts:
-            - {name: metadata, mountPath: /mlflow/metadata}
             - {name: tmp, mountPath: /tmp}
       volumes:
-        - name: metadata
-          persistentVolumeClaim:
-            claimName: mlflow-metadata
         - name: tmp
           emptyDir: {sizeLimit: 256Mi}
 ---
@@ -140,6 +130,13 @@ spec:
       ports:
         - {protocol: TCP, port: 5000}
   egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kubeflow}
+          podSelector:
+            matchLabels: {app: mysql}
+      ports:
+        - {protocol: TCP, port: 3306}
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: kube-system}

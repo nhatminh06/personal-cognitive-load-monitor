@@ -134,7 +134,7 @@ services:
       JOB_KIND: spark
       JOB_RUNNER_TOKEN: ${JOB_RUNNER_TOKEN:-}
       JOB_TIMEOUT_SECONDS: "1800"
-      PYTHONPATH: /opt/cogniflow/src
+      PYTHONPATH: /opt/cogniflow/src:/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cogniflow-local}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-development-only}

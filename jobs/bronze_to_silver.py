@@ -172,7 +172,10 @@ def s3_client():
         aws_access_key_id=os.environ["MINIO_ROOT_USER"],
         aws_secret_access_key=os.environ["MINIO_ROOT_PASSWORD"],
         region_name="us-east-1",
-        config=Config(s3={"addressing_style": "path"}),
+        config=Config(
+            s3={"addressing_style": "path"}, connect_timeout=5, read_timeout=30,
+            retries={"max_attempts": 2},
+        ),
     )
 
 

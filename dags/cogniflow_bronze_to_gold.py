@@ -29,14 +29,16 @@ def request(
         raise RuntimeError(f"Request to {url} failed: HTTP {exc.code}: {detail}") from exc
 
 
-def run_allowlisted_job(service: str) -> None:
+def run_allowlisted_job(service: str, action: str = "run") -> None:
     if service not in {"spark", "dbt-runner"}:
         raise ValueError(f"Unsupported runner: {service}")
+    if action not in {"run", "validate"} or (action == "validate" and service != "spark"):
+        raise ValueError(f"Unsupported runner action: {action}")
     token = os.environ.get("JOB_RUNNER_TOKEN", "")
     if not token.strip():
         raise RuntimeError("JOB_RUNNER_TOKEN is not configured")
     request(
-        f"http://{service}:8090/run",
+        f"http://{service}:8090/{action}",
         data=b"",
         headers={"Authorization": f"Bearer {token}"},
         timeout=RUNNER_TIMEOUT_SECONDS,
@@ -65,11 +67,11 @@ with DAG(
 
     @task
     def check_source() -> None:
-        request("http://seaweedfs:9333/cluster/status")
+        request("http://spark:8090/health")
 
     @task
     def validate_input() -> None:
-        trino("SELECT count(*) FROM lakehouse.silver.session_features")
+        run_allowlisted_job("spark", "validate")
 
     @task
     def spark_bronze_to_silver() -> None:
