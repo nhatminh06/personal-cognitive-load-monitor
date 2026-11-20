@@ -179,7 +179,7 @@ Prerequisites: an explicitly authorized isolated local KFP v2 endpoint and objec
 store, MLflow service with retained artifacts, reviewed namespace/service accounts,
 resource budget (six sequential tasks request 250m/512Mi and limit 1 CPU/2Gi),
 authorized registry/image digest and source revision. The historical setup in
-[Phase 4](../module3/phase4-kubeflow-training.md) is reference evidence, not approval
+[Module III](../module3.md) is reference evidence, not approval
 to recreate its cluster or bypass its development security limitations.
 
 Commands below are a **future authorized procedure**, not executed here:

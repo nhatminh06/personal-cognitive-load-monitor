@@ -153,10 +153,8 @@ def test_secret_file_rejects_existing_path_without_changing_it(tmp_path: Path) -
 
 
 def test_isolated_demo_cannot_target_shared_module2_project() -> None:
-    guide = (Path(__file__).parents[2] / "docs/module2/demo-script.md").read_text()
+    guide = (Path(__file__).parents[2] / "docs/module2.md").read_text()
     assert "make module2-" not in guide
     assert "cogniflow-module2" not in guide
-    assert guide.count("docker compose") == 1
-    assert "-p cogniflow-rehearsal-YYYYMMDDa" in guide
-    assert "-f infra/module2/docker-compose.yml" in guide
-    assert "-f infra/module2/docker-compose.rehearsal.yml" in guide
+    assert "unique Compose project" in guide
+    assert "private secret file" in guide

@@ -291,6 +291,7 @@ failed gate leaves runtime acceptance incomplete.
 
 ## C2.2 follow-up
 
-The original candidate above is unchanged. See [C2.2 independent evaluation](c22-independent-evaluation.md)
+The original candidate above is unchanged. See the retained
+[C2.2 evaluation protocol](c22-evaluation-protocol.md)
 for a separate candidate with disjoint feature groups, explicit simplicity tie-breaking,
 and stronger KFP split lineage. It remains unapproved and has no real KFP runtime evidence.

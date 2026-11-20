@@ -1,67 +1,34 @@
-# Implemented architecture
+# Architecture
 
-**Current implementation snapshot: 2026-10-26.** This page describes what exists now. The unimplemented grading target is explicitly separated in [`module3/final-rubric-architecture.md`](module3/final-rubric-architecture.md).
+CogniFlow is an educational data-engineering and MLOps platform for a synthetic
+cognitive-load classifier. The labels are deterministic proxies, not medical or
+workplace measurements.
 
 ```mermaid
-flowchart TB
-    Client --> API[FastAPI]
-    API --> Rule[demo_rule]
-    API --> Local[verified local skops model]
-    API --> KClient[KServe HTTP client]
-    Events[Session events] --> Kafka
-    Kafka --> Bronze[SeaweedFS S3 Bronze]
-    Bronze --> Spark[Spark / Delta Silver]
-    Spark --> Trino --> DBT[dbt Gold]
-    Kafka --> Flink --> Redis
-    Redis --> API
-    DVC --> Train[local training]
-    Train --> MLflow[local MLflow registry]
-    Prom[Prometheus] --> Grafana
-    API --> Loki
-    API --> Tempo
-    API --> Activity[Sanitized activity CloudEvent]
-    Activity --> Broker[Knative Eventing Broker]
-    Broker --> EventLog[SQLite log consumer]
-    Broker --> Detector[SQLite anomaly detector]
-    Detector --> AlertSink[SQLite anomaly alert sink]
-    Broker -->|exhausted retry| EventDLQ[SQLite dead-letter sink]
+flowchart LR
+  API[FastAPI] --> Kafka
+  Kafka --> Bronze[SeaweedFS Bronze]
+  Bronze --> Spark[Spark / Delta Silver]
+  Spark --> Trino[Trino / dbt Gold]
+  Airflow --> Spark
+  Airflow --> Trino
+  Kafka --> Flink
+  Flink --> Redis
+  Gold --> KFP
+  KFP --> MLflow
+  MLflow --> Approval[Explicit model approval]
+  Approval --> KServe
+  KServe --> Eventing[Knative Eventing]
+  Eventing --> Anomaly[Anomaly detector]
 ```
 
-## Runtime-verified locally
+The application layer contains authenticated prediction, session, event and
+feature APIs. Durable SQLite state supports replay verification, anomaly windows,
+transactional alert outboxes and deduplication. Module II supplies offline and
+online features. Module III trains and registers candidates, but production
+packaging and serving remain approval-gated.
 
-- FastAPI request validation, authentication, explicit `demo_rule`, `local_model` and `kserve` modes, readiness and no silent fallback.
-- Deterministic/DVC training, candidate-only MLflow registration, explicit approval command and exact artifact-tree SHA-256 checks.
-- Kafka ingestion, Bronze object persistence, Spark/Delta Silver, Trino/dbt Gold, Airflow fixed-command orchestration, Flink event-time aggregation and Redis freshness protection.
-- Prometheus/Grafana metrics, Loki structured logs and Tempo traces in dated Module I/II verification runs.
-- Terraform-managed local kind cluster and Helm demo-rule release on loopback port `18000`.
-- Isolated Knative Eventing 1.23 Broker/Trigger delivery from a real `demo_rule` prediction, durable SQLite deduplication, restart recovery, finite retries and dead-letter routing.
-- Isolated Knative anomaly detection for error, latency and rate signals, including durable windows, idempotent alerts, outbox recovery and live Prometheus/Grafana evidence.
-- Six-component Kubeflow Pipelines v2 training run on a disposable local backend.
-
-## Implemented but not runtime-verified
-
-- Approval-bound Phase 3 model packaging and isolated local-model Helm release. The current MLflow version 2 remains a candidate, so no image or deployment exists.
-- KServe 0.20 custom `.skops` ModelServer, strict client behavior and Standard-mode
-  `InferenceService` manifests. The controller and a non-model contract responder
-  were runtime-verified in a disposable cluster; approved-model Kubernetes
-  inference remains blocked pending explicit approval and a retrievable artifact.
-- GKE Terraform, Workload Identity definitions, GCS bucket and cloud deployment workflow. They are statically validated only.
-
-## Not implemented
-
-- A runtime-verified custom KServe deployment that loads an explicitly approved `.skops` package.
-- Authorized GKE/GCS runtime and full demonstration video.
-
-## Stable serving contract
-
-`INFERENCE_MODE` accepts only `demo_rule`, `local_model` or `kserve`. Explicit modes use only the selected backend; absence, timeout, invalid output or provenance failure returns a visible failure and keeps readiness closed. The six ordered feature names and `PredictionResponse` remain stable. `/model-info` reports verified manifest-backed provenance in local-model and KServe modes; KServe readiness performs a live metadata check.
-
-The stock KServe sklearn server does not document `.skops` support, so the implemented target uses a digest-pinned custom KServe Python runtime that reuses the existing manifest/trusted-type checks. See the [KServe runbook](module3/phase5-kserve-inference.md).
-
-## Deployment ownership and restrictions
-
-- Terraform owns the existing local demo release; experimental Helm releases use separate namespaces and names.
-- PersonalOS remains on host port `8000`; CogniFlow demo access is `18000`; experimental serving reserves `18001`.
-- Cloud deployment must pin OCI repository digests and enforce image signatures/attestations.
-- SEC-022 Spark is accepted only for isolated local development with trusted synthetic data and is prohibited in Kubernetes/GKE.
-- No current evidence claims KServe scale-to-zero, cloud HPA behavior, production ingress, GCS-backed artifacts or cloud security controls.
+Deployment configuration includes Compose, Helm, Kubernetes and Terraform. Local
+runtime evidence does not imply GKE or GCS success. See [Module II](module2.md),
+[Module III](module3.md), [deployment](deployment.md), [security](security.md) and
+[evidence](evidence.md).

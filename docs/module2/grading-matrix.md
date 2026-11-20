@@ -54,6 +54,6 @@ greater-than-100-GB end-to-end run, and no rubric status advances.
 ## C3 fresh local qualification — 2026-11-17
 
 Starting main: `7ba056cab9a728060a4ac34edce43f340f7ddeaa`.
-The [C3 completion record](c3-completion.md) identifies fresh checks and remaining
+The canonical [Module II status](../module2.md) identifies fresh checks and remaining
 acceptance by criterion. Historical PR #19 service runs above retain their original
 date/scope; this C3 pass did not re-execute Kafka, Spark, Flink, Airflow, Trino or dbt.

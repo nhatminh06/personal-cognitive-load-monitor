@@ -77,17 +77,13 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "90-day" in backend
     assert "Do not set a bucket retention" in backend
 
-    runbook = (ROOT / "docs/cloud-deployment.md").read_text()
-    assert "qualified locally only" in runbook
+    runbook = (ROOT / "docs/deployment.md").read_text()
+    assert "Local-only qualification" in runbook
     assert "0 HIGH/CRITICAL" in runbook
     assert "13 HIGH\nfindings" in (ROOT / "deploy/gke/runners/README.md").read_text()
-    assert "The separate\n`$75` contingency" in runbook
-    assert "cogniflow-retain-rwo" in runbook
-    assert "cogniflow-delete-rwo" in runbook
-    storage_gate = runbook.index("kubectl apply -f deploy/gke/storageclasses.yaml")
-    assert storage_gate < runbook.index("render and apply MLflow")
-    assert storage_gate < runbook.index("protected Eventing workflow create")
-    assert "namespace-scoped deployment identities must not" in runbook
+    assert "alerts do not cap spend" in runbook.lower()
+    assert "storage classes, then KFP/MLflow" in runbook
+    assert "Never deploy the restricted Spark image" in runbook
 
 
 def test_cloud_mlflow_uses_secret_backed_mysql_registry_and_gcs_artifacts() -> None:

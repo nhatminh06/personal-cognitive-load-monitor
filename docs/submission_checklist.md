@@ -6,8 +6,8 @@
 
 - [x] FastAPI API layer implemented and locally/CI verified — 10% implementation evidence; final KServe path still needs the cloud demo.
 - [ ] Real KServe, ModelMesh or KubeRay runtime — 10%.
-- [x] Real Kubeflow Pipelines, Hera or equivalent training run — 15%; verified in the isolated local KFP v2 runtime recorded in [`module3/phase4-kubeflow-training.md`](module3/phase4-kubeflow-training.md). Historical runtime evidence, not a fresh C1 run.
-- [x] Real Knative Broker/Trigger logging flow — 15%; verified in the isolated local Broker/Trigger runtime recorded in [`module3/phase6-knative-eventing.md`](module3/phase6-knative-eventing.md). Historical runtime evidence, not a fresh C1 run.
+- [x] Real Kubeflow Pipelines, Hera or equivalent training run — 15%; verified in the isolated local KFP v2 runtime recorded in [Module III](module3.md). Historical runtime evidence, not a fresh cloud run.
+- [x] Real Knative Broker/Trigger logging flow — 15%; verified in the isolated local Broker/Trigger runtime recorded in [Module III](module3.md). Historical runtime evidence, not a fresh cloud run.
 - [ ] Real-time anomaly detector subscribed through Knative — 10%.
 
 ## Selected practical deployment — 40%
@@ -22,13 +22,13 @@ The unselected GCE-only 20% alternative is not additive. Private-node GKE, priva
 - [x] GitHub repository with current local installation/testing documentation.
 - [ ] README proven from a clean environment through the final cloud flow.
 - [ ] Real full-system demonstration video.
-- [x] Evidence index with immutable commit, image, model, dataset, run and artifact identifiers — [`course-completion/evidence-index.md`](course-completion/evidence-index.md).
+- [x] Evidence index with immutable image, model, dataset, run and artifact identifiers — [evidence](evidence.md).
 - [ ] Safe teardown and final cost evidence.
 
 ## Existing supporting engineering evidence
 
 - [x] Fresh C1 full Python suite: 604 passed, 2 skipped, 5 warnings; 88.87% combined API/data coverage against the 81% gate on 2026-11-17.
-- [x] Historical regression evidence: 604 passed, 2 skipped, 5 warnings and 87.08% coverage, recorded in [`m10-3-final-runner-gate.md`](m10-3-final-runner-gate.md); the 87.08% figure was not reproduced in C1.
+- [x] Historical regression evidence is summarized in [evidence](evidence.md); current results supersede the older 87.08% measurement.
 - [x] Four notebooks executed in prior Module I/II verification.
 - [x] DVC reproducibility and MLflow candidate registration.
 - [x] Kafka, Bronze, Delta Silver, Trino/dbt Gold, Airflow and Flink/Redis local integration evidence.
@@ -70,6 +70,6 @@ helm lint helm/cognitive-load-monitor
 terraform -chdir=infra/terraform/gke validate
 ```
 
-Do not run `terraform apply`, approve a model or deploy a workload merely to check this list. Follow [`module3/implementation-roadmap.md`](module3/implementation-roadmap.md) and obtain the required owner approvals.
+Do not run `terraform apply`, approve a model or deploy a workload merely to check this list. Follow [deployment](deployment.md) and obtain the required owner approvals.
 
-PR #17 offline readiness evidence belongs in [`module3/gke-gcs-readiness.md`](module3/gke-gcs-readiness.md); the exact authorized demo sequence and stop conditions are in [`cloud-deployment.md`](cloud-deployment.md).
+Offline readiness scope is in [Module III](module3.md); the authorized sequence and stop conditions are in [deployment](deployment.md).

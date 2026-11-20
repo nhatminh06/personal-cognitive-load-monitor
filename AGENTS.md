@@ -11,7 +11,7 @@ Canonical paths:
 - Qualified training build: `deploy/c23/kfp-component`; headless KFP: `infra/kfp-local`.
 - Serving/eventing: `src/cogniflow_kserve`, `src/preprocessing_api`, `src/cogniflow_eventing`, `src/cogniflow_anomaly`.
 - GKE: `infra/terraform/gke`, `deploy/gke`, `helm/cognitive-load-monitor`.
-- Tests: `src/tests`; evidence index: `docs/course-completion/evidence-index.md`.
+- Tests: `src/tests`; evidence index: `docs/evidence.md`.
 
 Run `make test`, `.venv/bin/ruff check src scripts jobs dags pipelines`, Helm lint,
 Compose config validation and backend-free Terraform validation for relevant changes.
