@@ -7,7 +7,22 @@ CogniFlow is an educational Python and MLOps project built around a synthetic cl
 
 The LOW, MEDIUM, and HIGH labels are synthetic proxies generated from a deterministic rule. They are not clinical, psychological, neurological, or real-world measurements of cognitive load. Do not use this project for diagnosis, employee monitoring, academic decisions, or any decision that affects a person.
 
-## Supported local flow
+## Data and model flows
+
+Module II ingests versioned Kafka events into SeaweedFS Bronze, processes Delta
+Silver with Spark, and queries dbt Gold through Trino. Airflow orchestrates the
+batch flow; Flink independently maintains Redis online features. See the
+[Module II guide](docs/module2/testing.md). SeaweedFS is S3 compatible; instructor
+acceptance as MinIO remains unresolved, and SEC-022 blocks Spark cloud deployment.
+
+Module III uses six KFP tasks for validation, preparation, training, evaluation,
+candidate registration and provenance. KFP 2.18.1/Argo 4.1.6 and the training
+image have local qualification evidence; a fresh Kubernetes run remains blocked.
+See [training](docs/module3/phase4-kubeflow-training.md), the
+[evidence index](docs/course-completion/evidence-index.md), and the
+[GKE deployment guide](docs/cloud-deployment.md). Model approval is a separate gate.
+
+## Supported API demonstration
 
 ```mermaid
 flowchart LR
@@ -33,10 +48,6 @@ The API publisher is best effort. The detector persists canonical event content 
 - Least-privilege CI with tests, coverage, static checks, and tree plus commit-range secret scanning.
 
 Kubernetes manifests have static and offline validation history. This publication candidate does not claim a current Kubernetes runtime, GKE deployment, cloud registry release, or approved production model. Cloud and image publication workflows are intentionally absent pending separate qualification and authorization.
-
-M10 adds a read-only, manually triggered **source qualification** workflow and
-fail-closed offline release-identity checks. It does not restore cloud or image
-publication. See the [M10 assessment](docs/m10-offline-cloud-release-preparation.md).
 
 ## Run locally
 

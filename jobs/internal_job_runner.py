@@ -73,7 +73,7 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(HTTPStatus.OK, {"status": "healthy"})
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path != "/run":
+        if self.path not in {"/run", "/validate"}:
             self._reply(HTTPStatus.NOT_FOUND, {"detail": "Not found"})
             return
         token = os.environ.get("JOB_RUNNER_TOKEN", "")
@@ -90,11 +90,25 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(HTTPStatus.CONFLICT, {"detail": "A job is already running"})
             return
         try:
+            if self.path == "/validate":
+                if os.environ.get("JOB_KIND") != "spark":
+                    self._reply(HTTPStatus.NOT_FOUND, {"detail": "Not found"})
+                    return
+                from bronze_to_silver import load_bronze_accounted
+
+                valid, rejected, accounting = load_bronze_accounted()
+                if not valid or rejected:
+                    self._reply(HTTPStatus.BAD_GATEWAY, {"detail": "Bronze input is empty or invalid"})
+                    return
+                self._reply(HTTPStatus.OK, accounting)
+                return
             result = run_job(os.environ["JOB_KIND"], int(os.getenv("JOB_TIMEOUT_SECONDS", "1800")))
         except (KeyError, ValueError):
             self._reply(HTTPStatus.INTERNAL_SERVER_ERROR, {"detail": "Runner is misconfigured"})
         except subprocess.TimeoutExpired:
             self._reply(HTTPStatus.GATEWAY_TIMEOUT, {"detail": "Job timed out"})
+        except Exception:
+            self._reply(HTTPStatus.BAD_GATEWAY, {"detail": "Job failed"})
         else:
             output = (result.stdout + result.stderr)[-4000:]
             status = HTTPStatus.OK if result.returncode == 0 else HTTPStatus.BAD_GATEWAY

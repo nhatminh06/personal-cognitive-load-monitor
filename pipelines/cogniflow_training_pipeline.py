@@ -152,7 +152,7 @@ def build_pipeline(component_image: str):
         task.set_caching_options(False).set_cpu_limit("1").set_memory_limit("2Gi")
         task.set_cpu_request("250m").set_memory_request("512Mi")
         kubernetes.set_image_pull_policy(task, "IfNotPresent")
-        kubernetes.set_security_context(task, run_as_user=10001, run_as_group=10001)
+        kubernetes.set_security_context(task, run_as_user=65532, run_as_group=65532)
         kubernetes.set_timeout(task, 600)
         return task
 

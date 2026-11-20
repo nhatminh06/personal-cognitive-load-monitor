@@ -8,7 +8,7 @@ GKE Gateway/IAP/Cloud Armor plan passes M11 runtime validation. Read
 
 ## 1. Owner approvals and release inputs
 
-Record approvals for project/billing account, `us-central1`, a maximum **$225** project budget alert (alerts do not cap spend), an eight-hour initial lifetime, remote state, IAM, DNS/TLS, image publication and the exact Terraform plan. Model approval is separate and is not granted here.
+Record approvals for project/billing account, `us-central1`, a **$15** project budget alert (alerts do not cap spend), an eight-hour initial lifetime, remote state, IAM, DNS/TLS, image publication and the exact Terraform plan. Model approval is separate and is not granted here.
 
 Required immutable inputs:
 
@@ -87,10 +87,10 @@ Run `pytest -q src/tests/test_gke_cloud_readiness.py::test_cloud_guardrails_and_
 
 Create an untracked tfvars file from the example. Set the project, two zones in the same region, external operator `/32`, GitHub repository, owner-approved billing account, numeric project number and full resource names for one to five owner-created Cloud Monitoring **email** notification channels. Terraform intentionally refuses a plan without the budget inputs. Email addresses stay in Cloud Monitoring, not Terraform or Git; implicit Billing IAM recipients are disabled.
 
-The `$225` Terraform budget covers only the planned allocation. The separate
+The `$15` Terraform budget is an alert threshold. The separate
 `$75` contingency is not added to the alert amount and is not authorized by
 activation approval; spending it requires a new owner decision. Thresholds are
-25/50/75/90/100% (`$56.25/$112.50/$168.75/$202.50/$225.00`) and alerts do not
+25/50/75/90/100% (`$3.75/$7.50/$11.25/$13.50/$15.00`) and alerts do not
 stop or throttle resources.
 
 ```bash
@@ -119,8 +119,8 @@ render and apply MLflow; only then may the protected Eventing workflow create
 its four PVCs using the already-installed Delete class.
 
 `cogniflow-retain-rwo` and `cogniflow-delete-rwo` both use the GKE PD CSI
-driver, balanced persistent disks and `WaitForFirstConsumer`. MLflow selects the
-Retain class because its SQLite database is the registry record. Eventing
+driver, balanced persistent disks and `WaitForFirstConsumer`. MySQL must use the
+Retain class because its database holds the registry record. Eventing
 selects Delete because its bounded SQLite stores are exported before PVC
 deletion. These are zonal `ReadWriteOnce` disks: a Pod is constrained to the
 disk's selected zone and cannot fail over to the other zone without a backup
@@ -152,7 +152,11 @@ Obtain a one-hour repository registration token only immediately before the appr
 
 Install pinned cert-manager, ingress-nginx, Knative Serving/Eventing, KServe Standard and standalone KFP in compatibility order. Resolve every deployed image ID and compare it with the evidence ledger. Reject mutable `master`, `latest` or SHA-shaped tags.
 
-Render `deploy/gke/mlflow.yaml` with the project ID, Terraform bucket name and a KFP/MLflow image in exact `repository@sha256:<64 lowercase hex>` form; reject a tag or unresolved placeholder before apply. The single replica keeps registry metadata in SQLite on its PVC and proxies artifacts to GCS through the existing `mlflow/mlflow` Workload Identity. Before training acceptance, record the candidate run's GCS object names and generations from the Terraform bucket, then independently download the registered source through MLflow and compare its artifact-tree SHA-256 with the candidate tag. Proxy-backed registered sources may use `mlflow-artifacts:/`; they are not evidence of a literal `gs://` model-source URI. The protected release runner must execute in-cluster (or use a separately reviewed private connection) so `MLFLOW_TRACKING_URI=http://mlflow.mlflow.svc.cluster.local:5000` resolves; do not expose MLflow publicly. Install External Secrets Operator chart 2.13.0 by reviewed digest. Apply `deploy/gke/external-secret.yaml` before Helm; it can reconcile after Helm creates `cogniflow-api`. Verify only the expected Secret keys, without printing values.
+Render `deploy/gke/mlflow.yaml` with the project ID, Terraform bucket name and a qualified MLflow image in exact `repository@sha256:<64 lowercase hex>` form. Reject unresolved placeholders. Provision the `mlflow/cogniflow-mlflow` Secret with a `backend-store-uri` for the dedicated MySQL MLflow database; tracking and registry use the same URI. Allow MySQL ingress from the MLflow Pod as well as the explicit MLflow egress rule. Use the qualified UID/GID 65532 and retain MySQL storage and backups.
+
+GCS deployment is BLOCKED: the C20-qualified image includes S3 and MySQL dependencies but no `google-cloud-storage`. Qualify a GCS-capable image before selecting the `gs://` destination. The existing qualified S3 headless deployment remains in `infra/kfp-local/mlflow.yaml`; it is not a second cloud registry. Do not apply both registry deployments for one training release.
+
+For GCS acceptance, record object generations, independently download the registered model through MLflow and compare its artifact-tree SHA-256 with provenance. The release runner must reach `http://mlflow.mlflow.svc.cluster.local:5000` privately. Install reviewed External Secrets Operator chart 2.13.0 and apply `deploy/gke/external-secret.yaml` before Helm; verify Secret key names without printing values.
 
 ## 5. Candidate training and explicit promotion
 
@@ -272,9 +276,9 @@ Do not destroy on test failure. First export non-secret logs, rendered manifests
 
 ### Session start, pause and resume
 
-1. Start: check billing/quota and the reviewed plan, restore `nodes_per_zone=1`, wait for exactly two Ready nodes, then verify the MLflow PVC/SQLite health, GCS access, KFP, KServe Standard and Knative before registering one runner.
+1. Start: check billing/quota and the reviewed plan, restore `nodes_per_zone=1`, wait for exactly two Ready nodes, then verify MySQL/MLflow health, GCS access and KFP before registering one runner. KServe and Knative follow separate model approval.
 2. Pause: stop all jobs, export current evidence, delete the runner Pod/Secret, record PVC/PV/disk/reclaim-policy and load-balancer state, then explicitly approve a regional node-pool resize to zero. This pauses node VMs only; the control plane, disks, GCS, Artifact Registry, load balancers, NAT addresses and logs can remain billable.
-3. The manual resize is deliberate Terraform drift from `nodes_per_zone=1`. Do not apply Terraform while paused: it would recreate nodes. Resume by resizing to one node per zone, wait for two Ready nodes, verify the zonal MLflow disk reattaches and SQLite/GCS/KFP state is healthy, then require a no-change plan before further infrastructure work.
-4. `emptyDir` and runner state are disposable. MLflow metadata survives only on its PVC; before teardown, take a consistent SQLite backup and export KFP/Helm/resource inventories, exact image/signature/scan evidence, GCS generations, checksums and billing evidence.
+3. The manual resize is deliberate Terraform drift from `nodes_per_zone=1`. Do not apply Terraform while paused: it would recreate nodes. Resume by resizing to one node per zone, wait for two Ready nodes, verify the MySQL disk reattaches and MySQL/GCS/KFP state is healthy, then require a no-change plan before further infrastructure work.
+4. `emptyDir` and runner state are disposable. Before teardown, take a consistent MySQL backup and export KFP/Helm/resource inventories, exact image/signature/scan evidence, GCS generations, checksums and billing evidence.
 5. Authorized teardown: remove external Services/ingress and wait for load-balancer cleanup; delete runner registrations; verify backups; delete PVCs and wait for `Delete`-policy disks or inventory `Retain` disks; separately review/apply `deletion_protection=false`; then separately approve destroy. Do not expect the versioned, retained, `force_destroy=false` model bucket or the separately bootstrapped Terraform-state bucket to disappear.
 6. Finish with authenticated read-only inventories for clusters, VMs, disks/snapshots, forwarding rules, IPs, routers/NAT, GCS versions, Artifact Registry, Secret Manager, DNS and logging. Keep alerts active until billing shows only explicitly retained resources.

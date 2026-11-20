@@ -43,7 +43,8 @@ def test_kfp_v2_pipeline_compiles_with_immutable_bounded_components(tmp_path: Pa
     assert "latest" not in text
     assert "cpuLimit: 1" in text
     assert "memoryLimit: 2.147483648" in text
-    assert "runAsUser: '10001'" in text
+    assert text.count("runAsUser: '65532'") == 6
+    assert text.count("runAsGroup: '65532'") == 6
     assert "activeDeadlineSeconds: '600'" in text
 
 

@@ -101,7 +101,7 @@ variable "project_number" {
 variable "monthly_budget_usd" {
   type        = number
   description = "Demo budget alert amount; alerts do not cap spend."
-  default     = 225
+  default     = 15
 }
 
 variable "budget_notification_channel_ids" {

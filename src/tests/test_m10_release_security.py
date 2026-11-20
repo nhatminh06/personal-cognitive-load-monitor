@@ -267,7 +267,7 @@ def test_sec022_stays_out_of_every_cloud_release_path() -> None:
         item.read_text()
         for path in paths
         for item in ([path] if path.is_file() else path.rglob("*"))
-        if item.is_file()
+        if item.is_file() and ".terraform" not in item.parts
     ).lower()
     assert "spark" not in content
     assert "sec-022" not in content

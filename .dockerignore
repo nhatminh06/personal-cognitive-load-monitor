@@ -4,6 +4,9 @@
 .aws
 .codex
 graphify-out
+build
+.terraform
+**/.terraform
 __pycache__
 *.pyc
 .pytest_cache
