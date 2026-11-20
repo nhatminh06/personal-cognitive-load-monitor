@@ -14,7 +14,7 @@ validation below covers the starting source plus the changes described here.
 No historical checkout was accessed. No branch, worktree, cluster, approval,
 promotion, deployment, image publication, cloud access, benchmark, or push occurred.
 Track B privacy boundaries, SEC-022, disabled release workflows, and the
-[M10.3 deployment-runner NO-GO](../m10-3-final-runner-gate.md) remain unchanged.
+[historical deployment-runner NO-GO](../evidence.md) remains unchanged.
 
 ## Reproducible checks
 
