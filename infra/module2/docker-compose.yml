@@ -294,6 +294,8 @@ services:
       FLINK_OUT_OF_ORDER_SECONDS: ${FLINK_OUT_OF_ORDER_SECONDS:-120}
       FLINK_ALLOWED_LATENESS_SECONDS: ${FLINK_ALLOWED_LATENESS_SECONDS:-30}
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       flink-jobmanager:
         condition: service_started
       flink-taskmanager:
