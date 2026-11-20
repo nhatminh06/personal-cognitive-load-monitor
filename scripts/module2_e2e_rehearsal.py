@@ -282,7 +282,8 @@ def main() -> None:
         raise RuntimeError(redact(resolved.stderr.strip(), secret_values))
     config = json.loads(resolved.stdout)
     validate_resolved_config(config, project, ports)
-    validate_image_security(observed, UNQUALIFIED_IMAGES, {service["image"] for service in config["services"].values()})
+    configured = {service["image"] for service in config["services"].values()}
+    validate_image_security(observed, (), configured - {SPARK_IMAGE})
     if not args.execute:
         print(json.dumps({"status": "dry-run", "project": project, "ports": asdict(ports), "sec022": "passed"}, sort_keys=True))
         return

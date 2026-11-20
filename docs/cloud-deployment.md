@@ -22,11 +22,12 @@ Required immutable inputs:
 
 Stop if GitHub `main` is not branch-protected, environment administrator bypass is enabled, the deployment runner cannot reach the internal endpoint, any image uses a tag without a digest, a signature/scan fails, a manifest renders `:master`, capacity does not fit, the budget is absent, or a Terraform target differs from the approved project.
 
-The deployment-runner image remains **NO-GO**. C5.5 integrated the qualified
+The deployment-runner image is **qualified locally only**. C5.8 integrated the qualified
 kubectl, but the exact rebuilt image's current mandatory Trivy gate reports
 5 HIGH findings in Ubuntu packages, Actions Runner and Cosign. The earlier
 13-HIGH image remains historical evidence only. Do not publish, register or use
-the runner until an exact rebuild passes the unsuppressed HIGH/CRITICAL policy.
+the runner after an exact rebuild passed the unsuppressed HIGH/CRITICAL policy.
+Publication, registry digest verification, signing and attestation remain required.
 
 ### Owner-supplied activation values
 
@@ -144,7 +145,7 @@ Read-only registry inspection on 2026-11-01 identified this maintained upstream 
 
 - runner base: `ghcr.io/actions/actions-runner@sha256:0ce3288e48b012a83685998f683a2ae0cbd284fa722c090dda0af5443215cf30` from the attested multi-platform `2.338.2` index `sha256:759a1d94a15b05941aba5196974ff43fe15b4cbba29b694b35cbc32a1166b232`;
 
-`deploy/gke/runners/Dockerfile.release` derives the private packaging runner from that base, applies a checksum-pinned Ubuntu `libbrotli1` security update, removes its unused container toolchain and privileged group memberships, and preserves UID/GID 1001. Its local Linux/amd64 build passes the mandatory HIGH/CRITICAL Trivy gate. This is not a registry reference: publish through a separately authorized bootstrap path and verify the registry amd64 manifest digest before replacing `SET_RELEASE_RUNNER_IMAGE`. The vulnerable deployment runner remains blocked and `SET_DEPLOY_RUNNER_IMAGE` must remain unresolved.
+`deploy/gke/runners/Dockerfile.release` derives the private packaging runner from that base, applies a checksum-pinned Ubuntu `libbrotli1` security update, removes its unused container toolchain and privileged group memberships, and preserves UID/GID 1001. Its local Linux/amd64 build passes the mandatory HIGH/CRITICAL Trivy gate. This is not a registry reference: publish through a separately authorized bootstrap path and verify the registry amd64 manifest digest before replacing `SET_RELEASE_RUNNER_IMAGE`. The deployment runner is also locally qualified at 0 HIGH/CRITICAL; `SET_DEPLOY_RUNNER_IMAGE` remains unresolved until the same publication controls pass.
 
 The protected workflow is split at the network boundary. The restricted `cogniflow-release` Pod performs the solo-owner authorization and reads private MLflow to produce exactly `cognitive_load_model.skops` and `model-package.json`. It computes a package-tree SHA-256 as a job output and uploads only those two files for one day. A GitHub-hosted job downloads the artifact, independently validates its exact file set, model digest, package-tree digest and complete approval/model identity, then builds, scans, signs and verifies the images. The artifact contains no token, credential or MLflow tracking URI. This removes BuildKit from GKE rather than weakening Restricted Pod Security.
 

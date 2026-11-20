@@ -20,8 +20,8 @@ docker build --network=none --pull=false --platform=linux/amd64 \
 The pinned Python and uv setup actions install the packaging runtime during the
 job. Do not replace `SET_RELEASE_RUNNER_IMAGE` until a separately authorized
 publication is scanned and its registry linux/amd64 manifest digest is verified.
-`SET_DEPLOY_RUNNER_IMAGE` remains unresolved; this directory intentionally does
-not define an accepted deployment-runner image.
+`SET_DEPLOY_RUNNER_IMAGE` remains unresolved because the accepted deployment
+runner is local-only and has no verified registry identity.
 
 ## Qualified local deployment runner
 

@@ -39,6 +39,8 @@ spec:
       imagePullPolicy: IfNotPresent
       command: [/bin/bash, -ceu]
       args: ["cp -r /home/runner/. /runner/"]
+      resources:
+        requests: {cpu: 25m, memory: 64Mi, ephemeral-storage: 1Gi}
       securityContext:
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
@@ -67,8 +69,8 @@ spec:
         - {name: RUNNER_TEMP, value: /runner/_temp}
         - {name: RUNNER_TOOL_CACHE, value: /runner/_tool}
       resources:
-        requests: {cpu: 500m, memory: 1Gi}
-        limits: {cpu: "1", memory: 2Gi}
+        requests: {cpu: 500m, memory: 1Gi, ephemeral-storage: 15Gi}
+        limits: {cpu: "1", memory: 2Gi, ephemeral-storage: 15Gi}
       readinessProbe:
         exec: {command: [/usr/bin/test, -f, /runner/_temp/registered]}
         periodSeconds: 2
@@ -147,6 +149,8 @@ spec:
       imagePullPolicy: IfNotPresent
       command: [/bin/bash, -ceu]
       args: ["cp -r /home/runner/. /runner/"]
+      resources:
+        requests: {cpu: 25m, memory: 64Mi, ephemeral-storage: 1Gi}
       securityContext:
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
@@ -175,8 +179,8 @@ spec:
         - {name: RUNNER_TEMP, value: /runner/_temp}
         - {name: RUNNER_TOOL_CACHE, value: /runner/_tool}
       resources:
-        requests: {cpu: 250m, memory: 512Mi}
-        limits: {cpu: "1", memory: 1Gi}
+        requests: {cpu: 250m, memory: 512Mi, ephemeral-storage: 6Gi}
+        limits: {cpu: "1", memory: 1Gi, ephemeral-storage: 6Gi}
       readinessProbe:
         exec: {command: [/usr/bin/test, -f, /runner/_temp/registered]}
         periodSeconds: 2

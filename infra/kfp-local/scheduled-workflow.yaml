@@ -10,6 +10,9 @@ spec:
         - name: ml-pipeline-scheduledworkflow
           image: cogniflow-kfp-scheduled-workflow@sha256:9fa52c2f7e8a6eb62df0e38afec42be1d44cd15ffd85cd3942b2910455d491f3
           imagePullPolicy: Never
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 250m, memory: 256Mi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

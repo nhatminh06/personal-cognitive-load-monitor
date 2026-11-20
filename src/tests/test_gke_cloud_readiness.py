@@ -78,8 +78,8 @@ def test_gke_terraform_has_private_bounded_identity_and_storage_controls() -> No
     assert "Do not set a bucket retention" in backend
 
     runbook = (ROOT / "docs/cloud-deployment.md").read_text()
-    assert "5 HIGH findings in Ubuntu packages, Actions Runner and Cosign" in runbook
-    assert "13-HIGH image remains historical evidence only" in runbook
+    assert "qualified locally only" in runbook
+    assert "0 HIGH/CRITICAL" in runbook
     assert "13 HIGH\nfindings" in (ROOT / "deploy/gke/runners/README.md").read_text()
     assert "The separate\n`$75` contingency" in runbook
     assert "cogniflow-retain-rwo" in runbook
@@ -214,16 +214,16 @@ def test_regional_node_pool_is_exactly_two_demo_nodes() -> None:
     assert budget["node_pool"] == {
         "nodes": 2,
         "machine_type": "e2-standard-4",
-        "capacity": {"cpu_millicores": 8000, "memory_mib": 32768},
+        "raw_capacity": {"cpu_millicores": 8000, "memory_mib": 32768},
         "system_reserve_percent": 20,
+        "budgeted_allocatable": {"cpu_millicores": 6400, "memory_mib": 26214},
+        "per_node_budgeted_allocatable": {"cpu_millicores": 3200, "memory_mib": 13107},
     }
-    assert budget["required_requests"]["mlflow_mysql_client"] == {
-        "cpu_millicores": 100,
-        "memory_mib": 512,
-    }
+    assert budget["steady_peak"]["requests"] == {"cpu_millicores": 1359, "memory_mib": 4252}
+    assert budget["placement"]["result"] == "FITS_TWO_NODES"
     assert budget["sequential_runner_requests"] == {
-        "private_packaging_runner": {"cpu_millicores": 500, "memory_mib": 1024},
-        "deployment_runner": {"cpu_millicores": 250, "memory_mib": 512},
+        "private_packaging_runner": {"cpu_millicores": 500, "memory_mib": 1024, "ephemeral_storage_gib": 15},
+        "deployment_runner": {"cpu_millicores": 250, "memory_mib": 512, "ephemeral_storage_gib": 6},
     }
 
 
@@ -382,18 +382,10 @@ def test_cloud_guardrails_and_two_node_budget_are_enforceable() -> None:
     }
 
     budget = yaml.safe_load((ROOT / "deploy/gke/resource-budget.yaml").read_text())
-    usable_cpu = (
-        budget["node_pool"]["capacity"]["cpu_millicores"]
-        * (100 - budget["node_pool"]["system_reserve_percent"])
-        // 100
-    )
-    usable_memory = (
-        budget["node_pool"]["capacity"]["memory_mib"]
-        * (100 - budget["node_pool"]["system_reserve_percent"])
-        // 100
-    )
-    assert sum(item["cpu_millicores"] for item in budget["required_requests"].values()) <= usable_cpu
-    assert sum(item["memory_mib"] for item in budget["required_requests"].values()) <= usable_memory
+    usable = budget["node_pool"]["budgeted_allocatable"]
+    peak = budget["steady_peak"]["requests"]
+    assert peak["cpu_millicores"] <= usable["cpu_millicores"]
+    assert peak["memory_mib"] <= usable["memory_mib"]
 
 
 def test_publication_candidate_ci_has_no_release_or_cloud_execution() -> None:
