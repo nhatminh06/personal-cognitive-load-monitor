@@ -8,7 +8,7 @@ import os
 import random
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -30,12 +30,17 @@ STALE_WRITE = (
 )
 
 
+def fixture_start(now: datetime) -> datetime:
+    return now.replace(microsecond=0) - timedelta(seconds=now.second % 10)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start", default="2026-10-27T16:00:00+00:00")
+    parser.add_argument("--start")
     parser.add_argument("--session-id", default="rehearsal-stream-pr19")
     args = parser.parse_args()
-    start = datetime.fromisoformat(args.start)
+    now = datetime.now(UTC)
+    start = datetime.fromisoformat(args.start) if args.start else fixture_start(now)
     publisher = KafkaPublisher()
     expected_focus = 0
     expected_distraction = 0
@@ -69,8 +74,10 @@ def main() -> None:
     try:
         while time.monotonic() < deadline:
             message = consumer.poll(1)
-            if message is None or message.error():
+            if message is None:
                 continue
+            if message.error():
+                raise RuntimeError(f"Kafka consumer failed: {message.error()}")
             raw_value = message.value()
             if raw_value is None:
                 continue

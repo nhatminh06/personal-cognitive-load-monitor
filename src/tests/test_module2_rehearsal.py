@@ -29,6 +29,26 @@ from scripts.module2_e2e_rehearsal import (
 PORTS = Ports(31001, 31002, 31003, 31004, 31005)
 
 
+def test_streaming_submission_waits_for_topics() -> None:
+    import yaml
+
+    config = yaml.safe_load(Path("infra/module2/docker-compose.yml").read_text())
+    assert config["services"]["flink-submit"]["depends_on"]["kafka-init"] == {
+        "condition": "service_completed_successfully"
+    }
+
+
+def test_stream_fixture_is_recent_and_window_aligned() -> None:
+    from datetime import UTC, datetime
+
+    from scripts.module2_rehearsal_stream import fixture_start
+
+    now = datetime(2026, 11, 20, 4, 59, 59, 999999, tzinfo=UTC)
+    start = fixture_start(now)
+    assert start == datetime(2026, 11, 20, 4, 59, 50, tzinfo=UTC)
+    assert 0 <= (now - start).total_seconds() < 10
+
+
 def test_kafka_candidate_and_persistent_log_path_are_pinned() -> None:
     compose = Path("infra/module2/docker-compose.yml").read_text()
     assert compose.count("image: cogniflow-kafka:c43-patched") == 2
