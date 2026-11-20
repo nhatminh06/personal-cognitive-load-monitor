@@ -85,9 +85,56 @@ nodes with reported allocatable resources, and reuses the C11 controller-matrix
 and image-ledger shape gates. It does **not** verify signatures, scans, storage
 classes, Secrets or schedulability; those remain separate release gates. A
 backend-free Terraform validate or static node budget does not prove live
-capacity. The MLMD 1.14 wrong-password path
-historically exited with SIGSEGV; current-image negative authentication behavior
-still needs an isolated runtime check before this candidate is accepted.
+capacity. The exact local MLMD 1.14 image was retested in an isolated Docker
+network on 2026-11-19. Valid MySQL authentication created 15 `metadb` tables
+and survived an MLMD container restart. Invalid credentials caused native exit
+139 (`OOMKilled=false`) after `mysql_real_connect failed`; this negative test
+**failed**. Do not release this image until a compatible upstream fix or a
+verified fail-closed startup guard is qualified. The local MySQL volume and
+container logs are task-owned evidence.
+
+### Final local blocker investigation (2026-11-19/20)
+
+The DVC remote configured as `../../.dvc-storage` is absent. An older retained
+CogniFlow checkout supplied ten individual files whose MD5 hashes exactly
+matched `dvc.lock`; they were restored only into ignored workspace paths. Nine
+matching objects were also restored to the local DVC cache. `dvc status` still
+reports missing original Module I train/validation/audit data, model and metrics;
+the Module I engineering package; and the multimodal source snapshot, dataset,
+experiment outputs and focus fixture package. Several stage dependencies have
+changed since the lock was written. Do not replace historical hashes without
+the original inputs or an independently verified canonical run. Run
+`.venv/bin/dvc status` for the exact missing-path inventory.
+
+Knative 1.23 requires Kubernetes 1.34 or newer according to its
+[community schedule](https://github.com/knative/community/blob/main/mechanics/RELEASE-SCHEDULE.md).
+The proposed Kubernetes 1.35 meets that minimum, but the complete controller
+combination has no qualified runtime or immutable image ledger. The External
+Secrets Operator 2.13.0 chart exists upstream; its matching CRDs and both
+`deploy/gke/external-secret.yaml` resources still need exact schema validation.
+The prior 22-valid/2-skipped generic check is not a complete production render.
+The existing controller matrix remains `BLOCKED`.
+
+All 15 exact local IDs in `deploy/releases/kfp-local-images.json` were scanned
+sequentially with pinned Trivy 0.76.2 against the retained vulnerability DB
+(updated 2026-11-17); each returned zero HIGH/CRITICAL findings. Reports are
+in ignored `build/final-submission-audit/image-scans/`. This is a local,
+date-bounded result: it does not establish current registry scans, signed
+provenance, remote digests, complete SBOM coverage or controller runtime
+compatibility. The KFP/MySQL/MLMD/MLflow/storage images in that ledger are
+mandatory for its planned path; KServe, Knative, Istio, cert-manager and
+External Secrets controller images are also mandatory for the full GKE path
+and are absent from this local ledger. Kafka/Flink/Redis, Spark/Delta/Trino and
+the old Module I kind images are outside this GKE image set.
+
+The host had 5.6 GiB available RAM and 98 GiB disk during this check, below
+the C11 12 GiB available-memory gate. Run `scripts/run_c11_acceptance.sh` only
+on a separately authorized isolated target with at least 12 GiB available RAM
+and 60 GiB free disk, after its image/controller preflight. Capture MySQL/MLMD
+migration and restart, six-stage KFP IDs and artifact readback, MLflow
+registration, rejected input, approved test-model KServe inference, Knative
+delivery and anomaly recovery. A C11 kind result does not substitute for GKE
+acceptance.
 
 After separate approval, perform the release order above, run the exact KFP
 pipeline and negative digest test, verify MLflow GCS object generation and hash,
