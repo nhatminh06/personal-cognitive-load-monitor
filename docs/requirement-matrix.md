@@ -23,7 +23,7 @@
 | 17 | Kubernetes IaC | Local runtime + hardened GKE static | Terraform-managed kind/Helm release verified; private-node GKE, GCS/IAM and exact-digest/TLS Helm configuration validate but were not applied |
 | 18 | Cloud Kubernetes | Blocked by authorization/cost | GKE selected, never provisioned |
 | 19 | MLflow tracking/registry | Verified locally; cloud IaC static | Exact candidate version and artifact-tree digest verified; private versioned GCS and Workload Identity are defined but no cloud round trip occurred |
-| 20 | DVC data/pipeline | Verified locally | Pipeline reports up to date; deterministic historical fixture tracked |
+| 20 | DVC data/pipeline | Historical local verification; current reproducibility incomplete | Deterministic historical fixture is tracked, but current outputs are missing from the local cache and the configured local remote is absent |
 | 21 | Model retrieval for image | Historical CI path verified | General CI trains/downloads an ephemeral model; Phase 3 secure packaging remains approval-bound |
 | 22 | Helm deployment | Verified in local kind | Demo-rule release runtime verified; Phase 3 model and KServe releases are not deployed |
 | 23 | Feature-branch development | Verified | Modules and this rubric work use feature branches |

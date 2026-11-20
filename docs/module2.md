@@ -36,8 +36,8 @@ a unique Compose project and private secret file under ignored `build/` evidence
   checkpoints were observed in the earlier successful run; checkpoint 3 was
   explicitly restored and processing and API access continued after recovery.
   Earlier zero-valued Flink REST counters remain unexplained. The final local
-  regression had 696 Python tests passed, 2 skipped, 87.00% coverage and six
-  Flink Java tests passed.
+  streaming-fix regression had 696 Python tests passed, 2 skipped, 87.00%
+  coverage and six Flink Java tests passed.
 - SeaweedFS supplies the S3-compatible API. It is not claimed as instructor
   acceptance for an explicit MinIO requirement.
 - The maintained Spark image still has the documented **SEC-022 development-only

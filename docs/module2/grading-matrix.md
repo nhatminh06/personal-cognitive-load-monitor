@@ -11,12 +11,12 @@ Statuses mean exactly: **implemented** (source exists), **statically validated**
 | Delta Lake | 10% | Delta 3.3.2 Silver table | PR #19 fresh history/reopen/idempotent MERGE evidence | Cloud/scale acceptance remains deferred |
 | Spark batch | 10% | Spark 3.5.5 Bronze→Silver | PR #19 fresh three-event fixture and reconciliation | SEC-022 keeps this image isolated/local only |
 | Kafka broker | 10% | Kafka 3.9.2, versioned topic | PR #19 fresh broker acknowledgments and offsets 0–2 | Load/HA acceptance remains deferred |
-| Flink streaming/windows | 10% | Flink 1.20.5 event-time windows | PR #19 fresh dedup oracle, checkpoint restoration and Redis freshness | Dead-letter payload was not independently consumed |
+| Flink streaming/windows | 10% | Flink 1.20.5 event-time windows | PR #19 dedup/recovery evidence; two fresh 2026-11-19 rehearsals independently verified invalid and late dead-letter records, Redis freshness, authenticated API and checkpoint 3 restore | Production/cloud acceptance remains deferred |
 | Airflow orchestration | 10% | Airflow 3.3.2 six-task DAG | PR #19 fresh six-task success in about 181 seconds | Cloud scheduler acceptance remains deferred |
 | Four cloud deployments | 20% | GKE readiness patterns only | Statically validated where shared infrastructure applies | **Not completed**: four separately accepted runtime deployments required |
 | Dataset strictly >100 GB | 10% | Partitioned resumable generator + benchmark plan | Small fixtures validate exact bytes, resume integrity and safety gates | **Not completed** until >100,000,000,000 bytes are processed and reconciled |
 
-Current maximum supported score from fresh PR #19 runtime evidence is therefore
+Current maximum supported score from local runtime evidence is therefore
 60/100 before instructor judgment on SeaweedFS equivalence; no cloud or 100 GB
 points are claimed.
 

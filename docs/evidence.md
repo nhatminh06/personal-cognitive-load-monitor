@@ -7,7 +7,7 @@ packets remain tracked.
 
 | Area | Evidence | Status / limit |
 |---|---|---|
-| Python regression | 2026-11-19: 696 passed, 2 skipped; 87.00% coverage against an 81% gate; six Flink Java tests passed | Local host |
+| Python regression | 2026-11-19: 700 passed, 2 skipped; 87.00% coverage against an 81% gate; six Flink Java tests passed; merged main CI succeeded | Local host and GitHub CI; earlier 696-test streaming-fix run retained in Module II |
 | Module I | Isolated qualification and final-acceptance records; compatibility and upstream-source JSON; qualification checksum | Preserved course evidence; no new cloud claim |
 | Module II batch | 2026-11-19 isolated rehearsal: Kafka/Bronze, two Spark/Delta runs, two dbt builds, six Airflow tasks; 3 Gold rows / 52,363 bytes under the entire Gold storage prefix | PASS locally; prefix bytes are not current-table bytes |
 | Module II streaming | Two fresh isolated rehearsals after Kafka topic-init fix: 800 focus, 410 distraction, 10 unique events; three duplicates did not inflate totals; stale Redis writes rejected; authenticated API 200; invalid/late quarantine; five checkpoints observed earlier and checkpoint 3 restored with processing continuing | PASS locally; earlier zero-consumption attempts are historical and zero-valued REST counters remain unexplained |

@@ -56,3 +56,45 @@ Both locally qualified images passed the `0 HIGH/CRITICAL` release gate.
 
 For local Kubernetes use, follow the Makefile targets and keep Module I and Module
 III release ownership separate. Never deploy the restricted Spark image.
+
+## First GKE release candidate — blocked handoff
+
+The source baseline is merged main `64e2bb692a4d663b335322876f65b0c887a68594`.
+The required application path is authenticated FastAPI → approved KServe model →
+sanitized Knative Broker/Trigger → persistent consumer and anomaly detector; KFP
+uses MySQL, ML Metadata, MLflow and artifact storage. Terraform supplies GKE,
+Artifact Registry, GCS, networking and Workload Identity. Kafka/Flink/Redis and
+Spark/Delta/Trino retain their isolated local evidence; SEC-022 Spark is never a
+GKE image. The exact local KFP image IDs are in
+`deploy/releases/kfp-local-images.json`; these are **not** registry digests.
+
+| Gate | Current evidence | Required release input |
+|---|---|---|
+| Isolated integration | Historical KFP and Knative runs are dated 2026-10-26; hardened anomaly and current approved-model serving have no integrated run | Use an authorized isolated host with at least 12 GiB available RAM and 60 GiB free disk; run the C11 acceptance with the current images and record real run IDs, migrations, readback, Broker delivery, alert/recovery and rejected inputs |
+| Controller compatibility | `deploy/c11/controller-compatibility.json` remains `BLOCKED`; GKE 1.35 regional availability and actual node allocatable are unverified | Select supported exact GKE/KServe/Knative/Istio/cert-manager/KFP versions, qualify controller images, check regional version availability and node allocatable on the authorized target |
+| Image supply chain | Local linux/amd64 IDs and selected local SBOM/Trivy reports exist; no complete signed remote ledger | Publish every required image only after authorization, resolve each registry manifest digest, run current whole-image zero HIGH/CRITICAL scans, and attach digest-bound SPDX and SLSA attestations verified by `scripts/c11_runtime_preflight.py` |
+| Model | The synthetic candidate remains unapproved | Owner reviews exact model version, run, dataset and artifact hashes; no KServe model image or manifest is released before separate approval |
+| GKE render | `helm/cognitive-load-monitor/values.gke.yaml` and `deploy/gke/` intentionally retain `SET_*` and zero-digest placeholders | Resolve reviewed registry digests, real host, Secret contracts and approved model values; render and schema-validate the complete production set with no placeholder or restricted Spark reference |
+| Cloud plan | No approved project/billing identity, backend, current GKE version, actual Terraform plan, budget channel or GCS round trip | Approve exact project, billing account, region, backend, plan, spend window, teardown and model decision before any apply or publication |
+
+The C11 preflight is for an isolated **kind** target and must not be used as a
+GKE target check. `scripts/gke_release_preflight.py` is a read-only GKE identity
+check: it binds an explicit project, region, cluster, kubeconfig and context to
+the live control-plane endpoint, rejects protected kind contexts, requires ready
+nodes with reported allocatable resources, and reuses the C11 controller-matrix
+and image-ledger shape gates. It does **not** verify signatures, scans, storage
+classes, Secrets or schedulability; those remain separate release gates. A
+backend-free Terraform validate or static node budget does not prove live
+capacity. The MLMD 1.14 wrong-password path
+historically exited with SIGSEGV; current-image negative authentication behavior
+still needs an isolated runtime check before this candidate is accepted.
+
+After separate approval, perform the release order above, run the exact KFP
+pipeline and negative digest test, verify MLflow GCS object generation and hash,
+then exercise KServe readiness/inference/restart and real Knative delivery,
+deduplication, dead letter, anomaly alert and outbox recovery. Record request,
+run, image and object identities plus metrics/logs. Roll back application
+manifests to the last verified digests on failure; preserve MySQL/MLMD and GCS
+data for diagnosis. Teardown requires a separate reviewed plan and approval;
+capture costs and evidence before any resource destruction. The eight-hour
+planning window and $15 budget alert are estimates, not spending limits.

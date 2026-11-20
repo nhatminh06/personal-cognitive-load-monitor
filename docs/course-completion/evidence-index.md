@@ -25,7 +25,7 @@ Kubernetes and cloud runtime remain blocked; no protected cluster was changed.
 | Requirement | Weight | Current status | Exact supporting evidence | Commit or dated runtime evidence | Verification environment | Outstanding acceptance condition |
 |---|---:|---|---|---|---|---|
 | MinIO object storage | 10% | Unresolved; active evidence is SeaweedFS and is not claimed as MinIO credit | `docs/module2/grading-matrix.md`, `docs/module2/testing.md` | Historical PR #19 local evidence | Isolated local Compose/SeaweedFS | Instructor equivalence or maintained MinIO runtime |
-| Trino, Delta, Spark, Kafka, Flink, Airflow | 60% combined | Local runtime evidence recorded; cloud/scale deferred | `docs/module2/grading-matrix.md`, `docs/module2/testing.md` | Historical PR #19 | Isolated local Module II stack | Cloud/HA acceptance where required |
+| Trino, Delta, Spark, Kafka, Flink, Airflow | 60% combined | Local runtime evidence recorded; cloud/scale deferred | `docs/module2/grading-matrix.md`, `docs/module2/testing.md`, `docs/module2.md` | Historical PR #19 plus isolated 2026-11-19 batch and Flink rehearsals | Isolated local Module II stack | Cloud/HA acceptance where required |
 | Four cloud deployments | 20% | Not completed | `docs/module2/grading-matrix.md` | No cloud runtime evidence | No cloud environment used | Four separately accepted runtime deployments |
 | Dataset strictly over 100 GB | 10% | Unresolved; benchmark intentionally not run | `docs/module2/grading-matrix.md` | No 100 GB run | Bounded local fixtures only | Process and reconcile >100,000,000,000 bytes |
 

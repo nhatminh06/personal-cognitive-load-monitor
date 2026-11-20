@@ -30,7 +30,8 @@ The unselected GCE-only 20% alternative is not additive. Private-node GKE, priva
 - [x] Fresh C1 full Python suite: 604 passed, 2 skipped, 5 warnings; 88.87% combined API/data coverage against the 81% gate on 2026-11-17.
 - [x] Historical regression evidence is summarized in [evidence](evidence.md); current results supersede the older 87.08% measurement.
 - [x] Four notebooks executed in prior Module I/II verification.
-- [x] DVC reproducibility and MLflow candidate registration.
+- [ ] DVC reproducibility from the current checkout: required outputs are missing from the local cache and the configured local remote is absent.
+- [x] Historical MLflow candidate registration and artifact integrity evidence.
 - [x] Kafka, Bronze, Delta Silver, Trino/dbt Gold, Airflow and Flink/Redis local integration evidence.
 - [x] Prometheus, Grafana, Loki and Tempo local runtime evidence.
 - [x] Local Terraform/kind/Helm demo release.
