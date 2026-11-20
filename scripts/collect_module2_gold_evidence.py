@@ -1,4 +1,4 @@
-"""Collect Trino/dbt Gold row and physical-byte evidence after a successful build."""
+"""Collect Trino/dbt Gold rows and total Gold-prefix object bytes."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def collect(endpoint: str, s3: Any | None = None, bucket: str | None = None) -> 
     )
     if len(accepted) != 1 or len(accepted[0]) != 1:
         raise ValueError("Gold accepted-row evidence is incomplete")
-    physical = 0
+    prefix_bytes = 0
     table_rows: dict[str, int] = {}
     for table in GOLD_TABLES:
         counts = query(endpoint, f"SELECT count(*) FROM lakehouse.gold.{table}")
@@ -73,13 +73,13 @@ def collect(endpoint: str, s3: Any | None = None, bucket: str | None = None) -> 
         table_rows[table] = integer(counts[0][0])
     paginator = s3.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket, Prefix="metastore/gold/"):
-        physical += sum(integer(item["Size"]) for item in page.get("Contents", []))
+        prefix_bytes += sum(integer(item["Size"]) for item in page.get("Contents", []))
     return {
         "schema_version": "1.0",
         "status": "gold_complete",
         "accepted_rows": integer(accepted[0][0]),
         "table_rows": table_rows,
-        "gold_physical_bytes": physical,
+        "gold_prefix_object_bytes": prefix_bytes,
     }
 
 

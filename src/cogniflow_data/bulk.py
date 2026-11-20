@@ -464,7 +464,7 @@ def reconcile_reports(
         "bronze_object_bytes": ingestion["bronze"]["bytes"],
         "spark_input_bytes": spark["spark_input_bytes"],
         "delta_physical_bytes": spark["delta_physical_bytes"],
-        "gold_physical_bytes": gold["gold_physical_bytes"],
+        "gold_prefix_object_bytes": gold["gold_prefix_object_bytes"],
     }
     if any(not isinstance(value, int) or value < 0 for value in byte_units.values()):
         raise ValueError("stage byte accounting is invalid")
