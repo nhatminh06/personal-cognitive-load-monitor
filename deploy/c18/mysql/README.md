@@ -16,5 +16,11 @@ UID/GID `999` to the RPM-created UID/GID `27`. Do not deploy this local image
 ID directly. Publish the qualified bytes, resolve the remote OCI digest, sign
 and attest that digest, and then supply it through the C11 image ledger.
 
-The image initializes `mlpipeline`, `cachedb`, and `metadb`. Credentials remain
-runtime inputs; no credential is embedded in the image.
+On a fresh data directory, the upstream entrypoint creates the application user
+and grants it schema-scoped privileges on `metadb`. The sourced initializer adds
+schema-scoped privileges on `mlpipeline` and `cachedb`, which the KFP API uses.
+MLMD uses `metadb`. The local MLflow deployment reads its backend URI from a
+separate Secret; its database identity must be checked against that Secret.
+The manifest repeats the idempotent grant step at startup so existing volumes
+receive the same schema privileges. Credentials remain runtime inputs; no
+credential is embedded in the image.

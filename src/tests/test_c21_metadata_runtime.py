@@ -14,7 +14,7 @@ WRITER_IMAGE = (
 )
 MYSQL_IMAGE = (
     "cogniflow/mysql@sha256:"
-    "367c695a6870d1fed993457575846f13071ea3c8cee88d54a311251ff4dbf0f3"
+    "febda51c2aa5e451cb2d4161f1c82f731dc5e36cbf06be80eea4ed17e9dcb5e6"
 )
 
 
@@ -56,6 +56,9 @@ def test_mysql_patch_uses_dedicated_user_and_rejects_empty_password() -> None:
     assert "--mysql-native-password=ON" in container["args"]
     assert container["securityContext"]["runAsUser"] == 27
     assert pod["securityContext"]["fsGroup"] == 27
+    assert container["lifecycle"]["postStart"]["exec"]["command"] == [
+        "/bin/bash", "/docker-entrypoint-initdb.d/02-grant-kfp-databases.sh",
+    ]
 
 
 def test_overlay_removes_upstream_empty_secret_and_pins_source() -> None:

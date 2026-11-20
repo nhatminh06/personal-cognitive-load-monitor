@@ -29,6 +29,7 @@ RUN microdnf upgrade -y \
 
 COPY --from=official /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --chmod=0444 init-kfp-databases.sql /docker-entrypoint-initdb.d/01-kfp-databases.sql
+COPY --chmod=0444 grant-kfp-databases.sh /docker-entrypoint-initdb.d/02-grant-kfp-databases.sh
 
 USER mysql:mysql
 VOLUME /var/lib/mysql

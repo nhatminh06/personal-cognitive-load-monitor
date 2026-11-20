@@ -219,7 +219,7 @@ def evidence_reports():
         "silver_total_rows": 3,
         "delta_physical_bytes": 200,
     }
-    gold = {"status": "gold_complete", "accepted_rows": 3, "gold_physical_bytes": 120}
+    gold = {"status": "gold_complete", "accepted_rows": 3, "gold_prefix_object_bytes": 120}
     return ingestion, spark, gold
 
 

@@ -7,10 +7,10 @@ packets remain tracked.
 
 | Area | Evidence | Status / limit |
 |---|---|---|
-| Python regression | 2026-11-19: 694 passed, 2 skipped; 87.00% coverage against an 81% gate | Local host |
+| Python regression | 2026-11-19: 696 passed, 2 skipped; 87.00% coverage against an 81% gate; six Flink Java tests passed | Local host |
 | Module I | Isolated qualification and final-acceptance records; compatibility and upstream-source JSON; qualification checksum | Preserved course evidence; no new cloud claim |
-| Module II batch | 2026-11-19 isolated rehearsal: Kafka/Bronze, two Spark/Delta runs, two dbt builds, six Airflow tasks; 3 Gold rows / 52,363 bytes | PASS locally |
-| Module II streaming | Flink job RUNNING but source counters stayed at zero in two attempts | FAILED; Redis/API reconciliation absent |
+| Module II batch | 2026-11-19 isolated rehearsal: Kafka/Bronze, two Spark/Delta runs, two dbt builds, six Airflow tasks; 3 Gold rows / 52,363 bytes under the entire Gold storage prefix | PASS locally; prefix bytes are not current-table bytes |
+| Module II streaming | Two fresh isolated rehearsals after Kafka topic-init fix: 800 focus, 410 distraction, 10 unique events; three duplicates did not inflate totals; stale Redis writes rejected; authenticated API 200; invalid/late quarantine; five checkpoints observed earlier and checkpoint 3 restored with processing continuing | PASS locally; earlier zero-consumption attempts are historical and zero-valued REST counters remain unexplained |
 | KFP | 2026-10-26 positive `cee7540f-9c9e-4078-a9d7-c61c4c4bd9fc`; negative `5143c5ae-9c98-4c4d-9f21-f5647ec63cf9` | Historical isolated kind runtime |
 | Knative Eventing | 2026-10-26 event `33fb0ed9-4b13-41f3-9da5-cdc30b444a31`; replay, restart, retry and DLQ recorded | Historical isolated runtime |
 | Anomaly detection | 2026-10-26/27 runtime plus current recovery/concurrency regression tests | Exact hardened image not freshly redeployed |
