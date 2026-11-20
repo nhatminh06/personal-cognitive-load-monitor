@@ -45,13 +45,16 @@ def run_allowlisted_job(service: str, action: str = "run") -> None:
     )
 
 
-def trino(sql: str) -> None:
+def trino(sql: str) -> list[list[object]]:
     url = "http://trino:8080/v1/statement"
     payload = json.loads(request(url, data=sql.encode(), headers={"X-Trino-User": "airflow"}))
+    rows = payload.get("data", [])
     while "nextUri" in payload:
         payload = json.loads(request(payload["nextUri"], headers={"X-Trino-User": "airflow"}))
+        rows.extend(payload.get("data", []))
     if "error" in payload:
         raise RuntimeError(payload["error"].get("message", "Trino query failed"))
+    return rows
 
 
 default_args = {"retries": 2, "retry_delay": timedelta(seconds=10)}
@@ -79,6 +82,20 @@ with DAG(
 
     @task
     def verify_silver() -> None:
+        trino(
+            "CREATE SCHEMA IF NOT EXISTS lakehouse.silver "
+            "WITH (location = 's3://cogniflow-lakehouse/metastore/silver')"
+        )
+        registered = trino(
+            "SELECT table_name FROM lakehouse.information_schema.tables "
+            "WHERE table_schema = 'silver' AND table_name = 'session_features'"
+        )
+        if not registered:
+            trino(
+                "CALL lakehouse.system.register_table("
+                "schema_name => 'silver', table_name => 'session_features', "
+                "table_location => 's3://cogniflow-lakehouse/silver/session_features')"
+            )
         trino("SELECT count(*) FROM lakehouse.silver.session_features")
 
     @task

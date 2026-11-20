@@ -1,21 +1,29 @@
 node_pool:
   nodes: 2
   machine_type: e2-standard-4
-  capacity:
-    cpu_millicores: 8000
-    memory_mib: 32768
+  raw_capacity: {cpu_millicores: 8000, memory_mib: 32768}
   system_reserve_percent: 20
-required_requests:
-  gke_kfp_kserve_controllers: {cpu_millicores: 1400, memory_mib: 5120}
-  knative_serving_networking_autoscaler: {cpu_millicores: 700, memory_mib: 2048}
-  fastapi_and_predictor: {cpu_millicores: 700, memory_mib: 3072}
-  mlflow_mysql_client: {cpu_millicores: 100, memory_mib: 512}
-  event_consumers: {cpu_millicores: 400, memory_mib: 1536}
-  serialized_training_run: {cpu_millicores: 1400, memory_mib: 5120}
-  managed_monitoring_agents: {cpu_millicores: 300, memory_mib: 1024}
+  budgeted_allocatable: {cpu_millicores: 6400, memory_mib: 26214}
+  per_node_budgeted_allocatable: {cpu_millicores: 3200, memory_mib: 13107}
+headless_kfp_render:
+  workload_pods: 10
+  requests: {cpu_millicores: 884, memory_mib: 3164}
+  persistent_storage_gib: 40
+  persistent_claims:
+    mysql: {size_gib: 20, access_mode: ReadWriteOnce}
+    seaweedfs: {size_gib: 20, access_mode: ReadWriteOnce}
+concurrent_pipeline_pod:
+  requests: {cpu_millicores: 475, memory_mib: 1088}
+  training_container: {cpu_millicores: 250, memory_mib: 512}
+steady_peak:
+  requests: {cpu_millicores: 1359, memory_mib: 4252}
+  remaining_after_system_reserve: {cpu_millicores: 5041, memory_mib: 21962}
 sequential_runner_requests:
-  private_packaging_runner: {cpu_millicores: 500, memory_mib: 1024}
-  deployment_runner: {cpu_millicores: 250, memory_mib: 512}
-# Gate: required requests must fit after the 20% system reserve. Optional
-# dashboards are excluded and must not be installed without a new budget. The
-# release runner replaces, and never overlaps, the serialized training run.
+  private_packaging_runner: {cpu_millicores: 500, memory_mib: 1024, ephemeral_storage_gib: 15}
+  deployment_runner: {cpu_millicores: 250, memory_mib: 512, ephemeral_storage_gib: 6}
+placement:
+  result: FITS_TWO_NODES
+  constraint: Place the two RWO stateful Pods on separate nodes; every individual Pod fits one node.
+  smallest_alternative_if_actual_GKE_allocatable_is_lower: three e2-standard-4 nodes
+# Calculated from the 73-object headless KFP render. Init-container maxima are
+# included. Runner Pods are ephemeral and sequential, not part of steady_peak.

@@ -13,6 +13,7 @@ from scripts.module2_e2e_rehearsal import (
     Evidence,
     Ports,
     QUALIFIED_IMAGE_IDS,
+    SPARK_IMAGE,
     SPARK_IMAGE_ID,
     UNQUALIFIED_IMAGES,
     create_secret_file,
@@ -117,6 +118,7 @@ def test_rehearsal_image_gate_rejects_drift_and_unqualified_images() -> None:
     validate_image_security(observed, (), set(QUALIFIED_IMAGE_IDS))
     with pytest.raises(RuntimeError, match="image security gate failed"):
         validate_image_security(observed, UNQUALIFIED_IMAGES, configured)
+    validate_image_security(observed, (), configured - {SPARK_IMAGE})
     with pytest.raises(RuntimeError, match="Compose image inventory changed"):
         validate_image_security(observed, (), {"unscanned:image"})
     observed["redis:7.4.12-alpine3.22"] = "sha256:wrong"

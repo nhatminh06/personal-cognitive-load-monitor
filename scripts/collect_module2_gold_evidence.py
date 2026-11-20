@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -42,7 +43,20 @@ def query(endpoint: str, sql: str) -> list[list[object]]:
         raise RuntimeError("Trino evidence query failed") from error
 
 
-def collect(endpoint: str) -> dict[str, object]:
+def collect(endpoint: str, s3: Any | None = None, bucket: str | None = None) -> dict[str, object]:
+    if s3 is None:
+        import boto3
+        from botocore.config import Config
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=os.getenv("MINIO_ENDPOINT", "http://127.0.0.1:9000"),
+            aws_access_key_id=os.getenv("MINIO_ROOT_USER"),
+            aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD"),
+            region_name="us-east-1",
+            config=Config(s3={"addressing_style": "path"}),
+        )
+    bucket = bucket or os.getenv("MINIO_LAKEHOUSE_BUCKET", "cogniflow-lakehouse")
     accepted = query(
         endpoint,
         "SELECT accepted_rows FROM lakehouse.gold.gold_data_quality_summary "
@@ -54,14 +68,12 @@ def collect(endpoint: str) -> dict[str, object]:
     table_rows: dict[str, int] = {}
     for table in GOLD_TABLES:
         counts = query(endpoint, f"SELECT count(*) FROM lakehouse.gold.{table}")
-        sizes = query(
-            endpoint,
-            f'SELECT coalesce(sum(file_size_in_bytes), 0) FROM lakehouse.gold."{table}$files"',
-        )
-        if len(counts) != 1 or len(sizes) != 1:
+        if len(counts) != 1:
             raise ValueError(f"Gold evidence is incomplete for {table}")
         table_rows[table] = integer(counts[0][0])
-        physical += integer(sizes[0][0])
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix="metastore/gold/"):
+        physical += sum(integer(item["Size"]) for item in page.get("Contents", []))
     return {
         "schema_version": "1.0",
         "status": "gold_complete",

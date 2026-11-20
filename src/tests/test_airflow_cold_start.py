@@ -41,6 +41,13 @@ def test_cold_start_validates_bronze_before_creating_silver(monkeypatch):
     assert len(edges) == 5
     assert edges[:2] == [("check_source", "validate_input"), ("validate_input", "spark_bronze_to_silver")]
 
+    statements = []
+    monkeypatch.setattr(module, "trino", lambda sql: statements.append(sql) or [])
+    module.verify_silver.function()
+    assert any("CREATE SCHEMA IF NOT EXISTS" in sql for sql in statements)
+    assert any("register_table" in sql for sql in statements)
+    assert statements[-1] == "SELECT count(*) FROM lakehouse.silver.session_features"
+
 
 @pytest.mark.parametrize("valid,rejected,status", [([{}], [], 200), ([], [], 502), ([{}], [{}], 502)])
 def test_runner_bronze_validation_releases_lock(monkeypatch, valid, rejected, status):
