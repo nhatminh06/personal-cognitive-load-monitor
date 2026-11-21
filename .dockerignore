@@ -4,7 +4,6 @@
 .aws
 .codex
 graphify-out
-build
 .terraform
 **/.terraform
 __pycache__
@@ -21,3 +20,8 @@ data
 reports
 *.zip
 __MACOSX
+build/*
+!build/model-package/
+build/model-package/*
+!build/model-package/cognitive_load_model.skops
+!build/model-package/model-package.json
