@@ -12,6 +12,7 @@ RUN apk add --no-cache \
         alpine-release=3.24.4-r0 \
         apk-tools=3.0.9-r0 \
         brotli-libs=1.2.1-r0 \
+        libfontenc=1.1.10-r0 \
         ca-certificates=20261020-r0 \
         ca-certificates-bundle=20261020-r0 \
         libapk=3.0.9-r0 \
