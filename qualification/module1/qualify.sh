@@ -170,7 +170,9 @@ wait_ready() {
 }
 
 origin="http://${model}-predictor.${namespace}.svc.cluster.local"
-request='{"instances":[[150,10,0,96,0.9375,0.0625]]}'
+
+request='{"feature_names":["focus_minutes","distraction_minutes","tasks_due","hours_to_deadline","focus_ratio","distraction_ratio"],"instances":[[150,10,0,96,0.9375,0.0625]]}'
+
 predict() {
   timeout "$((deadline + 5))s" "${k[@]}" exec -n "$namespace" qualification-client -- \
     curl --silent --show-error --connect-timeout 3 --max-time "$deadline" \

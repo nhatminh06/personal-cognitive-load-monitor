@@ -356,3 +356,23 @@ def test_workflow_and_matrix_remain_parseable_blocked_and_standard_safe() -> Non
     assert matrix["qualification_status"] == "BLOCKED"
     assert matrix["selected_candidate"] is None
     assert standard["kserve"]["deploymentMode"] == "Standard"
+
+def test_qualification_request_matches_feature_contract():
+    from preprocessing_api.features import FEATURE_NAMES
+
+    script = (QUALIFICATION / "qualify.sh").read_text()
+    line = next(
+        line for line in script.splitlines()
+        if line.startswith("request=")
+    )
+
+    raw = line.removeprefix("request=")
+    assert raw.startswith("'") and raw.endswith("'")
+
+    payload = json.loads(raw[1:-1])
+
+    assert set(payload) == {"feature_names", "instances"}
+    assert payload["feature_names"] == list(FEATURE_NAMES)
+    assert payload["instances"] == [
+        [150, 10, 0, 96, 0.9375, 0.0625]
+    ]
