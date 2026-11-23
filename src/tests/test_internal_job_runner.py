@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import subprocess
+import builtins
 
 import pytest
 
-from jobs.internal_job_runner import authorized, command_for, run_job, verify_spark_ivy
+from jobs.internal_job_runner import Handler, _job_lock, authorized, command_for, main, run_job, verify_spark_ivy
 
 
 def test_runner_accepts_only_fixed_job_kinds() -> None:
@@ -34,6 +35,40 @@ def test_runner_uses_allowlisted_command(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert run_job("dbt", 30).returncode == 0
     assert calls == [(('dbt', 'build'), '/analytics', 30)]
+
+
+def test_blocked_spark_cannot_start_or_submit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JOB_KIND", "spark")
+    monkeypatch.setenv("JOB_RUNNER_TOKEN", "secret")
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: pytest.fail("Spark executed"))
+    monkeypatch.setattr("jobs.internal_job_runner.ThreadingHTTPServer", lambda *args: pytest.fail("Server bound"))
+    with pytest.raises(RuntimeError, match="security blocked"):
+        main()
+    with pytest.raises(RuntimeError, match="security blocked"):
+        run_job("spark", 30)
+
+
+@pytest.mark.parametrize("header,status", [("Bearer secret", 502), ("Bearer wrong", 401), (None, 401)])
+def test_spark_validation_never_imports_or_executes(monkeypatch: pytest.MonkeyPatch, header: str | None, status: int) -> None:
+    monkeypatch.setenv("JOB_KIND", "spark")
+    monkeypatch.setenv("JOB_RUNNER_TOKEN", "secret")
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: pytest.fail("Subprocess started"))
+    original_import = builtins.__import__
+
+    def no_spark_import(name, *args, **kwargs):
+        if name == "bronze_to_silver" or name.startswith(("pyspark", "delta")):
+            pytest.fail(f"Spark module imported: {name}")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_spark_import)
+    handler = object.__new__(Handler)
+    handler.path = "/validate"
+    handler.headers = {"Authorization": header} if header else {}
+    replies = []
+    handler._reply = lambda code, payload: replies.append((code, payload))
+    handler.do_POST()
+    assert replies[0][0] == status
+    assert not _job_lock.locked()
 
 
 def test_spark_ivy_manifest_is_enforced(tmp_path) -> None:

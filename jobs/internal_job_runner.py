@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import threading
+from collections.abc import Mapping
 from pathlib import Path
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -57,6 +58,8 @@ def authorized(header: str | None, token: str) -> bool:
 
 
 def run_job(kind: str, timeout: int) -> subprocess.CompletedProcess[str]:
+    if kind == "spark":
+        raise RuntimeError("Spark runtime is security blocked; see M2-S1E deferral closeout")
     return subprocess.run(
         command_for(kind), cwd=WORKING_DIRS[kind], capture_output=True,
         check=False, text=True, timeout=timeout,
@@ -80,6 +83,10 @@ class Handler(BaseHTTPRequestHandler):
         if not authorized(self.headers.get("Authorization"), token):
             self._reply(HTTPStatus.UNAUTHORIZED, {"detail": "Invalid runner token"})
             return
+        if self.path == "/validate":
+            status = HTTPStatus.BAD_GATEWAY if os.environ.get("JOB_KIND") == "spark" else HTTPStatus.NOT_FOUND
+            self._reply(status, {"detail": "Spark runtime is security blocked" if status == HTTPStatus.BAD_GATEWAY else "Not found"})
+            return
         length = self.headers.get("Content-Length", "0")
         if not length.isdigit() or int(length) > 2:
             self._reply(HTTPStatus.BAD_REQUEST, {"detail": "Request body must be empty"})
@@ -90,18 +97,6 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(HTTPStatus.CONFLICT, {"detail": "A job is already running"})
             return
         try:
-            if self.path == "/validate":
-                if os.environ.get("JOB_KIND") != "spark":
-                    self._reply(HTTPStatus.NOT_FOUND, {"detail": "Not found"})
-                    return
-                from bronze_to_silver import load_bronze_accounted
-
-                valid, rejected, accounting = load_bronze_accounted()
-                if not valid or rejected:
-                    self._reply(HTTPStatus.BAD_GATEWAY, {"detail": "Bronze input is empty or invalid"})
-                    return
-                self._reply(HTTPStatus.OK, accounting)
-                return
             result = run_job(os.environ["JOB_KIND"], int(os.getenv("JOB_TIMEOUT_SECONDS", "1800")))
         except (KeyError, ValueError):
             self._reply(HTTPStatus.INTERNAL_SERVER_ERROR, {"detail": "Runner is misconfigured"})
@@ -119,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         print(f"job-runner: {format % args}", flush=True)
 
-    def _reply(self, status: HTTPStatus, payload: dict[str, object]) -> None:
+    def _reply(self, status: HTTPStatus, payload: Mapping[str, object]) -> None:
         body = json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -135,7 +130,7 @@ def main() -> None:
     if not os.environ.get("JOB_RUNNER_TOKEN", "").strip():
         raise RuntimeError("JOB_RUNNER_TOKEN must be configured")
     if kind == "spark":
-        verify_spark_ivy()
+        raise RuntimeError("Spark runtime is security blocked; see M2-S1E deferral closeout")
     ThreadingHTTPServer(("0.0.0.0", 8090), Handler).serve_forever()
 
 
