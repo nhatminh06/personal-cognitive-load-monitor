@@ -11,6 +11,7 @@ patches:
   - path: persistence-agent.yaml
   - path: scheduled-workflow.yaml
   - path: workflow-controller.yaml
+  - path: seaweedfs.yaml
   - path: metadata-envoy.yaml
   - path: metadata-writer.yaml
   - path: remove-upstream-mysql-secret.yaml
