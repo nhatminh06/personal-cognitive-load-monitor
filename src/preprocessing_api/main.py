@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Response
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from cogniflow_data.api import router as event_router
@@ -59,6 +59,8 @@ app.mount("/focus-assets", StaticFiles(directory=FOCUS_DASHBOARD), name="focus-a
 @app.get("/")
 async def root():
     """Serve the lightweight local demonstration."""
+    if os.getenv("APP_ENV", "development").strip().lower() == "educational_demo":
+        return RedirectResponse("/focus", status_code=307)
     return HTMLResponse(DEMO_HTML)
 
 
