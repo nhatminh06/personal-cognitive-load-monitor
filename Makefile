@@ -1,4 +1,8 @@
-.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro module1-engineering-repro helm-template verify-local clean module2-ingestion module2-lake module2-batch module2-analytics module2-streaming module2-orchestration-dev module2-stop module2-ps
+.PHONY: install sync test coverage run docker-build docker-run train drift dvc-repro module1-engineering-repro helm-template verify-local clean module2-ingestion module2-lake module2-batch module2-analytics module2-streaming module2-orchestration-dev module2-stop module2-ps module2-independent-regression
+
+module2-independent-regression:
+	@echo "Offline independent Module II contracts; no Spark or live database qualification"
+	.venv/bin/pytest -q src/tests/test_airflow_cold_start.py src/tests/test_internal_job_runner.py src/tests/test_module2_independent_analytics.py src/tests/test_trino_history.py src/tests/test_historical_features.py
 
 install sync:
 	uv sync --all-extras
