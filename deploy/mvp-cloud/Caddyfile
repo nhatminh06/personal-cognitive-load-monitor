@@ -1,0 +1,6 @@
+{$MVP_DOMAIN} {
+    encode zstd gzip
+    @private path /metrics /docs /redoc /openapi.json
+    respond @private 404
+    reverse_proxy api:8000
+}
