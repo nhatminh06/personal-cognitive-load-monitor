@@ -13,11 +13,18 @@
     "metadata-envoy": "sha256:bf7ad93d1c0621f0081e1c2f5be1e96b6955b2615115564837f88b3e95c33126",
     "init-helper": "sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2",
     "mysql": "sha256:febda51c2aa5e451cb2d4161f1c82f731dc5e36cbf06be80eea4ed17e9dcb5e6",
+    "mlflow-s3": "sha256:de0b5f8bbd26bfea3693700b90a9602cfb5620cb64887a908da60bad4ba863b5",
     "mlflow-gcs": "sha256:a9741a4d3248444027c0f605114024e2294e25504cde7b5def31c18694f445f5",
     "seaweedfs": "sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15",
     "mlmd": "sha256:d17f04d9138660061f3bca87d3cfae06a812781e3fae0aa03330443f08544876",
     "metadata-writer": "sha256:c2a8d2322156040087818323c1e5d1e685dbb63142f52bad263512fb00fa2ae1",
     "training-component": "sha256:e296269ccaa235661a1102c49bc98754f5a3d07e80c8c59e5e78d83a8cc2d1f9"
+  },
+  "mlflow_s3": {
+    "runtime_manifest_digest": "sha256:9a4c27a81411b1198cf6b3f1f71ca15cc9e5ae61fe1dd34652a74d41155f019e",
+    "trivy_high": 0,
+    "trivy_critical": 0,
+    "published_reference": null
   },
   "mlflow_gcs": {
     "runtime_manifest_digest": "sha256:9d92089f477271463d0753122c58d3cd2a8a7426f18a6e4c58b8d69e0aba8f05",

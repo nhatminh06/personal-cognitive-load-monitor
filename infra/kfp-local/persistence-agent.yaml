@@ -10,6 +10,9 @@ spec:
         - name: ml-pipeline-persistenceagent
           image: cogniflow-kfp-persistence-agent@sha256:707c3af5abdb6c57902036916fd0d74d6bb014889a30c19e16574a71c92a68dc
           imagePullPolicy: Never
+          resources:
+            requests: {cpu: 120m, memory: 500Mi}
+            limits: {cpu: 500m, memory: 1Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

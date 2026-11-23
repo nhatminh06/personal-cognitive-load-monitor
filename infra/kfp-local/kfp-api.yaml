@@ -10,6 +10,9 @@ spec:
         - name: ml-pipeline-api-server
           image: cogniflow-kfp-api@sha256:d70accf415ef407fd23fd7a790cfd8f9ec9877324018434264fdb66d378859ad
           imagePullPolicy: Never
+          resources:
+            requests: {cpu: 250m, memory: 500Mi}
+            limits: {cpu: "1", memory: 1Gi}
           env:
             - name: DBCONFIG_USER
               valueFrom:
