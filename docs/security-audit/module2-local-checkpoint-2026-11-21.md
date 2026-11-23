@@ -46,4 +46,3 @@ Checkpoint recovery was not retested.
 Existing image identity gates remain unchanged.
 Spark remains security blocked.
 No cloud or production deployment authorized.
-
