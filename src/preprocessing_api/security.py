@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import hashlib
 import os
+from pathlib import Path
 from collections.abc import Awaitable, Callable
 
 from fastapi import Header, HTTPException, status
@@ -12,6 +13,22 @@ from fastapi import Header, HTTPException, status
 MAX_REQUEST_BYTES = int(os.getenv("MAX_REQUEST_BYTES", "1048576"))
 DEFAULT_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
 API_DOCS_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; connect-src 'self'; frame-ancestors 'none'"
+
+
+def configured_api_key() -> str | None:
+    """Load the API key from one explicit source without exposing it to Compose."""
+
+    direct = os.getenv("COGNIFLOW_API_KEY") or os.getenv("EVENT_API_KEY")
+    secret_path = os.getenv("COGNIFLOW_API_KEY_FILE")
+    if direct and secret_path:
+        raise RuntimeError("Configure COGNIFLOW_API_KEY or COGNIFLOW_API_KEY_FILE, not both")
+    if not secret_path:
+        return direct
+    try:
+        value = Path(secret_path).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value or None
 
 
 def is_production() -> bool:
@@ -24,7 +41,7 @@ def is_production() -> bool:
 async def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
     """Require the single-tenant API key in production; local demos stay frictionless."""
 
-    expected = os.getenv("COGNIFLOW_API_KEY") or os.getenv("EVENT_API_KEY")
+    expected = configured_api_key()
     if expected is None:
         if is_production():
             raise HTTPException(status_code=503, detail="API authentication is not configured")
@@ -39,7 +56,7 @@ async def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
 async def authenticated_owner(x_api_key: str | None = Header(default=None)) -> str:
     """Return a non-reversible owner identity for routes that persist user data."""
 
-    expected = os.getenv("COGNIFLOW_API_KEY") or os.getenv("EVENT_API_KEY")
+    expected = configured_api_key()
     if expected is None or not expected.strip():
         raise HTTPException(status_code=503, detail="API authentication is not configured")
     supplied = x_api_key or ""
