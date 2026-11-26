@@ -1,0 +1,15 @@
+.venv/
+.venv-workers/
+.venv-pyodide/
+python_modules/
+pylock.toml
+node_modules/
+.wrangler/
+.dev.vars
+.local-credential
+.owner-credential*
+wrangler.bench.jsonc
+wrangler.live.jsonc
+public/
+src/vendor/
+__pycache__/

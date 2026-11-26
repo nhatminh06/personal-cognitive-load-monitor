@@ -1,0 +1,8 @@
+[project]
+name = "cogniflow-cloudflare"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["fastapi==0.135.2", "pydantic==2.12.5"]
+
+[dependency-groups]
+dev = ["workers-py==1.17.9", "workers-runtime-sdk==0.3.1"]
