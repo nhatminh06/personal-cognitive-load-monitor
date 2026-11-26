@@ -8,19 +8,50 @@ synthetic cognitive-load classifier. LOW, MEDIUM and HIGH are deterministic prox
 labels, not clinical or real-world measurements. Do not use the project for
 diagnosis, employee monitoring, academic decisions or other decisions about people.
 
-## Platform
+**Public V0.1:** [Open CogniFlow](https://cogniflow.minhpham06.com) ·
+[workers.dev preview](https://cogniflow-v01.mphamnhat2006.workers.dev).
+The deployed TypeScript Cloudflare Worker serves the dashboard and authenticated
+focus-session API; D1 stores sessions, events, labels and synthetic estimates.
+Owner login, start/pause/resume/complete, five-minute windows, effort ratings,
+timeline and `demo_rule` estimates are available. Estimates are synthetic proxies,
+not model predictions.
+
+## Deployed MVP and future platform
+
+V0.1 runs only on Cloudflare Workers, Static Assets and D1. Its owner-only browser
+login uses host-only Secure, HttpOnly, SameSite=Strict cookies, exact-origin CSRF
+checks and rate limits. The Linux FastAPI MVP is a separate local deployment.
+Kafka, Flink, Spark, KFP, KServe and the components below are future or frozen
+research paths; they do not process traffic for the public V0.1 Worker.
 
 - Module II: Kafka → SeaweedFS Bronze → Spark/Delta Silver → Trino/dbt Gold,
   orchestrated by Airflow; Flink maintains Redis online features.
 - Module III: KFP → MySQL/MLMD → MLflow → explicit model approval → KServe;
   Knative Eventing feeds persistent anomaly detection and alerting.
-- Delivery: Docker/Compose, Helm, Kubernetes and Terraform configuration with
-  fail-closed security and publication gates.
+- The Linux MVP uses Docker Compose. Kubernetes and Terraform material are frozen
+  research, not an active public deployment route.
 
 Local evidence does not prove GKE/GCS operation. SeaweedFS equivalence to an
 explicit MinIO course requirement is unresolved. The SEC-022 Spark image is
 development-only and forbidden in Kubernetes or GKE. No model is approved for
 production serving.
+
+## Release evidence and limits
+
+The TypeScript and Python HTTP contract matched on 35 paired requests. Local D1
+race tests covered 30 groups of three identical creates with one 201 and two 200
+responses per group. The retained live Free-plan CPU qualification matched 240/240
+invocation logs; its maximum reported CPU was 8 ms. A separate earlier sampled
+run observed 8.744 ms. The final dual-host release checks passed HTTPS, owner
+login/logout, session lifecycle, timeline,
+cross-host D1 persistence, CSRF rejection and desktop/mobile Chromium rendering.
+Recent aggregate metrics showed 201 requests and zero Worker errors. These are
+bounded observations, not a guarantee against future Free CPU or daily quota limits.
+Persistent Worker invocation/application logs and traces are disabled; older
+qualification logs expire under Cloudflare retention. Actual billable charges
+remain unverified even though Workers Free is active and no paid feature was enabled.
+See the [deployment report](docs/readiness/cogniflow-v01-cloudflare-free-deployment.md)
+for methods, timestamps and limitations.
 
 ## Run the local API
 
@@ -48,7 +79,7 @@ uv lock --check --offline
 make test
 uv run ruff check src scripts dags pipelines
 helm lint helm/cognitive-load-monitor
-terraform -chdir=infra/terraform/gke validate
+cd deploy/cloudflare && node --test tests/d1-atomic.mjs
 ```
 
 ## Documentation
@@ -56,7 +87,8 @@ terraform -chdir=infra/terraform/gke validate
 - [Architecture](docs/architecture.md)
 - [Module II data platform](docs/module2.md)
 - [Module III training and serving](docs/module3.md)
-- [Deployment and release](docs/deployment.md)
+- [Cloudflare V0.1 deployment](docs/readiness/cogniflow-v01-cloudflare-free-deployment.md)
+- [Historical deployment research](docs/deployment.md)
 - [Security](docs/security.md)
 - [Evidence index](docs/evidence.md)
 - [Demo](docs/demo.md)
@@ -73,10 +105,8 @@ narrative reports were removed.
 
 ## Release boundary
 
-Ordinary CI cannot publish images, authenticate to cloud providers or deploy
-infrastructure. Publication and cloud deployment require explicit approval of the
-exact revision, destination, Terraform plan, image identities, model decision and
-teardown procedure.
+Ordinary CI cannot publish the Cloudflare Worker or create D1 resources.
+Publication requires the owner authorization described in the Cloudflare V0.1 report.
 
 Original CogniFlow code is licensed under [MIT](LICENSE). Dependencies retain their
 own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
