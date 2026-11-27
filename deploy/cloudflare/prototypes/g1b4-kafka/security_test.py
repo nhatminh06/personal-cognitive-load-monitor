@@ -28,6 +28,18 @@ class GatewaySecurityTest(unittest.TestCase):
             finally:
                 gateway.close()
 
+    def test_gateway_rate_window_rejects_excess_requests_before_kafka(self):
+        with tempfile.TemporaryDirectory(prefix="cogniflow-g1d2-rate-") as temp:
+            secret = secrets.token_hex(32)
+            gateway = KafkaGateway(secret=secret, broker="127.0.0.1:39094",
+                                   topic="g1b4-synthetic-security", database=Path(temp) / "gateway.sqlite",
+                                   max_requests=1).start()
+            try:
+                self.assertEqual(direct(gateway, secret, envelope(event(1)), valid=False), 401)
+                self.assertEqual(direct(gateway, secret, envelope(event(2)), valid=False), 429)
+            finally:
+                gateway.close()
+
 
 if __name__ == "__main__":
     unittest.main()

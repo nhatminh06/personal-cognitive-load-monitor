@@ -52,10 +52,13 @@ export async function dispatchBatch(env, options = {}) {
   const now = currentTime();
   const maxItems = options.maxItems ?? 1, maxBytes = options.maxBytes ?? 4096;
   const timeoutMs = options.timeoutMs ?? 2000;
+  const keyId = env.GATEWAY_KEY_ID ?? 'synthetic';
   if (!Number.isSafeInteger(now) || !Number.isInteger(maxItems) || maxItems < 1 ||
       maxItems > maxItemsCap || !Number.isInteger(maxBytes) || maxBytes < 1 ||
       maxBytes > maxBytesCap || !Number.isInteger(timeoutMs) || timeoutMs < 1 ||
-      timeoutMs > 5000 || !env.GATEWAY_SECRET || !env.GATEWAY_URL) {
+      timeoutMs > 5000 || !env.GATEWAY_SECRET || !env.GATEWAY_URL ||
+      !/^[A-Za-z0-9._:-]{1,64}$/.test(keyId) ||
+      (env.GATEWAY_REQUIRE_HTTPS === 'true' && !env.GATEWAY_URL.startsWith('https://'))) {
     throw new Error('invalid dispatcher configuration');
   }
   const counts = { claimed: 0, delivered: 0, retried: 0, dead: 0, bytes: 0,
@@ -93,7 +96,7 @@ export async function dispatchBatch(env, options = {}) {
       const outbound = env.GATEWAY?.fetch ? env.GATEWAY.fetch.bind(env.GATEWAY) : fetch;
       const response = await outbound(env.GATEWAY_URL, { method: 'POST', body,
         signal: controller.signal, headers: { 'Content-Type': 'application/json',
-          'X-G1B2-Key': 'synthetic', 'X-G1B2-Time': stamp, 'X-G1B2-Nonce': nonce,
+          'X-G1B2-Key': keyId, 'X-G1B2-Time': stamp, 'X-G1B2-Nonce': nonce,
           'X-G1B2-Signature': options.fault === 'bad_sig' ? '0'.repeat(64) : mac,
           ...(options.fault === 'retry_429' ? { 'X-G1B3-Test-Fault': '429' } : {}) } });
       if (!response.ok) {
