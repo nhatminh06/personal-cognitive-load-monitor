@@ -10,6 +10,13 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 final class SessionFeatureJobTest {
+  @Test void localRecoveryRetryBudgetIsFiniteAndDefaultIsPreserved() {
+    assertEquals(3, SessionFeatureJob.restartAttempts("3"));
+    assertEquals(12, SessionFeatureJob.restartAttempts("12"));
+    assertThrows(IllegalArgumentException.class, () -> SessionFeatureJob.restartAttempts("0"));
+    assertThrows(IllegalArgumentException.class, () -> SessionFeatureJob.restartAttempts("13"));
+    assertThrows(NumberFormatException.class, () -> SessionFeatureJob.restartAttempts("invalid"));
+  }
   @Test void sharedFixturesMatchTheSixFeatureContract() throws Exception {
     try (InputStream stream = getClass().getResourceAsStream("/feature_vectors.json")) {
       JsonNode cases = SessionFeatureJob.JSON.readTree(stream);
