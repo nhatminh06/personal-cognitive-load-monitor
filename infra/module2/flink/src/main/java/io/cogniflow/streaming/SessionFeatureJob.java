@@ -64,7 +64,10 @@ public final class SessionFeatureJob {
     long allowedLateSeconds = positiveEnv("FLINK_ALLOWED_LATENESS_SECONDS", 30);
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.enableCheckpointing(10_000);
-    env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3, 2_000));
+    // The default remains the qualified three attempts. Local fault tests may allow
+    // a slower TaskManager to re-register, with a finite retry budget.
+    env.setRestartStrategy(RestartStrategies.fixedDelayRestart(
+        restartAttempts(env("FLINK_LOCAL_RECOVERY_ATTEMPTS", "3")), 2_000));
     env.setParallelism(1);
     KafkaSource<String> source = KafkaSource.<String>builder().setBootstrapServers(brokers)
         .setTopics("cogniflow.session-events.v1").setGroupId("cogniflow-flink-features-v2")
@@ -130,6 +133,13 @@ public final class SessionFeatureJob {
         .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE).build();
   }
   static String env(String name, String fallback) { return System.getenv().getOrDefault(name, fallback); }
+  static int restartAttempts(String value) {
+    int attempts = Integer.parseInt(value);
+    if (attempts < 1 || attempts > 12) {
+      throw new IllegalArgumentException("FLINK_LOCAL_RECOVERY_ATTEMPTS must be 1..12");
+    }
+    return attempts;
+  }
   static long positiveEnv(String name, long fallback) {
     long value = Long.parseLong(env(name, Long.toString(fallback)));
     if (value <= 0) throw new IllegalArgumentException(name + " must be positive");
